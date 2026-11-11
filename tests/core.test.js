@@ -51,3 +51,34 @@ test('OpenAI provider adapter, mocked network only',async()=>{
  assert.equal(result.sources[0],'ai');assert.equal(result.sources[1],'offline-fallback');assert.equal(result.ideas.length,2);
  }finally{global.fetch=oldFetch;if(before===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=before}
 });
+test('provider errors do not expose upstream response content through MCP',async()=>{
+ const before=process.env.OPENAI_API_KEY, oldFetch=global.fetch;
+ process.env.OPENAI_API_KEY='temporary-test-key';
+ global.fetch=async()=>({ok:false,status:401,text:async()=>'{"error":"secret temporary-test-key and private prompt"}'});
+ try{
+  const response=await dispatch({id:5,method:'tools/call',params:{name:'loopforge_generate',arguments:{provider:'openai',count:1}}});
+  assert.equal(response.result.isError,true);
+  const message=response.result.content[0].text;
+  assert.match(message,/openai returned HTTP 401/);
+  assert.doesNotMatch(message,/temporary-test-key|private prompt/);
+ }finally{global.fetch=oldFetch;if(before===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=before}
+});
+test('normalized notes remain within the composition after rounding',()=>{
+ const idea=generateOne({...opts,bars:4},7);
+ idea.layers.bass=[{pitch:36,start:15.9999,duration:0.00001,velocity:100}];
+ const note=validateIdea(idea,{...opts,bars:4}).layers.bass[0];
+ assert.ok(note.start<16);
+ assert.ok(note.duration>0);
+ assert.ok(note.start+note.duration<=16);
+});
+test('CLI errors do not expose stderr through MCP',{skip:process.platform==='win32'},async()=>{
+ const os=require('node:os');const dir=fs.mkdtempSync(path.join(os.tmpdir(),'loopforge-cli-test-'));const previous=process.env.PATH;
+ fs.writeFileSync(path.join(dir,'codex'),'#!/bin/sh\necho "private credential" >&2\nexit 2\n',{mode:0o755});
+ process.env.PATH=dir+path.delimiter+(previous||'');
+ try{
+  const response=await dispatch({id:6,method:'tools/call',params:{name:'loopforge_generate',arguments:{provider:'codex-cli',count:1}}});
+  assert.equal(response.result.isError,true);
+  assert.match(response.result.content[0].text,/exited with code 2/);
+  assert.doesNotMatch(response.result.content[0].text,/private credential/);
+ }finally{if(previous===undefined)delete process.env.PATH;else process.env.PATH=previous;fs.rmSync(dir,{recursive:true,force:true})}
+});

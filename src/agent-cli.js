@@ -19,14 +19,14 @@ function execPrompt(name,input){
  const cwd=path.join(os.tmpdir(),'loopforge-ai-agent');fs.mkdirSync(cwd,{recursive:true});
  return new Promise((resolve,reject)=>{
   const child=spawn(spec.bin,spec.args,{cwd,env:process.env,shell:process.platform==='win32',windowsHide:true,stdio:['pipe','pipe','pipe']});
-  let output='',stderr='',done=false;
+  let output='',done=false;
   const timeout=setTimeout(()=>{child.kill();finish(new Error(`${name} timed out after 120 seconds`))},120000);
   function finish(error,result){if(done)return;done=true;clearTimeout(timeout);error?reject(error):resolve(result)}
   child.stdout.on('data',b=>{output+=b.toString('utf8');if(output.length>5_000_000){child.kill();finish(new Error('AI agent output exceeded safety limit'))}});
-  child.stderr.on('data',b=>{if(stderr.length<1000)stderr+=b.toString('utf8')});
+  child.stderr.resume();
   child.on('error',e=>finish(new Error(`${name}: ${e.message}`)));
   child.on('close',code=>{
-   if(done)return;if(code!==0)return finish(new Error(`${name} exited with code ${code}: ${stderr.slice(-300)}`));
+   if(done)return;if(code!==0)return finish(new Error(`${name} exited with code ${code}`));
    if(name==='claude-cli'){try{const result=JSON.parse(output);if(typeof result.result==='string')output=result.result;}catch{}}
    finish(null,output);
   });

@@ -29,8 +29,10 @@ function validateIdea(raw, opts){
       if(![pitch,start,duration,velocity].every(Number.isFinite))throw new Error('Non-numeric note field');
       const maxBeats=metadata.bars*4;
       if(start<0||start>=maxBeats||duration<=0||pitch<0||pitch>127||velocity<1||velocity>127)throw new Error('Out-of-range note');
-      layers[layer].push({pitch:Math.round(pitch), start:Math.round(start*1000)/1000,
-        duration:Math.round(clamp(duration,0.01,maxBeats-start)*1000)/1000,
+      const startMillis=Math.min(Math.round(start*1000),maxBeats*1000-1);
+      const durationMillis=clamp(Math.round(duration*1000),1,maxBeats*1000-startMillis);
+      layers[layer].push({pitch:Math.round(pitch), start:startMillis/1000,
+        duration:durationMillis/1000,
         velocity:Math.round(velocity),layer});
       if(++total>MAX_NOTES)throw new Error('Too many total notes');
     }

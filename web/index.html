@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>LOOPFORGE / AI MIDI Composer</title><link rel="stylesheet" href="/style.css"/></head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-mark">LF<span>⁄</span></div><div><strong>LOOPFORGE</strong><small>AI MIDI COMPOSER</small></div></div>
+    <div class="nav-label">STUDIO</div>
+    <a class="nav active" href="#studio"><span class="nav-icon">⌁</span> Composer <span class="nav-count">01</span></a>
+    <a class="nav" href="#editor"><span class="nav-icon">▤</span> Piano roll</a>
+    <a class="nav" href="#connection"><span class="nav-icon">⌘</span> AI connection</a>
+    <div class="separator"></div>
+    <div class="nav-label">ENGINE</div>
+    <div class="connection-card"><div class="connection-top"><span class="status-dot"></span><span id="connectionStatus">Checking provider...</span></div><p>Run locally. Your own model. Your own musical ideas.</p></div>
+    <div class="side-bottom"><span class="version">ENGINE v0.1</span><span class="copyright">ORIGINAL MUSIC ENGINE</span></div>
+  </aside>
+  <main class="main">
+    <header class="topbar"><div class="breadcrumb">WORKSPACE <span>/</span> <b>COMPOSER</b></div><div class="top-right"><span id="clockStatus">STANDALONE + MCP</span><span class="avatar">LF</span></div></header>
+    <section class="hero" id="studio">
+      <div class="eyebrow"><span class="pulse"></span> GENERATIVE MUSIC LAB / v0.1</div>
+      <h1>Make your next<br/><em>sound happen.</em></h1>
+      <p>Generate original MIDI ideas. Shape every note. Take the music anywhere.</p>
+      <div class="hero-lines" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+    </section>
+    <section class="workspace">
+      <div class="section-head"><div><div class="eyebrow small">01 / COMPOSITION PARAMETERS</div><h2>Set your direction</h2></div><div class="tiny-tip">EIGHT DIFFERENT DIRECTIONS. ONE CLICK.</div></div>
+      <div class="fields">
+        <label>GENRE<select id="style"><option value="trap">Trap / Dark</option><option value="boom-bap">Boom Bap</option><option value="r&b">R&B / Soul</option><option value="ambient">Ambient / Cinematic</option><option value="nu-metal">Nu Metal</option></select></label>
+        <label>ROOT NOTE<select id="key"><option>C</option><option>C#</option><option>D</option><option>D#</option><option>E</option><option>F</option><option>F#</option><option>G</option><option>G#</option><option>A</option><option>A#</option><option>B</option></select></label>
+        <label>SCALE<select id="mode"><option value="minor">Minor</option><option value="major">Major</option><option value="dorian">Dorian</option><option value="phrygian">Phrygian</option></select></label>
+        <label>TEMPO<div class="input-unit"><input id="bpm" type="number" min="40" max="240" value="105"/><span>BPM</span></div></label>
+        <label>LENGTH<select id="bars"><option value="4">4 Bars</option><option value="8">8 Bars</option></select></label>
+      </div>
+      <div class="generation-bar"><div class="gen-options"><label>ENGINE<select id="provider"><option value="offline">Offline composer</option><option value="codex-cli">OpenAI account / Codex CLI</option><option value="claude-cli">Claude account / Claude Code CLI</option><option value="openai">OpenAI API</option><option value="anthropic">Claude / Anthropic</option><option value="openrouter">OpenRouter</option><option value="ollama">Ollama / Local LLM</option></select></label><label>MODEL <input id="model" placeholder="Provider default" spellcheck="false"/></label></div><button class="primary" id="generate"><span>✦</span> GENERATE 8 IDEAS <span>→</span></button></div>
+      <label class="prompt-label">MUSICAL DIRECTION <span>OPTIONAL, USED IN AI MODE</span><textarea id="description" rows="2" maxlength="600" placeholder="A haunted, low-tuned guitar melody with tense chromatic movement and a punchy bassline..."></textarea></label>
+      <div id="message" role="status" class="message" aria-live="polite">Ready to generate your first eight ideas.</div>
+    </section>
+    <section class="ideas-section"><div class="section-head"><div><div class="eyebrow small">02 / DISCOVER</div><h2>Generated directions <span class="title-light">/ 08</span></h2></div><div class="toolbar"><button class="outline" id="play">▶ PREVIEW</button><button class="outline" id="download">↓ EXPORT MIDI</button></div></div><div class="idea-grid" id="ideas"></div></section>
+    <section class="editor-section" id="editor"><div class="section-head"><div><div class="eyebrow small">03 / SCULPT YOUR IDEA</div><h2>Note editor</h2></div><div class="edit-tip">DRAG TO MOVE · DOUBLE-CLICK TO ADD · ALT+CLICK TO DELETE</div></div><div class="layers"><button class="layer selected bass" data-layer="bass"><span></span>BASS <small id="nbass">0 NOTES</small></button><button class="layer chords" data-layer="chords"><span></span>CHORDS <small id="nchords">0 NOTES</small></button><button class="layer melody" data-layer="melody"><span></span>MELODY <small id="nmelody">0 NOTES</small></button><div class="edit-actions"><button class="outline small-button" id="octdown">−12</button><button class="outline small-button" id="octup">+12</button></div></div><div class="piano-wrap"><div class="piano" id="piano"></div><div class="roll-scroll"><div class="roll" id="roll"></div></div></div><div class="editor-footer"><span>4/4 · 1/8 GRID</span><span id="note-info">SELECT AN IDEA TO EDIT</span><button id="exportLayer" class="text-button">EXPORT SELECTED IDEA ↗</button></div></section>
+    <section class="provider-section" id="connection"><div><div class="eyebrow small">04 / CONNECTIONS</div><h2>Bring your own intelligence.</h2><p>OpenAI, Claude, OpenRouter, and local Ollama. API keys remain in the server environment - never stored in your browser. MCP clients can use the composer without an API key by generating ideas in their own model context.</p></div><div class="provider-list" id="providerStatus"></div></section>
+    <footer>LOOPFORGE · AN INDEPENDENT CLEAN-ROOM PROJECT <span>MAKE MUSIC, NOT LOCK-IN.</span></footer>
+  </main>
+</div>
+<script src="/core.js"></script><script src="/app.js"></script>
+</body></html>

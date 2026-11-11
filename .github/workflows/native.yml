@@ -1,0 +1,26 @@
+name: Native plugin
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  native:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libfreetype-dev libfontconfig-dev libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev
+      - run: cmake -S plugin -B build/native -DCMAKE_BUILD_TYPE=Release
+      - run: cmake --build build/native --config Release --parallel 2
+      - run: ctest --test-dir build/native -C Release --output-on-failure
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LoopForge-${{ runner.os }}-${{ github.sha }}-unsigned
+          path: |
+            build/native/LoopForge_artefacts/Release/VST3/**
+            build/native/LoopForge_artefacts/Release/Standalone/**
+          if-no-files-found: error

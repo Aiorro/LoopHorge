@@ -1,6 +1,10 @@
-# LoopForge AI MIDI Composer - prototype v0.1
+# LoopForge AI MIDI Composer
 
 Independent music-composition prototype inspired by the **workflow category** of SPAWN 2.0. No SPAWN code, sounds, branding, trained weights, or license checks are used.
+
+## Native prototype
+
+A JUCE/C++20 VST3 and Standalone prototype is available in [plugin/](plugin/README.md). It includes MIDI playback, a basic audition synth, API-backed generation, variation selection, a piano-roll display and MIDI export. Linux compilation and native/API tests were performed; Windows and DAW compatibility remain unverified. The browser prototype below remains available.
 
 ## Working features
 
@@ -94,15 +98,15 @@ npm run sample
 
 Output demo: `samples/loopforge-demo.mid`.
 
-## What is NOT in this release
+## Browser prototype limitations (v0.1)
 
-- **No compiled VST3 or AU binary**. This is a local browser-based MVP + MIDI exports + MCP bridge, not yet a DAW-loaded instrument.
+- The browser prototype is not a DAW-loaded instrument. The new native VST3/Standalone targets and verified Linux build are described in plugin/README.md; AU is not implemented.
 - No waveform rendering, drag-and-drop DAW integration or sample library.
 - No full automatic DAW-session editing except separate optional import script for REAPER.
 - AI provider connectivity has been unit-tested with a mocked API response, but live paid endpoints have **not** been exercised (no credentials supplied).
 - The standalone browser preview uses simple oscillator timbres and is not production-quality synthesis.
 
-Next milestone: JUCE VST3/AU shell, MIDI capture/playback in DAW host, optional VST3 sound hosting, dynamic AI backend connection, MIDI repair/music-theory constraints.
+Next native milestones: actual DAW validation, editable piano roll, drag-and-drop export and improved instruments.
 
 ## Security
 

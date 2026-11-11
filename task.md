@@ -15,7 +15,11 @@ Derived from CODEX_TASK.md because task.md did not exist. Preserve AGENTS.md rul
 - [ ] Test provider deadlines, rate limits, cancellation and CLI process-tree termination. Windows CLI tests require a Windows runner; Linux fake-CLI failure test passes.
 - [ ] Add independent MIDI parse/round-trip tests.
 - [ ] Implement mockable provider transport and caller cancellation; retain offline behavior.
-- [ ] Implement and compile JUCE/CMake VST3 and Standalone after RFC; validate scheduler and state. Previously observed local prerequisite gap: CMake and JUCE development libraries missing; this is not proof installation is impossible. Investigate installation before declaring blocked.
+- [x] Compile Linux JUCE/CMake VST3 and Standalone after RFC: /workspace/loopforge-build; scheduler and processor CTest 2/2 passed. Actual VST3 module factory loaded by JUCE manifest helper.
+- [x] Verify native worker -> loopback API -> eight offline ideas: processor_test plugin/tests/idea.json --api passed with npm start running.
+- [x] Add Windows/Linux CI build and unsigned artifact upload configuration: .github/workflows/native.yml. Remote CI execution still unverified.
+- [ ] Profile real-time scheduling and validate behavior in real DAWs; prototype uses a bounded per-sample event scan.
+- [ ] Validate Windows compilation and native UI/audio on actual target hardware.
 - [ ] Build Windows artifact and open PR. Last attempt blocked externally: GitHub API returned Forbidden and gh reported invalid authentication. Recheck after relevant access changes; never request credentials in chat.
 - [ ] Validate native plugin in REAPER. Requires compiled plugin and an actual host; not yet executable.
 

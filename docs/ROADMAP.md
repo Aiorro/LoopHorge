@@ -1,11 +1,11 @@
 # Roadmap - LoopForge AI MIDI
 
-## Current: prototype v0.1
+## Current: browser v0.1 + native v0.2 prototype
 - Standalone local web UI and Web Audio preview.
 - Offline 8-idea composer with bass/chords/melody.
 - MIDI type 1 export; local MCP tool server.
 - Provider adapters exist, but live cloud and account-backed CLI requests have NOT been validated end-to-end in this environment.
-- Not a compiled VST3/AU.
+- Native JUCE VST3 and Standalone compile on Linux; scheduler, processor state and native-to-API offline generation have been tested. Windows CI is configured but has not been observed running. AU and real DAW validation are pending.
 
 ## v0.2: hardened composer
 - Strict machine-readable composition schema and validation tests.

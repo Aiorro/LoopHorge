@@ -9,7 +9,7 @@ const HOST='127.0.0.1';
 const PORT=Number(process.env.LOOPFORGE_PORT||4177);
 const ROOT=path.resolve(__dirname,'../web');
 const MIME={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml'};
-function json(res,status,body){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(body))}
+function json(res,status,body){const text=JSON.stringify(body);res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','Content-Length':Buffer.byteLength(text)});res.end(text)}
 function readJSON(req){return new Promise((resolve,reject)=>{
  let body='',size=0;
  req.on('data',chunk=>{size+=chunk.length;if(size>512*1024){reject(new Error('Request too large'));req.destroy();return;}body+=chunk;});

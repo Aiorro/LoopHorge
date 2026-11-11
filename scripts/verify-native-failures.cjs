@@ -6,6 +6,7 @@ const executable=path.resolve(process.argv[2]);
   ['--failure','rejected',(_req,res)=>{res.writeHead(429);res.end('private upstream details')}],
   ['--failure','Invalid composition',(_req,res)=>{res.writeHead(200,{'Content-Length':'12'});res.end('{"ideas":[]}')}],
   ['--failure','exceeded',(_req,res)=>{const body='x'.repeat(4*1024*1024+16384);res.writeHead(200,{'Content-Length':String(body.length)});res.end(body)}],
+  ['--user-cancel','',(_req,res)=>{res.writeHead(200,{'Content-Length':'100'});res.flushHeaders()}],
   ['--cancel','',(_req,res)=>{res.writeHead(200,{'Content-Length':'100'});res.flushHeaders()}]
  ]){
   const server=http.createServer(handler);server.on('clientError',(_error,socket)=>socket.destroy());

@@ -70,3 +70,7 @@ test('HTTP preserves a Unicode AI prompt split across network chunks',async t=>{
  try{await new Promise((resolve,reject)=>{const req=http.request({host:'127.0.0.1',port:server.address().port,path:'/api/generate',method:'POST',headers:{Host:'127.0.0.1:'+(process.env.LOOPFORGE_PORT||4177),'Content-Type':'application/json'}},res=>{res.resume();res.on('end',()=>{try{assert.equal(res.statusCode,200);resolve()}catch(e){reject(e)}});});req.on('error',reject);req.write(body.subarray(0,split));setTimeout(()=>req.end(body.subarray(split)),20);});assert.ok(received.includes('Привет 🎵'));}
  finally{global.fetch=previous;}
 });
+test('provider cancellation during response streaming is reported as cancellation',async()=>{
+ const {requestAI}=require('../src/ai');const controller=new AbortController();
+ await assert.rejects(requestAI('ollama',{key:'D',mode:'minor',style:'trap',bpm:100,bars:4},{signal:controller.signal,transport:async()=>new Response(new ReadableStream({start(stream){controller.signal.addEventListener('abort',()=>stream.error(new Error('private socket details')));setTimeout(()=>controller.abort(),5)}}))}),/Generation cancelled/);
+});

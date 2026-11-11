@@ -22,26 +22,35 @@ int main(int argc,char** argv){
   const char bad[]="{\"version\":1,\"idea\":{}}";p->setStateInformation(bad,sizeof(bad)-1);juce::MemoryBlock after;p->getStateInformation(after);check(saved==after);
  }
  if(argc>2&&juce::String(argv[2])=="--api"){auto* composer=dynamic_cast<Processor*>(p.get());check(composer!=nullptr);
-  composer->request("{\"provider\":\"offline\",\"count\":8,\"key\":\"D\",\"bars\":4,\"bpm\":100}");
+  composer->request("{\"provider\":\"ollama\",\"count\":8,\"key\":\"D\",\"bars\":4,\"bpm\":100}");
   for(int i=0;i<200&&composer->busy;++i)juce::Thread::sleep(50);
   std::cerr<<"API status: "<<composer->getStatus()<<", count="<<composer->ideaCount()<<"\n";check(!composer->busy);check(composer->ideaCount()==8);
   const auto previous=juce::JSON::toString(composer->getIdea());
+  composer->request("{\"provider\":\"ollama\",\"action\":\"probe\",\"model\":\"custom-test-model\"}");
+  for(int i=0;i<200&&composer->busy;++i)juce::Thread::sleep(50);
+  check(!composer->busy);check(composer->getStatus().contains("Connected: ollama / custom-test-model"));check(previous==juce::JSON::toString(composer->getIdea()));
   composer->request("{\"provider\":\"invalid-provider\"}");
   for(int i=0;i<200&&composer->busy;++i)juce::Thread::sleep(50);
   check(!composer->busy);check(composer->getStatus().contains("rejected"));check(previous==juce::JSON::toString(composer->getIdea()));
-  composer->request("{\"provider\":\"offline\",\"count\":8}");
+  composer->request("{\"provider\":\"ollama\",\"count\":8}");
   for(int i=0;i<200&&composer->busy;++i)juce::Thread::sleep(50);
   check(!composer->busy);check(composer->ideaCount()==8);check(composer->getStatus().contains("ready"));
   std::cout<<"native worker -> HTTP API -> eight ideas passed\n";
  }
  if(argc>2&&juce::String(argv[2])=="--failure"){
   auto* composer=dynamic_cast<Processor*>(p.get());const auto before=juce::JSON::toString(composer->getIdea());
-  composer->request("{\"provider\":\"offline\",\"count\":1}");
+  composer->request("{\"provider\":\"ollama\",\"count\":1}");
   for(int i=0;i<200&&composer->busy;++i)juce::Thread::sleep(50);
   check(!composer->busy);check(composer->getStatus().contains(argv[3]));check(before==juce::JSON::toString(composer->getIdea()));
  }
+ if(argc>2&&juce::String(argv[2])=="--user-cancel"){
+  auto* composer=dynamic_cast<Processor*>(p.get());auto before=juce::JSON::toString(composer->getIdea());composer->request("{\"provider\":\"ollama\"}");juce::Thread::sleep(150);composer->cancel();
+  for(int i=0;i<100&&composer->busy;++i)juce::Thread::sleep(10);
+  check(!composer->busy);check(composer->getStatus().contains("cancelled"));check(juce::JSON::toString(composer->getIdea())==before);
+  composer->request("{\"provider\":\"offline\"}");for(int i=0;i<100&&composer->busy;++i)juce::Thread::sleep(10);check(!composer->busy);check(composer->ideaCount()==8);return 0;
+ }
  if(argc>2&&juce::String(argv[2])=="--cancel"){
-  auto* composer=dynamic_cast<Processor*>(p.get());composer->request("{\"provider\":\"offline\"}");juce::Thread::sleep(100);
+  auto* composer=dynamic_cast<Processor*>(p.get());composer->request("{\"provider\":\"ollama\"}");juce::Thread::sleep(100);
   double start=juce::Time::getMillisecondCounterHiRes();p.reset();check(juce::Time::getMillisecondCounterHiRes()-start<2000);
   std::cout<<"worker shutdown under stalled HTTP passed\n";return 0;
  }

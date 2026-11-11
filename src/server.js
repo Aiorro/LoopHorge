@@ -26,8 +26,10 @@ async function listener(req,res){
    if(!String(req.headers['content-type']||'').startsWith('application/json'))return json(res,415,{error:'JSON Content-Type required'});
   }
   if(req.method==='GET'&&req.url==='/api/status')return json(res,200,{ok:true,providers:configuration(),mcp:'node src/mcp-server.js'});
-  if(req.method==='POST'&&req.url==='/api/generate'){
-    const args=await readJSON(req);const controller=new AbortController();res.on('close',()=>controller.abort());return json(res,200,await generate(args,{signal:controller.signal}));
+  if(req.method==='POST'&&(req.url==='/api/generate'||req.url==='/api/probe')){
+    const args=await readJSON(req);const controller=new AbortController();res.on('close',()=>controller.abort());
+    const probe=req.url==='/api/probe';const result=await generate(probe?{...args,count:1}:args,{signal:controller.signal});
+    return json(res,200,probe?{ok:true,provider:result.provider,model:result.model,message:'Provider generated one validated idea successfully'}:result);
   }
   if(req.method==='POST'&&req.url==='/api/export'){
     const args=await readJSON(req),opts=normalizeOptions(args.idea?.metadata||{});

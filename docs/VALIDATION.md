@@ -44,4 +44,16 @@ Git read/push access works. GitHub API access for CI inspection/PR creation stil
 
 ## Outstanding acceptance
 
-A production-ready claim remains blocked by unverified Windows builds, actual DAW transport/audio/MIDI behavior, live AI providers, CLI process-tree/deadline behavior and long-duration leak/profiling tests. Native editing, undo and drag-to-DAW are not implemented. These checks cover a defined stress matrix, not every host/device/plugin combination. See task.md for remaining work.
+A production-ready claim remains blocked by unverified Windows builds, actual DAW transport/audio/MIDI behavior, live AI providers, Windows CLI process-tree/deadline behavior and long-duration leak/profiling tests. Native editing, undo and drag-to-DAW are not implemented. These checks cover a defined stress matrix, not every host/device/plugin combination. See task.md for remaining work.
+
+## Review remediation (2026-11-11)
+
+The main branch task-management contract and its 15 task IDs were merged into the native branch without dropping native/security work (merge 3e46129). Untracked demo sample bytes were preserved.
+
+New reproducible coverage: `note_lifetime_test` (overlap/retrigger, tempo changes at 32/64, stop/seek/loop/state replacement); `offline_test` (eight native variations, deterministic seed, scale/bounds, every supported style/mode); `realtime_test` (Linux allocator interception, bounded oversized-block output and actual JUCE MidiEventList conversion without discarded events); `ui_test` (native provider/model/probe/cancel controls and offline handlers). Run through CTest. `ui_test /absolute/path.png` also produces an editor snapshot. Native HTTP scripts now use a mocked Ollama transport behind the real Node listener, since offline generation intentionally bypasses the service; no paid provider is called.
+
+Node CLI tests launch real fake executables and resistant descendant processes, check model arguments, abort/timeout/output overflow and HTTP disconnect cancellation, and validate Claude's envelope. Provider probing generates one idea on explicit request, preserves the native current composition, and reports sanitized authorization/model/rate-limit failures. Streaming-response cancellation is distinct from transport failure.
+
+Allocation evidence applies to Processor callbacks with 32 KiB of caller-owned MIDI storage. Build-local JUCE preparation changes provide that storage in the shipped target wrappers; the direct allocation test does not itself load the VST3 wrapper or certify a DAW/driver. See plugin/README.md for the output budget and custom-caller contract. No hard real-time guarantee follows from these synthetic tests.
+
+Independent review regressions reproduced before fixes: .00095-beat onset repeated after BPM90→180; JUCE VST3 discarded releases from a 1600-note dense repeat fixture. Fixes retain the preceding sample interval and cap emitted events to 2048 with release reserve. Native and Node offline output parity was independently compared for eight seeded D-minor ambient ideas after normalization.

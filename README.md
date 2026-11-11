@@ -4,7 +4,7 @@ Independent music-composition prototype inspired by the **workflow category** of
 
 ## Native prototype
 
-A JUCE/C++20 VST3 and Standalone prototype is available in [plugin/](plugin/README.md). It includes MIDI playback, a basic audition synth, API-backed generation, variation selection, a piano-roll display and MIDI export. Linux compilation and native/API tests were performed; Windows and DAW compatibility remain unverified. The browser prototype below remains available.
+A JUCE/C++20 VST3 and Standalone prototype is available in [plugin/](plugin/README.md). It includes MIDI playback, a basic audition synth, native offline generation without a service, optional API-backed generation, model selection, connection checks/cancellation, variation selection, a piano-roll display and MIDI export. Linux compilation and native/API tests were performed; Windows and DAW compatibility remain unverified. The browser prototype below remains available.
 
 ## Working features
 

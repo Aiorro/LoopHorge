@@ -1,0 +1,9 @@
+exports/*
+!exports/.gitkeep
+node_modules/
+.env
+*.log
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db

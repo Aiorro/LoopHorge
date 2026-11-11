@@ -31,4 +31,4 @@
 - Automated tests, reproducible release build and installer/uninstaller.
 - Music-generation quality evaluation with documented limitations and user controls.
 
-For the first Codex issue, follow `CODEX_TASK.md` rather than skipping directly to a fake VST3 binary.
+For all implementation tasks, follow the single live checklist in [../task.md](../task.md) and the rules in [../AGENTS.md](../AGENTS.md). This roadmap is directional, not a separate TODO list.

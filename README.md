@@ -1,0 +1,113 @@
+# LoopForge AI MIDI Composer - prototype v0.1
+
+Independent music-composition prototype inspired by the **workflow category** of SPAWN 2.0. No SPAWN code, sounds, branding, trained weights, or license checks are used.
+
+## Working features
+
+- 8 offline, deterministic but varied musical ideas; 4 or 8 bars; 5 styles, 4 scales, 12 root notes, BPM 40-240.
+- Three MIDI layers: bass, chords, melody. Browser piano roll: move notes, add with double click, delete with Alt+click, transpose by octaves.
+- Built-in Web Audio synth preview (basic oscillator timbres, not sampled instruments).
+- Standard MIDI type 1 export with separate bass/chords/melody tracks and tempo metadata.
+- AI provider adapters: **OpenAI, Anthropic, OpenRouter, Ollama**, plus optional account-backed **Codex CLI** and **Claude Code CLI** bridges. Text model returns structured notes; deterministic local rules validate them and can supplement missing variants. No claim that an LLM is a purpose-built music diffusion model.
+- Local MCP stdio server: tools `loopforge_generate`, `loopforge_export_midi`, `loopforge_providers`.
+- CLI-friendly and can be connected by Claude Desktop, Claude Code, Codex and other compatible local MCP hosts (host configuration required). ChatGPT web requires a separately hosted remote MCP integration with suitable authorization; local stdio is not directly reachable from the ChatGPT website.
+
+## Run on Windows/macOS/Linux
+
+Requires Node.js 20+; no `npm install` or external dependencies needed. On Windows, you can double-click **`start-windows.bat`** after installing Node.js.
+
+```bash
+npm start
+```
+
+Open **http://127.0.0.1:4177**. The local interface starts with 8 already generated demo ideas. Click **Generate 8 Ideas** to make new ones. Export the result as MIDI, then import into a DAW.
+
+For an offline-only session: no keys, accounts or internet needed. The font falls back to system fonts without internet.
+
+## AI connections
+
+Set environment variables in the same terminal where you launch LoopForge. Do NOT paste API keys into chat or source files.
+
+**PowerShell (Windows):**
+
+```powershell
+$env:OPENAI_API_KEY="YOUR_KEY"
+npm start
+```
+
+**macOS/Linux:**
+
+```bash
+export OPENAI_API_KEY="YOUR_KEY"
+npm start
+```
+
+Equivalent variables: `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`. Ollama uses `http://127.0.0.1:11434/v1/chat/completions` and requires Ollama and a locally available chat model. Change the **Model** field in the UI to choose your own compatible model; provider defaults are starting suggestions, not guarantees of model access. Keys are only on your own local server process; the browser never receives them.
+
+**Important:** a ChatGPT subscription is not a general-purpose OpenAI API credential. Certain officially supported apps allow Sign in with ChatGPT and use of a plan. This independent prototype does not implement the partner-only sign-in flow. The supported alternatives are direct API keys, local Ollama, or an authenticated AI client invoking the MCP tools.
+
+## Use your signed-in OpenAI or Claude account (without manually sharing API keys)
+
+Install and authenticate the official CLI on the **same computer**:
+
+```bash
+codex login
+# or
+claude
+```
+
+Check with `codex login status` (OpenAI). Then start LoopForge and choose **OpenAI account / Codex CLI** or **Claude account / Claude Code CLI** in the **Engine** dropdown. The server launches the installed CLI in a restricted/plan mode, sends a music composition prompt via stdin, receives structured JSON, validates the resulting note events, and imports it to the piano roll. The existing CLI retains control of your sign-in; LoopForge never reads its stored OAuth tokens.
+
+This is a local invocation of official coding-agent CLIs, not the same as implementing a commercial **Sign in with ChatGPT** integration. Whether a model request is permitted, how allowances are counted, and which models are available depend on the provider and your plan/CLI configuration. **The CLI integration has not been live-tested with signed-in accounts** in this environment.
+
+## MCP mode (Claude Desktop / Codex / Claude Code)
+
+Run `npm run mcp`, or configure the host to start the process for you. Example `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "loopforge": {
+      "command": "node",
+      "args": ["C:/ABSOLUTE/PATH/LoopForge-Prototype/src/mcp-server.js"]
+    }
+  }
+}
+```
+
+For Codex: `codex mcp add loopforge -- node C:/ABSOLUTE/PATH/LoopForge-Prototype/src/mcp-server.js` (check your installed Codex CLI syntax). MCP does not transfer ChatGPT or Claude API credentials to the plugin. Instead the host's own model can prepare notes and call the export tool, or ask the plugin's configured provider to generate.
+
+Example request in your AI client: "Use loopforge_generate to create eight 8-bar D minor nu metal ideas at 105 BPM; save the third using loopforge_export_midi."
+
+The MCP server writes only to its project's `exports/` folder. It never evaluates arbitrary scripts, runs commands, or uploads files.
+
+## REAPER
+
+Drag exported `.mid` into REAPER or run `integrations/reaper/LoopForge_Import_MIDI.lua` from ReaScript. Other VST-capable DAWs can import standard MIDI.
+
+## Run tests
+
+```bash
+npm test
+npm run sample
+```
+
+Output demo: `samples/loopforge-demo.mid`.
+
+## What is NOT in this release
+
+- **No compiled VST3 or AU binary**. This is a local browser-based MVP + MIDI exports + MCP bridge, not yet a DAW-loaded instrument.
+- No waveform rendering, drag-and-drop DAW integration or sample library.
+- No full automatic DAW-session editing except separate optional import script for REAPER.
+- AI provider connectivity has been unit-tested with a mocked API response, but live paid endpoints have **not** been exercised (no credentials supplied).
+- The standalone browser preview uses simple oscillator timbres and is not production-quality synthesis.
+
+Next milestone: JUCE VST3/AU shell, MIDI capture/playback in DAW host, optional VST3 sound hosting, dynamic AI backend connection, MIDI repair/music-theory constraints.
+
+## Security
+
+Local server binds only to 127.0.0.1. No browser access to secret credentials. AI generation sends your prompt and musical parameters to the selected provider; offline mode sends nothing. No credentials are logged. Never expose the local service directly to the internet.
+
+## Originality
+
+This is a clean-room implementation using public feature descriptions as functional requirements. All code in this prototype is original; no proprietary assets or model weights are included.

@@ -17,6 +17,14 @@ jobs:
       - run: cmake -S plugin -B build/native -DCMAKE_BUILD_TYPE=Release
       - run: cmake --build build/native --config Release --parallel 2
       - run: ctest --test-dir build/native -C Release --output-on-failure
+      - if: runner.os == 'Windows'
+        run: node scripts/verify-native-api.cjs build/native/Release/processor_test.exe
+      - if: runner.os == 'Windows'
+        run: node scripts/verify-native-failures.cjs build/native/Release/processor_test.exe
+      - if: runner.os == 'Linux'
+        run: node scripts/verify-native-api.cjs build/native/processor_test
+      - if: runner.os == 'Linux'
+        run: node scripts/verify-native-failures.cjs build/native/processor_test
       - uses: actions/upload-artifact@v4
         with:
           name: LoopForge-${{ runner.os }}-${{ github.sha }}-unsigned

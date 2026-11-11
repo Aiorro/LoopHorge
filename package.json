@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node src/server.js",
     "mcp": "node src/mcp-server.js",
-    "test": "node --test tests/core.test.js",
+    "test": "node --test",
     "sample": "node src/create-sample.js"
   },
   "license": "MIT"

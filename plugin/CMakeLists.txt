@@ -24,3 +24,8 @@ target_include_directories(processor_test PRIVATE $<TARGET_PROPERTY:LoopForge,IN
 target_compile_definitions(processor_test PRIVATE $<TARGET_PROPERTY:LoopForge,COMPILE_DEFINITIONS>)
 target_link_libraries(processor_test PRIVATE LoopForge)
 add_test(NAME processor COMMAND processor_test ${CMAKE_CURRENT_SOURCE_DIR}/tests/idea.json)
+add_executable(stress_test tests/StressTest.cpp)
+target_include_directories(stress_test PRIVATE $<TARGET_PROPERTY:LoopForge,INCLUDE_DIRECTORIES>)
+target_compile_definitions(stress_test PRIVATE $<TARGET_PROPERTY:LoopForge,COMPILE_DEFINITIONS>)
+target_link_libraries(stress_test PRIVATE LoopForge)
+add_test(NAME native_stress COMMAND stress_test)

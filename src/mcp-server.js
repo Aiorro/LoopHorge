@@ -1,6 +1,5 @@
 'use strict';
 // Minimal, dependency-free JSON-RPC 2.0 MCP stdio implementation.
-const readline=require('node:readline');
 const {generate,exportIdea,configuration}=require('./operations');
 const VERSION='2025-03-26';
 const TOOLS=[
@@ -8,11 +7,13 @@ const TOOLS=[
  {name:'loopforge_export_midi',description:'Validate and export a musical idea to a local .mid file. Idea contains metadata and three layers (bass,chords,melody) with MIDI note events.',inputSchema:{type:'object',properties:{idea:{type:'object'},basename:{type:'string'}},required:['idea'],additionalProperties:false}},
  {name:'loopforge_providers',description:'Check which AI providers are configured; does not reveal credentials.',inputSchema:{type:'object',properties:{}}}
 ];
-function send(obj){process.stdout.write(JSON.stringify(obj)+'\n')}
+function send(obj){if(!process.stdout.write(JSON.stringify(obj)+'\n'))process.stdin.pause()}
 function success(id,result){return {jsonrpc:'2.0',id,result}}
 function error(id,code,message){return {jsonrpc:'2.0',id,error:{code,message}}}
 async function dispatch(message){
+ if(!message||typeof message!=='object'||Array.isArray(message)||typeof message.method!=='string')return error(null,-32600,'Invalid request');
  const {id,method,params={}}=message;
+ if(!params||typeof params!=='object'||Array.isArray(params))return error(id??null,-32602,'Invalid params');
  if(method==='initialize')return success(id,{protocolVersion:params.protocolVersion||VERSION,capabilities:{tools:{listChanged:false}},serverInfo:{name:'loopforge-midi',version:'0.1.0'}});
  if(method==='notifications/initialized'||method==='notifications/cancelled')return null;
  if(method==='ping')return success(id,{});
@@ -31,11 +32,22 @@ async function dispatch(message){
  return error(id,-32601,'Method not found');
 }
 if(require.main===module){
- const lines=readline.createInterface({input:process.stdin,crlfDelay:Infinity});
- lines.on('line',async line=>{
-  let msg;try{msg=JSON.parse(line)}catch{send(error(null,-32700,'Parse error'));return}
-  if(Array.isArray(msg)){send(error(null,-32600,'Batch requests not supported'));return}
-  try{const reply=await dispatch(msg);if(reply)send(reply);}catch(e){send(error(msg.id??null,-32603,e.message))}
+ process.stdout.on('drain',()=>process.stdin.resume());
+ const LIMIT=1024*1024;let parts=[],size=0,dropping=false,active=0;
+ function line(bytes){
+  let msg;try{msg=JSON.parse(bytes.toString('utf8'))}catch{send(error(null,-32700,'Parse error'));return;}
+  if(active>=8){send(error(msg?.id??null,-32000,'Server busy; retry later'));return;}
+  ++active;
+  dispatch(msg).then(reply=>{if(reply)send(reply)},()=>send(error(msg?.id??null,-32603,'Request failed'))).finally(()=>--active);
+ }
+ process.stdin.on('data',chunk=>{
+  let start=0;
+  while(start<chunk.length){const newline=chunk.indexOf(10,start);const end=newline<0?chunk.length:newline;const part=chunk.subarray(start,end);
+   if(!dropping){size+=part.length;if(size>LIMIT){dropping=true;parts=[];send(error(null,-32600,'Message exceeded 1 MiB limit'));}else parts.push(part);}
+   if(newline>=0){if(!dropping)line(Buffer.concat(parts,size));parts=[];size=0;dropping=false;}
+   start=end+1;
+  }
  });
+ process.stdin.on('end',()=>{if(size&&!dropping)line(Buffer.concat(parts,size));});
 }
 module.exports={dispatch,TOOLS};

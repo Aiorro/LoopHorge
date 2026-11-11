@@ -6,7 +6,7 @@ const {generateEight,createMidi}=require('./core');
 const {normalizeOptions,validateIdea}=require('./schema');
 const {requestAI,configuration:apiConfiguration}=require('./ai');
 const {generateUsingAccountCLI,available}=require('./agent-cli');
-async function generate(params={}){
+async function generate(params={}, {signal}={}){
  const opts=normalizeOptions(params);
  const provider=String(params.provider||'offline');
  const count=Math.max(1,Math.min(8,Math.round(Number(params.count)||8)));
@@ -15,7 +15,7 @@ async function generate(params={}){
    const patterns=generateEight(opts, Number.isInteger(params.seed)?params.seed:undefined).slice(0,count);
    return {ideas:patterns,sources:patterns.map(()=> 'offline'),provider:'offline',model:'rules-v1'};
  }
- return await requestAI(provider,opts,{count,model:params.model,description:params.description});
+ return await requestAI(provider,opts,{count,model:params.model,description:params.description,signal});
 }
 function exportsDir(){return path.resolve(__dirname,'../exports')}
 function exportIdea(raw,basename){

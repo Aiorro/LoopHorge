@@ -22,7 +22,7 @@ public:
  double getTailLengthSeconds()const override{return 0;} int getNumPrograms()override{return 1;} int getCurrentProgram()override{return 0;}
  void setCurrentProgram(int)override{} const juce::String getProgramName(int)override{return "Default";} void changeProgramName(int,const juce::String&)override{}
  bool isBusesLayoutSupported(const BusesLayout& l)const override{return l.getMainOutputChannelSet()==juce::AudioChannelSet::stereo();}
- void prepareToPlay(double sr,int)override {rate=sr;resetNotes();internalBeat=0;lastEnd=-1;}
+ void prepareToPlay(double sr,int)override {rate=sr;for(int p=0;p<128;++p)increments[p]=juce::MathConstants<double>::twoPi*juce::MidiMessage::getMidiNoteInHertz(p)/rate;resetNotes();internalBeat=0;lastEnd=-1;}
  void releaseResources()override{resetNotes();}
  void processBlock(juce::AudioBuffer<float>& audio,juce::MidiBuffer& midi)override {
   juce::ScopedNoDenormals noDenormals;audio.clear();midi.clear();
@@ -32,28 +32,25 @@ public:
   if(auto* ph=getPlayHead())if(auto pos=ph->getPosition()){
    if(auto ppq=pos->getPpqPosition()){host=true;beat=*ppq;playing=pos->getIsPlaying();if(auto tempo=pos->getBpm())bpm=*tempo;}
   }
+  if(!std::isfinite(beat)){beat=0;playing=false;}
   if(!std::isfinite(bpm)||bpm<1||bpm>1000)bpm=s.bpm;
   const double step=bpm/(60.0*rate);const int samples=audio.getNumSamples();
   if(changed || !playing || (lastEnd>=0 && std::abs(beat-lastEnd)>step*2))flush(midi,0);
   for(int sample=0;sample<samples;++sample){
    if(playing){double b=beat+sample*step;double local=std::fmod(b,s.beats);if(local<0)local+=s.beats;
     if(local<step)flush(midi,sample);
-    for(int i=0;i<s.count;++i){const auto& e=s.events[i];
-     // Events at the exact loop end belong to the next loop's boundary flush.
-     if(e.beat>=s.beats)continue;
-     double delta=local-e.beat;if(delta< -1e-9)delta+=s.beats;
-     if(delta>=-1e-9 && delta<step-1e-9){
+    s.forEventsAt(local,step,[&](const Event& e){
       midi.addEvent(e.on?juce::MidiMessage::noteOn(e.channel,e.pitch,(juce::uint8)e.velocity):juce::MidiMessage::noteOff(e.channel,e.pitch),sample);
       voices[e.channel-1][e.pitch]=e.on?e.velocity/127.0f:0.0f;
-     }
-    }
+    });
    }
    float value=0;
    if(audition.load())for(int ch=0;ch<3;++ch)for(int p=0;p<128;++p)if(voices[ch][p]>0){
-    phases[ch][p]+=juce::MathConstants<double>::twoPi*juce::MidiMessage::getMidiNoteInHertz(p)/rate;
+    phases[ch][p]+=increments[p];
     if(phases[ch][p]>juce::MathConstants<double>::twoPi)phases[ch][p]-=juce::MathConstants<double>::twoPi;
     value+=float(std::sin(phases[ch][p]))*voices[ch][p]*0.025f;
    }
+   value=std::tanh(value);
    for(int ch=0;ch<audio.getNumChannels();++ch)audio.setSample(ch,sample,value);
   }
   lastEnd=playing?beat+samples*step:-1;if(!host)internalBeat=playing?beat+samples*step:0;
@@ -74,7 +71,7 @@ public:
 private:
  struct Slot{Schedule data;std::atomic<int> state{0};};std::array<Slot,3> slots;
  std::atomic<int> pending{-1};int active=0;double rate=44100,internalBeat=0,lastEnd=-1;
- float voices[16][128]{};double phases[16][128]{};
+ float voices[16][128]{};double phases[16][128]{},increments[128]{};
  std::mutex mutex;juce::String requestBody,status="Built-in demo ready. Start Node server for AI / eight ideas.";juce::var ideas,saved;
  void resetNotes(){for(auto& ch:voices)for(auto& v:ch)v=0;}
  void flush(juce::MidiBuffer& midi,int offset){for(int ch=0;ch<16;++ch)for(int p=0;p<128;++p)if(voices[ch][p]>0)midi.addEvent(juce::MidiMessage::noteOff(ch+1,p),offset);resetNotes();}

@@ -1,53 +1,103 @@
-# Codex development instructions - LoopForge AI MIDI
+# AGENTS.md - LoopForge AI MIDI development contract
 
-## Mission
-Build an original, production-grade AI-assisted MIDI composition tool. The repository name is `LoopHorge`, while the product name remains **LoopForge AI MIDI**. Do not rename the GitHub repository without explicit user approval.
+This file is the **single source of truth for agent behavior, engineering rules, tool usage, and completion standards**.
+The root-level [task.md](task.md) is the **single source of truth for actionable work, priorities, checkboxes, and progress**.
+Do not create or maintain competing TODO lists in README, ROADMAP, issues, audit files, or chat messages. Issues and plans may link to `task.md`, but must not replace it.
 
-Start by preserving and improving the current Node.js v0.1 prototype. The eventual goal is a real JUCE-based VST3 instrument/MIDI effect that works in professional DAWs. This repository is **not** yet a compiled VST3.
+## 1. Mission and source of truth
 
-## Mandatory working method
-1. **Inspect** the existing code, tests, docs and package scripts before changes; document uncertainty instead of inventing capabilities.
-2. **Specify** the behavior, interfaces, acceptance checks, security implications and migration path for each vertical slice.
-3. **Implement** the smallest useful improvement; prefer test-driven work and keep the offline generator available.
-4. **Verify** via `npm test`, `npm run sample` where relevant, manual browser/API checks for UI changes, and real DAW validation for native plugin milestones.
-5. **Report** what changed, test evidence, what was not tested, and exactly what still needs to be built. Do not claim a feature works without evidence.
+Develop an original, reliable AI-assisted MIDI composition product, with a standalone application and a real JUCE VST3 plugin as future native deliverables. GitHub repository: `Aiorro/LoopHorge`. Product name: **LoopForge AI MIDI**; keep the existing repository spelling unless the user approves changing it.
 
-## Product constraints
-- First-class operation without cloud credentials: deterministic offline composition and MIDI export must always work.
-- Planned AI options: OpenAI API, Anthropic API, OpenRouter, local Ollama, and optional signed-in Codex/Claude CLI bridges when permitted by official provider capabilities. Account subscription != general API credential. Never ask for or store account passwords, cookies, access tokens or billing credentials.
-- MCP: the current implementation is a local **stdio tool server**, not a remote OAuth service. Do not claim that connecting an MCP client automatically gives the plugin access to that client's model; the client must explicitly call MCP tools or configure an approved provider adapter.
-- AI responses are untrusted: parse, normalize, validate and bound MIDI note data, durations, velocity, counts and output size before using it.
-- Bind HTTP services to loopback by default. Do not expose API keys in web assets, logs, repository or MCP replies.
-- Never execute untrusted AI text as a shell command, script or plugin. Confirm consent before adding code which installs packages or downloads models automatically.
-- Real-time audio callbacks must never block on networking, file I/O, process launches, synchronization, or AI inference; use worker/background threads with bounded handoff.
-- Keep music theory constraints configurable (key, scale, BPM, bars). Preserve independent bass, chords, melody export and DAW interoperability.
-- Avoid copyrighted instrument presets, proprietary SPAWN assets, source code, branding, reverse-engineered private APIs or trained weights. Follow clean-room behavior-first design.
+At the start of **every** Codex session:
+1. Read `AGENTS.md`, then `task.md`; inspect the affected code, tests, and relevant documentation.
+2. Run `git status --short --branch` and inspect recent commits; **preserve** uncommitted and unpushed work. Do not reset or overwrite other work.
+3. Select the first **unblocked** unchecked task under the earliest incomplete milestone in `task.md`; respect dependencies.
+4. Work through its subtasks; implement, test, review and only then mark its checkbox `[x]`.
+5. Update `task.md` **in the same commit** as the implementation or verification that completes the item. Use brief evidence next to the completed item or in its evidence section, e.g. command, platform, commit, workflow URL.
+6. Continue to the next unblocked TODO in the same session when feasible. Do not stop after producing a plan or writing a report.
+7. End with a concise summary: changed files, completed task IDs, exact test results, remaining task IDs, blockers, commit/PR links if available.
 
-## Architecture boundaries
-- `src/core.js`: deterministic offline generation and MIDI encoding.
-- `src/schema.js`: schema normalization and note validation.
-- `src/ai.js`: HTTP provider adapters and generation prompt.
-- `src/agent-cli.js`: optional authenticated CLI adapter.
-- `src/operations.js`: application operations and export.
-- `src/mcp-server.js`: MCP stdio transport and tool dispatch.
-- `src/server.js`: local HTTP server.
-- `web/`: current standalone UI and piano roll.
-- `integrations/reaper/`: REAPER import support.
-- Future `plugin/`: JUCE VST3/AU host integration only after an RFC and reproducible build instructions.
+A checkbox `[x]` means the acceptance conditions **actually passed**, not that code was drafted, a command was attempted, or someone previously reported success. Leave unverified work `[ ]`. On a blocker, record its cause, mitigation, next action, and verification needed in the **Blockers** section of `task.md`; continue other independent tasks.
 
-## Engineering requirements
-- Support Node.js >=20. Prefer built-in Node APIs and minimal dependencies for the prototype.
-- Update/add focused automated tests with every behavioral change. Run `npm test` before committing.
-- Do not break MIDI type 1 semantics, track separation, PPQ timing, velocity handling or lossless round-trip of valid note events.
-- Keep application files UTF-8, avoid generating test output in the repository except intentionally tracked fixtures.
-- In release notes distinguish prototype from production features and mark live cloud/DAW tests accurately.
-- Use English for code, docs and commits. User-facing discussion can be in Russian.
+## 2. Method: research -> design -> build -> verify -> review
 
-## Priority work after migration
-1. Audit current AI adapter error handling, timeouts, API response formats, CLI sandboxing and MIDI data validation. Add adversarial tests.
-2. Introduce a documented provider interface, mockable transports, and reproducible API/MCP integration tests without secrets.
-3. Create an RFC and minimal JUCE VST3 project with CMake, isolated from Node, building on Windows in GitHub Actions.
-4. Implement MIDI scheduling in DAW host time and a secure non-real-time IPC bridge. Then native piano-roll UI and preset management.
-5. Only after tests in actual hosts: release candidate artifacts and user guide.
+Use a Craft Anything-style iterative workflow as a **method**, not as a claim that an external skill is installed: inspect current behavior; define a small testable slice; implement; run checks; review correctness, UX and security; record evidence; repeat. If a relevant installed skill exists and is available, use it; otherwise follow these written rules.
 
-See `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, and `CODEX_TASK.md` for more detail.
+- Favor working vertical slices over speculative framework rewrites or mock-only UI.
+- Write or update focused tests with behavioral fixes; document reproducible failure cases.
+- Avoid redundant refactors unrelated to the active `task.md` item.
+- Keep English in code, commits and repository documentation. Conversation with the user may be in Russian.
+- Never fabricate successful builds, tests, releases or host validation.
+- Do not leave TODO comments as a substitute for the authoritative checklist.
+
+## 3. Tools and preferred workflow
+
+Use only tools actually available in the current environment. Check versions/capabilities before relying on them. **A missing optional connector is not grounds to stop local development.**
+
+| Purpose | Preferred tools | Fallback / verification |
+| --- | --- | --- |
+| Repository | `git`, connected GitHub tools, `gh` if authenticated | Local commits; document the exact push/PR command if remote auth is blocked |
+| Node prototype | Node.js >= 20, `npm`, built-in `node --test` | `node --version`, `npm test`, `npm run sample` |
+| Native builds | CMake, Ninja or MSBuild, C++20 toolchain (MSVC on Windows) | Windows GitHub Actions runner with pinned dependencies if local tools are absent |
+| Audio plugin | JUCE via pinned CMake integration, VST3 support through JUCE | Compile a minimal processor/editor first; document JUCE version/license |
+| Plugin tests | JUCE unit tests, CTest, pluginval when available | Headless instantiation/smoke checks; manual REAPER/DAW tests clearly marked unavailable |
+| AI/MCP | Mock transports, local stdio MCP harness, provider SDK/docs | Test with fixtures; no paid credentials required for CI |
+| Documentation | Context7 MCP for current library docs **if connected**; official upstream docs | Pin actual APIs/versions in docs, do not hallucinate SDK calls |
+| UI verification | Browser tools when present, manual smoke testing | Reproducible steps and screenshots where possible |
+
+Preferred execution commands for current prototype:
+```sh
+node --version
+npm test
+npm run sample
+npm start
+npm run mcp
+```
+
+Native target commands **after** CMake files exist (adapt to real preset names):
+```sh
+cmake --preset windows-release
+cmake --build --preset windows-release
+ctest --preset windows-release --output-on-failure
+```
+
+Do not claim these native commands work before verifying they exist. No forced dependency downloads, package managers, installer scripts or model downloads on the user's machine without approval. CI dependencies may be installed from pinned, reviewed upstream sources as part of a documented build workflow. Never commit tokens, API keys, cookies, private credentials or generated build output.
+
+## 4. Existing code ownership and architecture
+
+- `src/core.js`: deterministic offline music generation, MIDI encoding.
+- `src/schema.js`: note/track normalization and strict bounds validation.
+- `src/ai.js`: HTTP AI provider adapters, prompt/response handling.
+- `src/agent-cli.js`: optional authenticated Codex/Claude CLI adapters.
+- `src/operations.js`: composition/export orchestration.
+- `src/mcp-server.js`: local stdio MCP tools.
+- `src/server.js`: loopback HTTP service.
+- `web/`: standalone browser interface and piano roll.
+- `integrations/reaper/`: optional DAW import helper.
+- `plugin/`: future JUCE/CMake native application and VST3; implement incrementally under `task.md`.
+
+Preserve tested behavior and keep the standalone/offline generator usable throughout the migration. Define stable composition and IPC contracts before connecting Node and JUCE; ensure schemas support deterministic golden tests.
+
+## 5. Safety, performance and correctness
+
+- **Audio thread:** no file I/O, network access, CLI/process launches, waits, locks that may block, AI inference or unbounded allocations in process callbacks. Hand off via bounded non-RT queues/snapshots.
+- **AI inputs:** treat model output as untrusted data. Validate structure, count, pitch (0-127), velocities, durations, starts, total bars, output size and file paths. Sanitize provider/CLI error messages. Bound timeouts and provide cancellation.
+- **Authentication:** OpenAI API, Anthropic API, OpenRouter, local Ollama and optional official CLI bridges may be supported where legitimately authorized. A ChatGPT/Claude subscription is not automatically a third-party API entitlement. MCP tool access does not imply account credential sharing.
+- **HTTP/MCP:** local server binds to loopback by default; MCP currently uses local stdio. Never expose tokens to web assets, logs or MCP results; do not evaluate LLM-generated scripts.
+- **MIDI:** preserve MIDI type 1, tempo, PPQ, track separation, valid note-off ordering and boundary-safe note durations. Existing bass/chords/melody tracks are not disposable.
+- **IP:** independent clean-room behavior-based implementation. Never copy SPAWN code, private APIs, presets, assets, music or model weights.
+- **Engineering:** minimize dependencies, pin external native build versions, document licenses and maintain cross-platform-ready structure.
+
+## 6. Branches, pull requests and blocked infrastructure
+
+- Work on the active task branch; when needed create an appropriately named feature branch. Never force-push or rewrite unrelated history.
+- Before creating PR: check push visibility and CI; open a PR when GitHub authentication permits. Do not claim PR/CI occurred if only local changes exist.
+- If `gh` or GitHub API is forbidden, keep meaningful **local commits**, record missing remote auth in `task.md`, and continue implementable code work. Never paste auth tokens into prompts or files.
+- If CMake, JUCE or Windows compiler is absent locally, write and validate source/build configuration as far as possible; configure pinned Windows CI when permission allows. Mark actual compilation and host-load tasks incomplete until independently verified.
+- For native artifacts, distinguish **compiled**, **pluginval-validated**, **host-loaded**, and **release-ready**; these are different milestones.
+
+## 7. Done criteria and final response
+
+For every task `Txx`, use the acceptance/evidence described in `task.md`. Test code changes at the narrowest useful level and run `npm test` before committing; for MIDI changes also run `npm run sample`. For JUCE changes, perform CMake configure/build/CTest or explain exactly why unavailable. For releases require a real artifact and independently verified CI, never a placeholder `.vst3`.
+
+Only edit task priorities or scope when new dependencies or reproducible evidence justify it; briefly explain the change in `task.md`. Do not silently auto-check milestones. Follow `task.md` until all possible tasks are closed or an external blocker is documented.

@@ -36,9 +36,23 @@ async function requestAI(provider, opts, {count=8,description='',model}={}){
  }
  let response;
  try{response=await fetch(config.url,{method:'POST',headers,body:JSON.stringify(body),signal:AbortSignal.timeout(90000)});}
- catch(e){throw new Error(`Provider connection failed: ${e.message}`)}
+ catch{throw new Error(`${provider} connection failed; check connectivity and provider configuration`)}
  if(!response.ok)throw new Error(`${provider} returned HTTP ${response.status}`);
- const raw=await response.text();
+ const reader=response.body?.getReader();
+ if(!reader)throw new Error('Provider sent empty response');
+ const chunks=[];let size=0;
+ try{
+  while(true){
+   const {done,value}=await reader.read();if(done)break;
+   size+=value.byteLength;
+   if(size>4*1024*1024){await reader.cancel();throw new Error('Provider response exceeded 4 MiB safety limit')}
+   chunks.push(value);
+  }
+ }catch(error){
+  if(error.message==='Provider response exceeded 4 MiB safety limit')throw error;
+  throw new Error('Provider response could not be read; check connectivity or timeout');
+ }finally{reader.releaseLock()}
+ const raw=Buffer.concat(chunks).toString('utf8');
  let json;try{json=JSON.parse(raw);}catch{throw new Error('Provider sent invalid JSON response')}
  const content=provider==='anthropic'?(json.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('\n'):json.choices?.[0]?.message?.content;
  const ideas=normalizeResponse(content,opts,count);

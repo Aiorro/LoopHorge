@@ -45,7 +45,7 @@ test('OpenAI provider adapter, mocked network only',async()=>{
  process.env.OPENAI_API_KEY='temporary-test-key';
  global.fetch=async(url,config)=>{
   assert.equal(url,'https://api.openai.com/v1/chat/completions');assert.equal(config.headers.Authorization,'Bearer temporary-test-key');
-  return {ok:true,text:async()=>JSON.stringify({choices:[{message:{content:JSON.stringify({ideas:[generateOne(opts,77)]})}}]})};
+  return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({ideas:[generateOne(opts,77)]})}}]}));
  };
  try{const result=await generate({...opts,provider:'openai',count:2,model:'gpt-5.2'});
  assert.equal(result.sources[0],'ai');assert.equal(result.sources[1],'offline-fallback');assert.equal(result.ideas.length,2);
@@ -81,4 +81,61 @@ test('CLI errors do not expose stderr through MCP',{skip:process.platform==='win
   assert.match(response.result.content[0].text,/exited with code 2/);
   assert.doesNotMatch(response.result.content[0].text,/private credential/);
  }finally{if(previous===undefined)delete process.env.PATH;else process.env.PATH=previous;fs.rmSync(dir,{recursive:true,force:true})}
+});
+test('provider stream is cancelled when response exceeds the byte limit',async()=>{
+ const oldFetch=global.fetch;let cancelled=false, chunks=0;
+ global.fetch=async()=>new Response(new ReadableStream({
+  pull(controller){if(chunks++<6)controller.enqueue(new Uint8Array(1024*1024));else controller.close();},
+  cancel(){cancelled=true;}
+ }));
+ try{await assert.rejects(()=>generate({provider:'ollama'}),/response exceeded/);assert.equal(cancelled,true);}
+ finally{global.fetch=oldFetch;}
+});
+test('provider connection errors do not disclose transport details',async()=>{
+ const oldFetch=global.fetch;global.fetch=async()=>{throw new Error('private credential')};
+ try{await assert.rejects(()=>generate({provider:'ollama'}),error=>{
+  assert.doesNotMatch(error.message,/private credential/);assert.match(error.message,/connection failed/);return true;
+ });}finally{global.fetch=oldFetch;}
+});
+test('rejects unknown providers and malformed composition input',async()=>{
+ await assert.rejects(()=>generate({provider:'__proto__'}),/Unsupported provider/);
+ for(const value of [null,[],{}, {ideas:[]}])assert.throws(()=>normalizeResponse(value,opts));
+ const idea=generateOne(opts,1);idea.layers.melody[0].velocity=Infinity;
+ assert.throws(()=>validateIdea(idea,opts),/Non-numeric/);
+});
+test('all HTTP adapters normalize structured ideas and label partial fallbacks',async()=>{
+ const {ENDPOINTS}=require('../src/ai');const oldFetch=global.fetch;
+ try{
+  for(const provider of ['openai','anthropic','openrouter','ollama']){
+   const spec=ENDPOINTS[provider],previous=spec.key?process.env[spec.key]:undefined;
+   if(spec.key)process.env[spec.key]='test-only';
+   global.fetch=async(url,config)=>{
+    assert.equal(url,spec.url);const payload=JSON.parse(config.body);assert.ok(payload.messages.length);
+    if(provider==='anthropic')assert.equal(config.headers['x-api-key'],'test-only');
+    const text=JSON.stringify({ideas:[generateOne(opts,42)]});
+    return new Response(JSON.stringify(provider==='anthropic'?{content:[{type:'text',text}]}:{choices:[{message:{content:text}}]}));
+   };
+   try{const data=await generate({...opts,provider,count:2});assert.equal(data.ideas.length,2);assert.deepEqual(data.sources,['ai','offline-fallback']);}
+   finally{if(spec.key){if(previous===undefined)delete process.env[spec.key];else process.env[spec.key]=previous;}}
+  }
+ }finally{global.fetch=oldFetch;}
+});
+test('HTTP rejects foreign hosts, cross-origin writes and file traversal',async t=>{
+ const http=require('node:http');const {listener}=require('../src/server');
+ const server=http.createServer(listener);await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ t.after(()=>new Promise(resolve=>{server.closeAllConnections();server.close(resolve)}));
+ const url='http://127.0.0.1:'+server.address().port;
+ const request=(address,options={})=>new Promise((resolve,reject)=>{
+  const req=http.request(address,options,res=>{let body='';res.on('data',chunk=>body+=chunk);res.on('end',()=>resolve({status:res.statusCode,text:async()=>body,json:async()=>JSON.parse(body)}));});
+  req.on('error',reject);req.end(options.body);
+ });
+ const host='127.0.0.1:'+(process.env.LOOPFORGE_PORT||4177);
+ assert.equal((await request(url+'/',{headers:{Host:'foreign.example'}})).status,403);
+ assert.equal((await request(url+'/api/generate',{method:'POST',headers:{Host:host,Origin:'https://foreign.example','Content-Type':'application/json'},body:'{}'})).status,403);
+ assert.equal((await request(url+'/api/generate',{method:'POST',headers:{Host:host,'Content-Type':'text/plain'},body:'{}'})).status,415);
+ assert.equal((await request(url+'/api/generate',{method:'POST',headers:{Host:host,'Content-Type':'application/json'},body:'{'})).status,422);
+ const response=await request(url+'/%2e%2e%2fsrc%2fai.js',{headers:{Host:host}});
+ assert.ok([403,404].includes(response.status));assert.doesNotMatch(await response.text(),/OPENAI_API_KEY/);
+ const generated=await request(url+'/api/generate',{method:'POST',headers:{Host:host,'Content-Type':'application/json'},body:JSON.stringify({provider:'offline',count:1,seed:42})});
+ assert.equal(generated.status,200);assert.equal((await generated.json()).ideas.length,1);
 });

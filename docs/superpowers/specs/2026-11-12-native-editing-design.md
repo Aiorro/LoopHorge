@@ -1,6 +1,6 @@
 # T10 native note editing design
 
-Status: proposed; user approval pending. Independent builder check: nothing important left. This is a design, not an additional task list. task.md remains the authoritative checklist.
+Status: approved by user continuation on2026-11-12. Independent builder check: nothing important left. This is a design, not an additional task list. task.md remains the authoritative checklist.
 
 ## Intent and scope
 
@@ -10,7 +10,7 @@ Implement layer selection, note add/move/resize/delete, quarter-beat quantizatio
 
 ## Approach
 
-Recommendation made by the implementer: extract a dedicated JUCE piano-roll component and keep validated editing/history in the non-RT processor boundary. Extending Editor's existing paint method directly has less initial plumbing but couples hit testing and gesture state to provider/file controls. A dedicated component permits actual gesture tests and keeps these concerns manageable without adding a framework or dependency. Existing task.md already specifies the snapshot handoff and editing operations; this proposal supplies their detailed semantics. The user has not yet approved this design.
+Recommendation made by the implementer: extract a dedicated JUCE piano-roll component and keep validated editing/history in the non-RT processor boundary. Extending Editor's existing paint method directly has less initial plumbing but couples hit testing and gesture state to provider/file controls. A dedicated component permits actual gesture tests and keeps these concerns manageable without adding a framework or dependency. Existing task.md already specifies the snapshot handoff and editing operations; this proposal supplies their detailed semantics. The user approved continuation after this design was presented.
 
 ## Interface
 

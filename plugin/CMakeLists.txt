@@ -64,3 +64,8 @@ target_include_directories(wire_test PRIVATE $<TARGET_PROPERTY:LoopForge,INCLUDE
 target_compile_definitions(wire_test PRIVATE $<TARGET_PROPERTY:LoopForge,COMPILE_DEFINITIONS>)
 target_link_libraries(wire_test PRIVATE LoopForge)
 add_test(NAME wire_json COMMAND wire_test)
+add_executable(editing_test tests/EditingTest.cpp)
+target_include_directories(editing_test PRIVATE $<TARGET_PROPERTY:LoopForge,INCLUDE_DIRECTORIES>)
+target_compile_definitions(editing_test PRIVATE $<TARGET_PROPERTY:LoopForge,COMPILE_DEFINITIONS>)
+target_link_libraries(editing_test PRIVATE LoopForge)
+add_test(NAME native_editing COMMAND editing_test)

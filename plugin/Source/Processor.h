@@ -3,6 +3,8 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "Wire.h"
 #include "Offline.h"
+#include "Editing.h"
+#include <deque>
 #include <atomic>
 #include <mutex>
 
@@ -83,6 +85,17 @@ public:
  juce::var getIdea(){std::lock_guard lock(mutex);return saved["idea"];}
  int selectedIdeaIndex(){std::lock_guard lock(mutex);return selectedIndex;}
  int ideaCount(){std::lock_guard lock(mutex);return ideas.isArray()?ideas.size():0;}
+ editing::Snapshot snapshot(){std::lock_guard lock(mutex);return {saved["idea"].clone(),revision,replacement};}
+ bool canUndo(){std::lock_guard lock(mutex);return !undo.empty();}
+ bool canRedo(){std::lock_guard lock(mutex);return !redo.empty();}
+ bool edit(uint64_t expected,const juce::String& layer,int index,int pitch,double start,double duration,bool remove=false){
+  bool changed=false;{std::lock_guard lock(mutex);if(expected!=revision){status="Composition changed; edit cancelled";return false;}auto candidate=saved["idea"].clone();if(!editing::change(candidate,layer,index,pitch,start,duration,remove))return false;changed=commitEdit(candidate);}if(changed)updateHostDisplay(ChangeDetails{}.withNonParameterStateChanged(true));return changed;
+ }
+ bool quantize(uint64_t expected,const juce::String& layer){
+  bool changed=false;{std::lock_guard lock(mutex);if(expected!=revision)return false;auto candidate=saved["idea"].clone();if(!editing::quantize(candidate,layer))return false;changed=commitEdit(candidate);}if(changed)updateHostDisplay(ChangeDetails{}.withNonParameterStateChanged(true));return changed;
+ }
+ bool undoEdit(){return travelHistory(true);}
+ bool redoEdit(){return travelHistory(false);}
  std::atomic<bool> play{false},audition{true},busy{false};
 private:
  // Match the pinned VST3 converter; reserve up to 3*128 active note releases.
@@ -92,14 +105,23 @@ private:
  struct Slot{Schedule data;std::atomic<int> state{0};};std::array<Slot,3> slots;
  bool haveLastBlock=false;std::atomic<bool> cancelled{false};std::atomic<int> pending{-1};int active=0;double rate=44100,internalBeat=0,lastEnd=-1,lastStep=0;
  unsigned short noteCounts[16][128]{};float voices[16][128]{};double phases[16][128]{},increments[128]{};
+ uint64_t revision=0,replacement=0;std::deque<juce::var> undo,redo;
  int selectedIndex=0;std::mutex mutex;juce::String requestBody,status="Built-in demo ready. Generate offline ideas without a service.";juce::var ideas,saved;
  void resetNotes(){for(auto& ch:voices)for(auto& v:ch)v=0;for(auto& ch:noteCounts)for(auto& n:ch)n=0;}
  void flush(juce::MidiBuffer& midi,int offset){for(int ch=0;ch<16;++ch)for(int p=0;p<128;++p)if(voices[ch][p]>0)emit(midi,juce::MidiMessage::noteOff(ch+1,p),offset);resetNotes();}
- bool install(const juce::var& idea){
+ static void remember(std::deque<juce::var>& history,const juce::var& value){if(history.size()==64)history.pop_front();history.push_back(value);}
+ void updateSelected(){if(auto* list=ideas.getArray())if(selectedIndex>=0&&selectedIndex<list->size())list->set(selectedIndex,saved["idea"]);}
+ bool commitEdit(const juce::var& candidate){
+  auto previous=saved["idea"];if(juce::JSON::toString(candidate)==juce::JSON::toString(previous))return false;
+  if(!install(candidate,true)){status="Edit rejected: invalid notes or schedule unavailable";return false;}
+  remember(undo,previous);redo.clear();updateSelected();status="Composition edited";return true;
+ }
+ bool travelHistory(bool backward){bool changed=false;{std::lock_guard lock(mutex);auto& from=backward?undo:redo;auto& to=backward?redo:undo;if(from.empty())return false;auto old=saved["idea"];if(!install(from.back(),true)){status="Schedule unavailable; try again";return false;}from.pop_back();remember(to,old);updateSelected();status=backward?"Edit undone":"Edit redone";changed=true;}if(changed)updateHostDisplay(ChangeDetails{}.withNonParameterStateChanged(true));return changed;}
+ bool install(const juce::var& idea,bool preserveHistory=false){
   Schedule s;if(!wire::schedule(idea,s))return false;
   for(int i=0;i<3;++i){int free=0;if(slots[i].state.compare_exchange_strong(free,1)){
    slots[i].data=s;slots[i].state=2;int old=pending.exchange(i);if(old>=0)slots[old].state=0;
-   auto* object=new juce::DynamicObject;object->setProperty("version",1);object->setProperty("idea",idea);saved=juce::var(object);return true;
+   auto* object=new juce::DynamicObject;object->setProperty("version",1);object->setProperty("idea",idea);saved=juce::var(object);++revision;if(!preserveHistory){++replacement;undo.clear();redo.clear();}return true;
   }}return false;
  }
  void run()override{

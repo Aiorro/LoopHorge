@@ -45,5 +45,10 @@ int main(){
   juce::AudioBuffer<float> audio(2,32);juce::MidiBuffer midi;midi.ensureSize(32768);p.processBlock(audio,midi);int first=0;for(auto e:midi)first+=e.getMessage().isNoteOn();check(first==(faster?1:0),"boundary note in wrong first block");
   clock.beat=32*clock.bpm/(60*48000.0);clock.bpm=faster?180:90;p.processBlock(audio,midi);int second=0;for(auto e:midi)second+=e.getMessage().isNoteOn();check(second==(faster?0:1),"tempo change duplicated or skipped boundary note");
  }
+ {
+  Processor p;Clock clock;clock.beat=-16;p.setPlayHead(&clock);p.prepareToPlay(48000,64);install(p,"[{\"pitch\":60,\"start\":0,\"duration\":2,\"velocity\":100}]");
+  juce::AudioBuffer<float> audio(2,64);juce::MidiBuffer midi;midi.ensureSize(32768);p.processBlock(audio,midi);int ons=0;for(auto event:midi)ons+=event.getMessage().isNoteOn();check(ons==1,"negative PPQ onset missing");
+  clock.beat=-10;p.processBlock(audio,midi);int offs=0;for(auto event:midi)offs+=event.getMessage().isNoteOff();check(offs==1,"seek during negative PPQ left a held note");
+ }
  std::cout<<"overlap, retrigger, tempo at 32/64, stop/seek/loop/state replacement passed\n";
 }

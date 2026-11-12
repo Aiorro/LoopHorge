@@ -1,4 +1,5 @@
 #include "Processor.h"
+#include "MidiExport.h"
 class Editor final: public juce::AudioProcessorEditor,private juce::Timer {
 public:
  Editor(Processor& p):AudioProcessorEditor(p),processor(p){
@@ -39,13 +40,11 @@ private:
   if(model.getText().isNotEmpty())o->setProperty("model",model.getText().trim());if(probe)o->setProperty("action","probe");return juce::JSON::toString(juce::var(o));
  }
  void setup(juce::ComboBox& box,std::initializer_list<const char*> values){int i=1;for(auto v:values)box.addItem(v,i++);box.setSelectedId(1);addAndMakeVisible(box);}
- void timerCallback()override{status.setText(processor.getStatus(),juce::dontSendNotification);generate.setEnabled(!processor.busy);testConnection.setEnabled(!processor.busy);cancel.setEnabled(processor.busy);int count=processor.ideaCount();if(count!=variation.getNumItems()){variation.clear();for(int i=0;i<count;++i)variation.addItem("IDEA "+juce::String(i+1),i+1);variation.setSelectedId(1,juce::dontSendNotification);}repaint();}
+ void timerCallback()override{status.setText(processor.getStatus(),juce::dontSendNotification);generate.setEnabled(!processor.busy);testConnection.setEnabled(!processor.busy);cancel.setEnabled(processor.busy);int count=processor.ideaCount();if(count!=variation.getNumItems()){variation.clear();for(int i=0;i<count;++i)variation.addItem("IDEA "+juce::String(i+1),i+1);variation.setSelectedId(1,juce::dontSendNotification);}if(count>0)variation.setSelectedItemIndex(processor.selectedIdeaIndex(),juce::dontSendNotification);repaint();}
  void exportMidi(){auto idea=processor.getIdea();if(!idea.isObject()){status.setText("Generate an idea before export",juce::dontSendNotification);return;}
   chooser=std::make_unique<juce::FileChooser>("Export MIDI",juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("loopforge.mid"),"*.mid");
   chooser->launchAsync(juce::FileBrowserComponent::saveMode|juce::FileBrowserComponent::canSelectFiles|juce::FileBrowserComponent::warnAboutOverwriting,[safe=juce::Component::SafePointer<Editor>(this),idea](const juce::FileChooser& fc){if(!safe||fc.getResult()==juce::File{})return;
-   juce::MidiFile file;file.setTicksPerQuarterNote(480);juce::MidiMessageSequence tempo;tempo.addEvent(juce::MidiMessage::tempoMetaEvent(int(60000000.0/double(idea["metadata"]["bpm"]))));file.addTrack(tempo);int ch=1;
-   for(const char* name:{"bass","chords","melody"}){juce::MidiMessageSequence track;track.addEvent(juce::MidiMessage::textMetaEvent(3,name));auto list=idea["layers"][name];if(auto* notes=list.getArray())for(const auto& n:*notes){auto on=juce::MidiMessage::noteOn(ch,int(n["pitch"]),(juce::uint8)int(n["velocity"]));on.setTimeStamp(double(n["start"])*480);track.addEvent(on);auto off=juce::MidiMessage::noteOff(ch,int(n["pitch"]));off.setTimeStamp((double(n["start"])+double(n["duration"]))*480);track.addEvent(off);}file.addTrack(track);++ch;}
-   juce::MemoryOutputStream bytes;bool ok=file.writeTo(bytes,1);if(ok)ok=fc.getResult().replaceWithData(bytes.getData(),bytes.getDataSize());safe->status.setText(ok?"MIDI exported":"MIDI export failed",juce::dontSendNotification);
+   auto bytes=encodeMidi(idea);bool ok=bytes.getSize()>0&&fc.getResult().replaceWithData(bytes.getData(),bytes.getSize());safe->status.setText(ok?"MIDI exported":"MIDI export failed",juce::dontSendNotification);
   });
  }
 };

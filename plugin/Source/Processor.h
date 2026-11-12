@@ -24,8 +24,8 @@ public:
  double getTailLengthSeconds()const override{return 0;} int getNumPrograms()override{return 1;} int getCurrentProgram()override{return 0;}
  void setCurrentProgram(int)override{} const juce::String getProgramName(int)override{return "Default";} void changeProgramName(int,const juce::String&)override{}
  bool isBusesLayoutSupported(const BusesLayout& l)const override{return l.getMainOutputChannelSet()==juce::AudioChannelSet::stereo();}
- void prepareToPlay(double sr,int)override {rate=std::isfinite(sr)&&sr>=1&&sr<=768000?sr:44100;midiLimitReached=false;for(int p=0;p<128;++p)increments[p]=juce::MathConstants<double>::twoPi*juce::MidiMessage::getMidiNoteInHertz(p)/rate;resetNotes();internalBeat=0;lastEnd=-1;lastStep=0;}
- void releaseResources()override{resetNotes();}
+ void prepareToPlay(double sr,int)override {rate=std::isfinite(sr)&&sr>=1&&sr<=768000?sr:44100;midiLimitReached=false;for(int p=0;p<128;++p)increments[p]=juce::MathConstants<double>::twoPi*juce::MidiMessage::getMidiNoteInHertz(p)/rate;resetNotes();internalBeat=0;lastEnd=-1;lastStep=0;haveLastBlock=false;}
+ void releaseResources()override{resetNotes();haveLastBlock=false;}
  void processBlock(juce::AudioBuffer<float>& audio,juce::MidiBuffer& midi)override {
   juce::ScopedNoDenormals noDenormals;audio.clear();midi.clear();eventsWritten=0;
   if(audio.getNumSamples()==0)return;
@@ -38,8 +38,8 @@ public:
   if(!std::isfinite(beat)){beat=0;playing=false;}
   if(!std::isfinite(bpm)||bpm<1||bpm>1000)bpm=s.bpm;
   const double step=bpm/(60.0*rate);const int samples=audio.getNumSamples();
-  const bool discontinuity=lastEnd>=0&&std::abs(beat-lastEnd)>juce::jmax(step,lastStep)*2;
-  const double firstStep=lastEnd>=0&&!discontinuity&&!changed?lastStep:step;
+  const bool discontinuity=haveLastBlock&&std::abs(beat-lastEnd)>juce::jmax(step,lastStep)*2;
+  const double firstStep=haveLastBlock&&!discontinuity&&!changed?lastStep:step;
   if(changed || !playing || discontinuity)flush(midi,0);
   double previousLocal=std::fmod(beat-firstStep,s.beats);if(previousLocal<0)previousLocal+=s.beats;
   for(int sample=0;sample<samples;++sample){
@@ -67,20 +67,21 @@ public:
    value=std::tanh(value);
    for(int ch=0;ch<audio.getNumChannels();++ch)audio.setSample(ch,sample,value);
   }
-  lastStep=step;lastEnd=playing?beat+samples*step:-1;if(!host)internalBeat=playing?beat+samples*step:0;
+  haveLastBlock=playing;lastStep=step;lastEnd=playing?beat+samples*step:-1;if(!host)internalBeat=playing?beat+samples*step:0;
  }
  bool hasEditor()const override{return true;} juce::AudioProcessorEditor* createEditor()override;
  void getStateInformation(juce::MemoryBlock& dest)override {std::lock_guard lock(mutex);auto text=juce::JSON::toString(saved);dest.replaceAll(text.toRawUTF8(),text.getNumBytesAsUTF8());}
  void setStateInformation(const void* data,int size)override {
   if(size<=0||size>4*1024*1024)return;
-  auto value=juce::JSON::parse(juce::String::fromUTF8((const char*)data,size));
-  std::lock_guard lock(mutex);if(int(value["version"])==1 && install(value["idea"])){saved=value;status="Restored composition";}
+  auto value=wire::document(std::string_view(static_cast<const char*>(data),size_t(size)));
+  std::lock_guard lock(mutex);if(wire::integer(value["version"],1,1) && install(value["idea"])){saved=value;ideas=juce::Array<juce::var>{value["idea"]};selectedIndex=0;if(busy){cancelled=true;notify();}status="Restored composition";}
  }
  void request(const juce::String& body){std::lock_guard lock(mutex);if(busy)return;requestBody=body;cancelled=false;status="Queued...";busy=true;notify();}
  void cancel(){std::lock_guard lock(mutex);if(busy){cancelled=true;status="Cancelling...";notify();}}
- void choose(int index){std::lock_guard lock(mutex);if(auto* list=ideas.getArray())if(index>=0&&index<list->size())install((*list)[index]);}
+ void choose(int index){std::lock_guard lock(mutex);if(auto* list=ideas.getArray())if(index>=0&&index<list->size()&&install((*list)[index]))selectedIndex=index;}
  juce::String getStatus(){std::lock_guard lock(mutex);return status+(midiLimitReached?" MIDI block limit reached; playback paused for this block.":"");}
  juce::var getIdea(){std::lock_guard lock(mutex);return saved["idea"];}
+ int selectedIdeaIndex(){std::lock_guard lock(mutex);return selectedIndex;}
  int ideaCount(){std::lock_guard lock(mutex);return ideas.isArray()?ideas.size():0;}
  std::atomic<bool> play{false},audition{true},busy{false};
 private:
@@ -89,9 +90,9 @@ private:
  void emit(juce::MidiBuffer& midi,const juce::MidiMessage& message,int offset){midi.addEvent(message,offset);++eventsWritten;}
  const int requestTimeoutMs;
  struct Slot{Schedule data;std::atomic<int> state{0};};std::array<Slot,3> slots;
- std::atomic<bool> cancelled{false};std::atomic<int> pending{-1};int active=0;double rate=44100,internalBeat=0,lastEnd=-1,lastStep=0;
+ bool haveLastBlock=false;std::atomic<bool> cancelled{false};std::atomic<int> pending{-1};int active=0;double rate=44100,internalBeat=0,lastEnd=-1,lastStep=0;
  unsigned short noteCounts[16][128]{};float voices[16][128]{};double phases[16][128]{},increments[128]{};
- std::mutex mutex;juce::String requestBody,status="Built-in demo ready. Generate offline ideas without a service.";juce::var ideas,saved;
+ int selectedIndex=0;std::mutex mutex;juce::String requestBody,status="Built-in demo ready. Generate offline ideas without a service.";juce::var ideas,saved;
  void resetNotes(){for(auto& ch:voices)for(auto& v:ch)v=0;for(auto& ch:noteCounts)for(auto& n:ch)n=0;}
  void flush(juce::MidiBuffer& midi,int offset){for(int ch=0;ch<16;++ch)for(int p=0;p<128;++p)if(voices[ch][p]>0)emit(midi,juce::MidiMessage::noteOff(ch+1,p),offset);resetNotes();}
  bool install(const juce::var& idea){
@@ -107,14 +108,14 @@ private:
    {std::lock_guard lock(mutex);if(!busy)continue;body=requestBody;status="Generating...";}
    juce::String resultStatus;
    try{
-    auto params=juce::JSON::parse(body);bool probe=params["action"].toString()=="probe";
+    auto params=wire::document(std::string_view(body.toRawUTF8(),body.getNumBytesAsUTF8()));if(!params.isObject())throw std::runtime_error("Invalid composition request");bool probe=params["action"].toString()=="probe";
     if(cancelled||threadShouldExit())throw std::runtime_error("Generation cancelled");
     if(params["provider"].toString()=="offline"||params["provider"].isVoid()){
      auto generated=offline::generate(params);std::lock_guard lock(mutex);
      if(cancelled||threadShouldExit())throw std::runtime_error("Generation cancelled");
      if(probe){status="Offline generator ready - no service required.";busy=false;continue;}
      if(!install(generated[0]))throw std::runtime_error("Invalid offline composition");
-     ideas=generated;status="Offline ideas ready - no service required.";busy=false;continue;
+     ideas=generated;selectedIndex=0;status="Offline ideas ready - no service required.";busy=false;continue;
     }
     // Use a direct loopback socket: native JUCE HTTP may ignore NO_PROXY on Linux.
     const auto deadline=juce::Time::getMillisecondCounterHiRes()+requestTimeoutMs;
@@ -131,19 +132,20 @@ private:
      int n=socket.read(buffer,sizeof(buffer),false);if(n<=0)break;
      if(bytes.getDataSize()+size_t(n)>4*1024*1024+8192)throw std::runtime_error("API response exceeded limit");bytes.write(buffer,size_t(n));
     }
-    auto raw=bytes.toString();int boundary=raw.indexOf("\r\n\r\n");
-    if(boundary<0||boundary>8192)throw std::runtime_error("Invalid local API headers");
-    auto headers=raw.substring(0,boundary).toLowerCase();auto payload=raw.substring(boundary+4);
-    if(payload.getNumBytesAsUTF8()>4*1024*1024)throw std::runtime_error("API response exceeded limit");
-    if(!raw.startsWith("HTTP/1.1 200 ")){
-     auto response=juce::JSON::parse(payload);auto error=response["error"]["message"].toString().substring(0,512);
-     if(!wire::integer(response["protocolVersion"],1,1))error="check provider configuration and bridge version";
-     throw std::runtime_error(("Local API rejected request: "+error).toStdString());
-    }
+    std::string raw(static_cast<const char*>(bytes.getData()),bytes.getDataSize());auto boundary=raw.find("\r\n\r\n");
+    if(boundary==std::string::npos||boundary>8192||raw.substr(0,boundary).find('\0')!=std::string::npos||!juce::CharPointer_UTF8::isValidString(raw.data(),int(boundary)))throw std::runtime_error("Invalid local API headers");
+    auto headers=juce::String::fromUTF8(raw.data(),int(boundary)).toLowerCase();auto payload=std::string_view(raw).substr(boundary+4);
+    if(payload.size()>4*1024*1024)throw std::runtime_error("API response exceeded limit");
     if(headers.contains("transfer-encoding:"))throw std::runtime_error("Invalid local API transfer encoding");
     juce::String length;int lengthHeaders=0;for(auto line:juce::StringArray::fromLines(headers))if(line.startsWith("content-length:")){length=line.fromFirstOccurrenceOf(":",false,false).trim();++lengthHeaders;}
-    if(lengthHeaders!=1||length.isEmpty()||!length.containsOnly("0123456789")||length.getLargeIntValue()!=juce::int64(payload.getNumBytesAsUTF8()))throw std::runtime_error("API response length mismatch");
-    auto response=wire::document(payload);if(!response.isObject())throw std::runtime_error("Invalid bridge JSON");auto list=response["ideas"];
+    auto lengthText=length.toStdString();uint64_t expected=0;auto parsedLength=std::from_chars(lengthText.data(),lengthText.data()+lengthText.size(),expected);
+    if(lengthHeaders!=1||parsedLength.ec!=std::errc{}||parsedLength.ptr!=lengthText.data()+lengthText.size()||expected!=payload.size())throw std::runtime_error("API response length mismatch");
+    auto response=wire::document(payload);
+    if(raw.rfind("HTTP/1.1 200 ",0)!=0){
+     auto error=response["error"]["message"].toString().substring(0,512);if(!wire::integer(response["protocolVersion"],1,1))error="check provider configuration and bridge version";
+     throw std::runtime_error(("Local API rejected request: "+error).toStdString());
+    }
+    if(!response.isObject())throw std::runtime_error("Invalid bridge JSON");auto list=response["ideas"];
     if(!wire::integer(response["protocolVersion"],1,1))throw std::runtime_error("Unsupported bridge protocol; update the local service");
     if(!wire::reply(response,probe))throw std::runtime_error("Invalid bridge response");
     if(!probe){if(!list.isArray()||list.size()<1||list.size()>8)throw std::runtime_error("Invalid composition received");for(const auto& idea:*list.getArray()){Schedule checked;if(!wire::schedule(idea,checked,true))throw std::runtime_error("Invalid composition received");}}
@@ -151,7 +153,7 @@ private:
     if(cancelled||threadShouldExit())throw std::runtime_error("Generation cancelled");
     if(probe){if(!bool(response["ok"]))throw std::runtime_error("Invalid provider probe response");status="Connected: "+response["provider"].toString()+" / "+response["model"].toString();busy=false;continue;}
     if(!list.isArray()||list.size()<1||list.size()>8||!install(list[0]))throw std::runtime_error("Invalid composition received");
-    ideas=list;resultStatus="Ideas ready - choose a variation, then play or export.";
+    ideas=list;selectedIndex=0;resultStatus="Ideas ready - choose a variation, then play or export.";
    }catch(const std::exception& e){resultStatus=e.what();}
    {std::lock_guard lock(mutex);status=cancelled?juce::String("Generation cancelled"):resultStatus;busy=false;}
   }

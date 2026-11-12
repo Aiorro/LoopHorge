@@ -20,6 +20,11 @@ int main(int argc,char** argv){
   auto text=juce::JSON::toString(juce::var(state));p->setStateInformation(text.toRawUTF8(),int(text.getNumBytesAsUTF8()));
   juce::MemoryBlock saved;p->getStateInformation(saved);auto decoded=juce::JSON::parse(saved.toString());check(int(decoded["version"])==1);check(decoded["idea"]["layers"]["bass"].size()>0);
   const char bad[]="{\"version\":1,\"idea\":{}}";p->setStateInformation(bad,sizeof(bad)-1);juce::MemoryBlock after;p->getStateInformation(after);check(saved==after);
+  auto oversized=text.replace("38","18446744073709551676");check(oversized!=text);p->setStateInformation(oversized.toRawUTF8(),int(oversized.getNumBytesAsUTF8()));juce::MemoryBlock unchanged;p->getStateInformation(unchanged);check(unchanged==saved);
+  auto different=text.replace("38","39");check(different!=text);std::string hidden(different.toRawUTF8(),different.getNumBytesAsUTF8());hidden+='\0';hidden+="garbage";p->setStateInformation(hidden.data(),int(hidden.size()));p->getStateInformation(unchanged);check(unchanged==saved);
+  auto wrongVersion=different.replace("\"version\": 1","\"version\": true");check(wrongVersion!=different);p->setStateInformation(wrongVersion.toRawUTF8(),int(wrongVersion.getNumBytesAsUTF8()));p->getStateInformation(unchanged);if(unchanged!=saved){std::cerr<<"boolean preset version was accepted\n";std::abort();}
+
+
  }
  if(argc>2&&juce::String(argv[2])=="--api"){auto* composer=dynamic_cast<Processor*>(p.get());check(composer!=nullptr);
   composer->request("{\"provider\":\"ollama\",\"count\":8,\"key\":\"D\",\"bars\":4,\"bpm\":100}");
@@ -48,8 +53,8 @@ int main(int argc,char** argv){
   auto* composer=dynamic_cast<Processor*>(p.get());auto before=juce::JSON::toString(composer->getIdea());composer->request("{\"provider\":\"ollama\",\"count\":1}");for(int i=0;i<100&&composer->busy;++i)juce::Thread::sleep(10);check(!composer->busy);check(composer->getStatus().contains("headers"));check(before==juce::JSON::toString(composer->getIdea()));
   composer->request("{\"provider\":\"ollama\",\"count\":1}");for(int i=0;i<100&&composer->busy;++i)juce::Thread::sleep(10);check(!composer->busy);check(composer->ideaCount()==1&&composer->getStatus().contains("ready"));
  }
- if(argc>2&&juce::String(argv[2])=="--user-cancel"){
-  auto* composer=dynamic_cast<Processor*>(p.get());auto before=juce::JSON::toString(composer->getIdea());composer->request("{\"provider\":\"ollama\"}");juce::Thread::sleep(150);composer->cancel();
+ if(argc>2&&juce::String(argv[2])=="--user-cancel"||argc>2&&juce::String(argv[2])=="--restore-cancel"){
+  auto* composer=dynamic_cast<Processor*>(p.get());auto before=juce::JSON::toString(composer->getIdea());composer->request("{\"provider\":\"ollama\"}");juce::Thread::sleep(150);if(juce::String(argv[2])=="--restore-cancel"){juce::MemoryBlock state;p->getStateInformation(state);p->setStateInformation(state.getData(),int(state.getSize()));}else composer->cancel();
   for(int i=0;i<100&&composer->busy;++i)juce::Thread::sleep(10);
   check(!composer->busy);check(composer->getStatus().contains("cancelled"));check(juce::JSON::toString(composer->getIdea())==before);
   composer->request("{\"provider\":\"offline\"}");for(int i=0;i<100&&composer->busy;++i)juce::Thread::sleep(10);check(!composer->busy);check(composer->ideaCount()==8);return 0;

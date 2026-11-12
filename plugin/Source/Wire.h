@@ -1,24 +1,61 @@
 #pragma once
 #include <juce_core/juce_core.h>
 #include "Schedule.h"
+#include <charconv>
+#include <limits>
+#include <string>
+#include <string_view>
 namespace wire {
 inline bool member(const juce::var& value,std::initializer_list<const char*> allowed){if(!value.isString())return false;for(auto name:allowed)if(value.toString()==name)return true;return false;}
 inline bool integer(const juce::var& value,double lo,double hi){return (value.isInt()||value.isInt64()||value.isDouble())&&std::isfinite(double(value))&&std::floor(double(value))==double(value)&&double(value)>=lo&&double(value)<=hi;}
 inline bool meter(const juce::var& value){return value.isObject()&&value.getDynamicObject()->getProperties().size()==2&&integer(value["numerator"],4,4)&&integer(value["denominator"],4,4);}
-// JUCE's parser accepts an object prefix; check complete framing before parsing it.
-inline juce::var document(const juce::String& text){
- std::array<juce::juce_wchar,32> stack{};int depth=0;bool quoted=false,escaped=false,started=false;juce::juce_wchar previous=0;
- for(auto c:text){
-  if(quoted){if(escaped)escaped=false;else if(c=='\\')escaped=true;else if(c=='"')quoted=false;else if(c<32)return {};continue;}
-  bool space=c==' '||c=='\t'||c=='\r'||c=='\n';if(space)continue;
+// Tokenize before JUCE: its parser accepts malformed escapes and wraps integer literals.
+inline juce::var document(std::string_view text){
+ constexpr size_t limit=4*1024*1024;
+ if(text.empty()||text.size()>limit||text.find('\0')!=std::string_view::npos||!juce::CharPointer_UTF8::isValidString(text.data(),int(text.size())))return {};
+ std::string canonical;canonical.reserve(text.size());std::array<char,32> stack{};int depth=0;bool started=false;char previous=0;
+ auto space=[](char c){return c==' '||c=='\t'||c=='\r'||c=='\n';};
+ auto digit=[](char c){return c>='0'&&c<='9';};
+ auto hex=[](char c){return (c>='0'&&c<='9')||(c>='a'&&c<='f')||(c>='A'&&c<='F');};
+ for(size_t i=0;i<text.size();){
+  char c=text[i];if(space(c)){canonical+=c;++i;continue;}
   if(started&&depth==0)return {};
   if(!started){if(c!='{')return {};started=true;}
-  if(c=='"')quoted=true;
-  else if(c=='{'||c=='['){if(depth==int(stack.size()))return {};stack[depth++]=c;}
-  else if(c=='}'||c==']'){if(depth==0||previous==','||stack[depth-1]!=(c=='}'?'{':'['))return {};--depth;}
-  previous=c;
+  if(c=='"'){
+   size_t start=i++;bool closed=false;
+   while(i<text.size()){
+    auto ch=static_cast<unsigned char>(text[i++]);if(ch=='"'){closed=true;break;}if(ch<32)return {};
+    if(ch=='\\'){
+     if(i==text.size())return {};char escape=text[i++];
+     if(escape=='u'){
+      if(i+4>text.size())return {};for(size_t j=i;j<i+4;++j)if(!hex(text[j]))return {};
+      if(text.substr(i,4)=="0000")return {};i+=4;
+     }else if(std::string_view("\"\\/bfnrt").find(escape)==std::string_view::npos)return {};
+    }
+   }
+   if(!closed)return {};canonical.append(text.substr(start,i-start));previous='v';
+  }else if(c=='-'||digit(c)){
+   size_t start=i;if(c=='-')++i;if(i==text.size())return {};
+   if(text[i]=='0'){++i;if(i<text.size()&&digit(text[i]))return {};}
+   else {if(text[i]<'1'||text[i]>'9')return {};while(i<text.size()&&digit(text[i]))++i;}
+   if(i<text.size()&&text[i]=='.'){++i;size_t digits=i;while(i<text.size()&&digit(text[i]))++i;if(i==digits)return {};}
+   if(i<text.size()&&(text[i]=='e'||text[i]=='E')){++i;if(i<text.size()&&(text[i]=='+'||text[i]=='-'))++i;size_t digits=i;while(i<text.size()&&digit(text[i]))++i;if(i==digits)return {};}
+   if(i<text.size()&&!space(text[i])&&text[i]!=','&&text[i]!=']'&&text[i]!='}')return {};
+   double value=0;auto read=std::from_chars(text.data()+start,text.data()+i,value,std::chars_format::general);
+   if(read.ec!=std::errc{}||read.ptr!=text.data()+i||!std::isfinite(value))return {};
+   char number[64];auto written=std::to_chars(number,number+sizeof(number),value,std::chars_format::general,std::numeric_limits<double>::max_digits10);
+   if(written.ec!=std::errc{})return {};auto normalized=std::string_view(number,size_t(written.ptr-number));canonical.append(normalized);
+   if(text.substr(start,i-start).find_first_of(".eE")!=std::string_view::npos&&normalized.find_first_of(".eE")==std::string_view::npos)canonical+=".0";previous='v';
+  }else if(c=='{'||c=='['){if(depth==int(stack.size()))return {};stack[depth++]=c;canonical+=c;++i;previous=c;}
+  else if(c=='}'||c==']'){if(depth==0||previous==','||stack[depth-1]!=(c=='}'?'{':'['))return {};--depth;canonical+=c;++i;previous=c;}
+  else if(c==','||c==':'){canonical+=c;++i;previous=c;}
+  else {
+   std::string_view literal;if(text.substr(i,4)=="true"||text.substr(i,4)=="null")literal=text.substr(i,4);else if(text.substr(i,5)=="false")literal=text.substr(i,5);else return {};
+   i+=literal.size();if(i<text.size()&&!space(text[i])&&text[i]!=','&&text[i]!=']'&&text[i]!='}')return {};canonical.append(literal);previous='v';
+  }
+  if(canonical.size()>limit)return {};
  }
- juce::var result;if(!started||quoted||depth!=0||juce::JSON::parse(text,result).failed())return {};return result;
+ juce::var result;if(!started||depth!=0||juce::JSON::parse(juce::String::fromUTF8(canonical.data(),int(canonical.size())),result).failed())return {};return result;
 }
 inline bool provider(const juce::var& value){return member(value,{"offline","openai","anthropic","openrouter","ollama","codex-cli","claude-cli"});}
 inline bool reply(const juce::var& response,bool probe){

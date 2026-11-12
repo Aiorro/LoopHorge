@@ -35,6 +35,6 @@ private:
  float xAt(double beat)const{return 48+float(beat/juce::jmax(1.0,beats())*usableWidth());}
  double beatAt(float x)const{return (x-48)*beats()/usableWidth();}
  int pitchAt(float y)const{return juce::jlimit(0,127,127-int(y)/row);}
- juce::Rectangle<float> bounds(const juce::var& n)const{return {xAt(double(n["start"])),float((127-int(n["pitch"]))*row+1),juce::jmax(3.0f,xAt(double(n["start"])+double(n["duration"]))-xAt(double(n["start"]))),float(row-2)};}
+ juce::Rectangle<float> bounds(const juce::var& n)const{float right=juce::jmax(51.0f,float(getWidth())),left=juce::jlimit(48.0f,right-3,xAt(double(n["start"])));float width=juce::jlimit(3.0f,right-left,xAt(double(n["start"])+double(n["duration"]))-left);return {left,float((127-int(n["pitch"]))*row+1),width,float(row-2)};}
  int hit(juce::Point<float> point)const{auto list=state.idea["layers"][juce::Identifier(activeLayer)];for(int i=list.size();--i>=0;)if(bounds(list[i]).contains(point))return i;return -1;}
 };

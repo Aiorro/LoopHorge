@@ -17,6 +17,6 @@ inline bool change(juce::var& idea,const juce::String& name,int index,int pitch,
 }
 inline bool quantize(juce::var& idea,const juce::String& name){
  if(!layer(name))return false;auto* notes=idea["layers"][juce::Identifier(name)].getArray();if(!notes)return false;double end=double(idea["metadata"]["bars"])*4;
- for(auto& n:*notes){double start=juce::jlimit(0.0,end-.25,snap(double(n["start"])));double finish=juce::jlimit(start+.25,end,snap(double(n["start"])+double(n["duration"])));n.getDynamicObject()->setProperty("start",start);n.getDynamicObject()->setProperty("duration",finish-start);}return true;
+ bool changed=false;for(auto& n:*notes){double start=juce::jlimit(0.0,end-.25,snap(double(n["start"])));double finish=juce::jlimit(start+.25,end,snap(double(n["start"])+double(n["duration"])));if(start!=double(n["start"])||finish-start!=double(n["duration"])){changed=true;n.getDynamicObject()->setProperty("start",start);n.getDynamicObject()->setProperty("duration",finish-start);}}return changed;
 }
 }

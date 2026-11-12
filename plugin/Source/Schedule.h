@@ -8,7 +8,7 @@ struct Schedule {
  int count=0; double beats=16, bpm=100;
  bool add(int pitch,double start,double duration,int velocity,int channel) {
   if(count>3198 || pitch<0 || pitch>127 || velocity<1 || velocity>127 || channel<1 || channel>16
-    || !std::isfinite(start) || !std::isfinite(duration) || start<0 || duration<=0 || start+duration>beats) return false;
+    || !std::isfinite(start) || !std::isfinite(duration) || start<0 || start>=beats || duration<=0 || start+duration>beats) return false;
   events[count++]={start,pitch,velocity,channel,true};
   events[count++]={start+duration,pitch,0,channel,false};return true;
  }

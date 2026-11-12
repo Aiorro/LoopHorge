@@ -8,7 +8,7 @@ struct Transport:juce::AudioPlayHead {
 };
 int main(int argc,char** argv){
  juce::ScopedJuceInitialiser_GUI init;
- std::unique_ptr<juce::AudioProcessor> p(createPluginFilter());Transport transport;p->setPlayHead(&transport);p->prepareToPlay(48000,512);
+ std::unique_ptr<juce::AudioProcessor> p(argc>2&&juce::String(argv[2])=="--timeout"?new Processor(250):createPluginFilter());Transport transport;p->setPlayHead(&transport);p->prepareToPlay(48000,512);
  juce::AudioBuffer<float> audio(2,512);juce::MidiBuffer midi;p->processBlock(audio,midi);
  int ons=0;for(auto m:midi)if(m.getMessage().isNoteOn())++ons;check(ons>=4);
  transport.playing=false;p->processBlock(audio,midi);int offs=0;for(auto m:midi)if(m.getMessage().isNoteOff())++offs;check(offs>=4);
@@ -37,11 +37,16 @@ int main(int argc,char** argv){
   check(!composer->busy);check(composer->ideaCount()==8);check(composer->getStatus().contains("ready"));
   std::cout<<"native worker -> HTTP API -> eight ideas passed\n";
  }
- if(argc>2&&juce::String(argv[2])=="--failure"){
+ if(argc>2&&(juce::String(argv[2])=="--failure"||juce::String(argv[2])=="--probe-failure"||juce::String(argv[2])=="--timeout")){
   auto* composer=dynamic_cast<Processor*>(p.get());const auto before=juce::JSON::toString(composer->getIdea());
-  composer->request("{\"provider\":\"ollama\",\"count\":1}");
+  composer->request(juce::String(argv[2])=="--probe-failure"?"{\"provider\":\"ollama\",\"action\":\"probe\"}":"{\"provider\":\"ollama\",\"count\":1}");
   for(int i=0;i<200&&composer->busy;++i)juce::Thread::sleep(50);
-  check(!composer->busy);check(composer->getStatus().contains(argv[3]));check(before==juce::JSON::toString(composer->getIdea()));
+  std::cerr<<"Failure status: "<<composer->getStatus()<<"\n";check(!composer->busy);check(composer->getStatus().contains(argv[3]));check(before==juce::JSON::toString(composer->getIdea()));
+  composer->request("{\"provider\":\"offline\"}");for(int i=0;i<100&&composer->busy;++i)juce::Thread::sleep(10);check(!composer->busy&&composer->ideaCount()==8);
+ }
+ if(argc>2&&juce::String(argv[2])=="--reconnect"){
+  auto* composer=dynamic_cast<Processor*>(p.get());auto before=juce::JSON::toString(composer->getIdea());composer->request("{\"provider\":\"ollama\",\"count\":1}");for(int i=0;i<100&&composer->busy;++i)juce::Thread::sleep(10);check(!composer->busy);check(composer->getStatus().contains("headers"));check(before==juce::JSON::toString(composer->getIdea()));
+  composer->request("{\"provider\":\"ollama\",\"count\":1}");for(int i=0;i<100&&composer->busy;++i)juce::Thread::sleep(10);check(!composer->busy);check(composer->ideaCount()==1&&composer->getStatus().contains("ready"));
  }
  if(argc>2&&juce::String(argv[2])=="--user-cancel"){
   auto* composer=dynamic_cast<Processor*>(p.get());auto before=juce::JSON::toString(composer->getIdea());composer->request("{\"provider\":\"ollama\"}");juce::Thread::sleep(150);composer->cancel();

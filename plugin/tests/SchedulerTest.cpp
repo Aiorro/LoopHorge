@@ -9,6 +9,7 @@ int main() {
  check(!s.add(128, 0, 1, 100, 1));
  check(!s.add(60, -1, 1, 100, 1));
  check(!s.add(60, 15.5, 1, 100, 1));
+ check(!s.add(60, 16, 1e-300, 100, 1));
  check(s.add(60, 1, 1, 100, 1));
  s.sort();
  check(s.count==4);

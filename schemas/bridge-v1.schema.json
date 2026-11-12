@@ -1,0 +1,453 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loopforge.local/schemas/bridge-v1.schema.json",
+  "title": "LoopForge loopback bridge v1 response",
+  "description": "Requests use $defs.request. Runtime additionally enforces total notes <=1600, nonempty composition, source count equals idea count and note start+duration <= bars*4. Only 4/4 is supported.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/generation"
+    },
+    {
+      "$ref": "#/$defs/probe"
+    },
+    {
+      "$ref": "#/$defs/error"
+    }
+  ],
+  "$defs": {
+    "request": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "offline",
+            "openai",
+            "anthropic",
+            "openrouter",
+            "ollama",
+            "codex-cli",
+            "claude-cli"
+          ]
+        },
+        "key": {
+          "type": "string",
+          "enum": [
+            "C",
+            "C#",
+            "D",
+            "D#",
+            "E",
+            "F",
+            "F#",
+            "G",
+            "G#",
+            "A",
+            "A#",
+            "B"
+          ]
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "minor",
+            "major",
+            "dorian",
+            "phrygian"
+          ]
+        },
+        "style": {
+          "type": "string",
+          "enum": [
+            "trap",
+            "boom-bap",
+            "r&b",
+            "ambient",
+            "nu-metal"
+          ]
+        },
+        "bpm": {
+          "type": "integer",
+          "minimum": 40,
+          "maximum": 240
+        },
+        "bars": {
+          "type": "integer",
+          "enum": [
+            4,
+            8
+          ]
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "model": {
+          "type": "string",
+          "maxLength": 100,
+          "pattern": "^[-A-Za-z0-9_./:]*$"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 600
+        },
+        "timeSignature": {
+          "type": "object",
+          "const": {
+            "numerator": 4,
+            "denominator": 4
+          }
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "enum": [
+            "C",
+            "C#",
+            "D",
+            "D#",
+            "E",
+            "F",
+            "F#",
+            "G",
+            "G#",
+            "A",
+            "A#",
+            "B"
+          ]
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "minor",
+            "major",
+            "dorian",
+            "phrygian"
+          ]
+        },
+        "style": {
+          "type": "string",
+          "enum": [
+            "trap",
+            "boom-bap",
+            "r&b",
+            "ambient",
+            "nu-metal"
+          ]
+        },
+        "bpm": {
+          "type": "integer",
+          "minimum": 40,
+          "maximum": 240
+        },
+        "bars": {
+          "type": "integer",
+          "enum": [
+            4,
+            8
+          ]
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "timeSignature": {
+          "type": "object",
+          "const": {
+            "numerator": 4,
+            "denominator": 4
+          }
+        }
+      },
+      "required": [
+        "key",
+        "mode",
+        "style",
+        "bpm",
+        "bars",
+        "seed",
+        "timeSignature"
+      ],
+      "additionalProperties": false
+    },
+    "note": {
+      "type": "object",
+      "properties": {
+        "pitch": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "start": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 32
+        },
+        "duration": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 32
+        },
+        "velocity": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 127
+        },
+        "layer": {
+          "type": "string",
+          "enum": [
+            "bass",
+            "chords",
+            "melody"
+          ]
+        }
+      },
+      "required": [
+        "pitch",
+        "start",
+        "duration",
+        "velocity",
+        "layer"
+      ],
+      "additionalProperties": false
+    },
+    "idea": {
+      "type": "object",
+      "properties": {
+        "metadata": {
+          "$ref": "#/$defs/metadata"
+        },
+        "layers": {
+          "type": "object",
+          "properties": {
+            "bass": {
+              "type": "array",
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/note"
+                  },
+                  {
+                    "properties": {
+                      "layer": {
+                        "const": "bass"
+                      }
+                    }
+                  }
+                ]
+              },
+              "minItems": 0,
+              "maxItems": 800
+            },
+            "chords": {
+              "type": "array",
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/note"
+                  },
+                  {
+                    "properties": {
+                      "layer": {
+                        "const": "chords"
+                      }
+                    }
+                  }
+                ]
+              },
+              "minItems": 0,
+              "maxItems": 800
+            },
+            "melody": {
+              "type": "array",
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/note"
+                  },
+                  {
+                    "properties": {
+                      "layer": {
+                        "const": "melody"
+                      }
+                    }
+                  }
+                ]
+              },
+              "minItems": 0,
+              "maxItems": 800
+            }
+          },
+          "required": [
+            "bass",
+            "chords",
+            "melody"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "metadata",
+        "layers"
+      ],
+      "additionalProperties": false
+    },
+    "generation": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "offline",
+            "openai",
+            "anthropic",
+            "openrouter",
+            "ollama",
+            "codex-cli",
+            "claude-cli"
+          ]
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "offline",
+              "ai",
+              "offline-fallback",
+              "codex-cli",
+              "claude-cli"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 8
+        },
+        "ideas": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/idea"
+          },
+          "minItems": 1,
+          "maxItems": 8
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "provider",
+        "model",
+        "sources",
+        "ideas"
+      ],
+      "additionalProperties": false
+    },
+    "probe": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "ok": {
+          "const": true
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "offline",
+            "openai",
+            "anthropic",
+            "openrouter",
+            "ollama",
+            "codex-cli",
+            "claude-cli"
+          ]
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 512
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "ok",
+        "provider",
+        "model",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "error": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": [
+                "INVALID_REQUEST",
+                "UNSUPPORTED_VERSION",
+                "REQUEST_TOO_LARGE",
+                "FORBIDDEN",
+                "UNSUPPORTED_MEDIA_TYPE",
+                "METHOD_NOT_ALLOWED",
+                "NOT_FOUND",
+                "AUTHORIZATION_REQUIRED",
+                "RATE_LIMITED",
+                "MODEL_UNAVAILABLE",
+                "PROVIDER_UNAVAILABLE",
+                "GENERATION_CANCELLED",
+                "REQUEST_TIMEOUT",
+                "INVALID_RESPONSE",
+                "GENERATION_FAILED"
+              ]
+            },
+            "message": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "error"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

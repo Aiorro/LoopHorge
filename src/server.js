@@ -3,6 +3,7 @@ const http=require('node:http');
 const fs=require('node:fs');
 const path=require('node:path');
 const {generate,configuration}=require('./operations');
+const {generateV1,failure,BridgeError}=require('./bridge');
 const {createMidi}=require('./core');
 const {normalizeOptions,validateIdea}=require('./schema');
 const HOST='127.0.0.1';
@@ -17,13 +18,23 @@ function readJSON(req){return new Promise((resolve,reject)=>{
  req.on('error',reject);
 });}
 async function listener(req,res){
+ const versioned=/^\/api\/v\d+(?:\/|$)/.test(req.url);
+ const fail=(status,code,message)=>json(res,status,versioned?{protocolVersion:1,error:{code,message}}:{error:message});
  try{
   const host=String(req.headers.host||'');
-  if(!['127.0.0.1:'+PORT,'localhost:'+PORT].includes(host))return json(res,403,{error:'Local host required'});
+  if(!['127.0.0.1:'+PORT,'localhost:'+PORT].includes(host))return fail(403,'FORBIDDEN','Local host required');
   if(req.method==='POST'){
    const origin=req.headers.origin;
-   if(origin&&!['http://127.0.0.1:'+PORT,'http://localhost:'+PORT].includes(origin))return json(res,403,{error:'Cross-origin requests are forbidden'});
-   if(!String(req.headers['content-type']||'').startsWith('application/json'))return json(res,415,{error:'JSON Content-Type required'});
+   if(origin&&!['http://127.0.0.1:'+PORT,'http://localhost:'+PORT].includes(origin))return fail(403,'FORBIDDEN','Cross-origin requests are forbidden');
+   if(!String(req.headers['content-type']||'').startsWith('application/json'))return fail(415,'UNSUPPORTED_MEDIA_TYPE','JSON Content-Type required');
+  }
+  if(versioned){
+   if(!req.url.startsWith('/api/v1/'))throw new BridgeError('UNSUPPORTED_VERSION','Supported bridge protocol version is 1',426);
+   if(!['/api/v1/generate','/api/v1/probe'].includes(req.url))throw new BridgeError('NOT_FOUND','Unknown bridge endpoint',404);
+   if(req.method!=='POST')throw new BridgeError('METHOD_NOT_ALLOWED','POST required',405);
+   const args=await readJSON(req),controller=new AbortController();res.on('close',()=>controller.abort());
+   const result=await generateV1(args,{probe:req.url==='/api/v1/probe',signal:controller.signal});
+   if(!res.destroyed)return json(res,200,result);return;
   }
   if(req.method==='GET'&&req.url==='/api/status')return json(res,200,{ok:true,providers:configuration(),mcp:'node src/mcp-server.js'});
   if(req.method==='POST'&&(req.url==='/api/generate'||req.url==='/api/probe')){
@@ -47,7 +58,7 @@ async function listener(req,res){
   if(!allowed.has(final)||!fs.existsSync(final))return json(res,404,{error:'Not found'});
   res.writeHead(200,{'Content-Type':MIME[path.extname(final)]||'application/octet-stream','X-Content-Type-Options':'nosniff'});
   fs.createReadStream(final).pipe(res);
- }catch(err){if(!res.headersSent)json(res,err.status|| (err.message?.includes('API_KEY')?400:422),{error:err.message||'Request failed'});}
+ }catch(err){if(!res.headersSent&&!res.destroyed){if(versioned){const error=failure(err);return fail(error.status,error.code,error.message)}json(res,err.status|| (err.message?.includes('API_KEY')?400:422),{error:err.message||'Request failed'});}}
 }
 if(require.main===module){http.createServer(listener).listen(PORT,HOST,()=>console.log(`LoopForge → http://${HOST}:${PORT}`));}
 module.exports={listener};

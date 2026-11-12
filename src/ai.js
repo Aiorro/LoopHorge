@@ -35,9 +35,10 @@ async function requestAI(provider, opts, {count=8,description='',model,signal,tr
    if(apiKey)headers['Authorization']=`Bearer ${apiKey}`;
    body={model:actualModel,temperature:0.75,messages:[{role:'system',content:'You are a composer. Answer with valid JSON only.'},{role:'user',content:instruction}]};
  }
+ const requestSignal=signal?AbortSignal.any([signal,AbortSignal.timeout(90000)]):AbortSignal.timeout(90000);
  let response;
- try{response=await transport(config.url,{method:'POST',headers,body:JSON.stringify(body),signal:signal?AbortSignal.any([signal,AbortSignal.timeout(90000)]):AbortSignal.timeout(90000)});}
- catch{if(signal?.aborted)throw new Error('Generation cancelled');throw new Error(`${provider} connection failed; check connectivity and provider configuration`)}
+ try{response=await transport(config.url,{method:'POST',headers,body:JSON.stringify(body),signal:requestSignal});}
+ catch(error){if(signal?.aborted)throw new Error('Generation cancelled');if(requestSignal.reason?.name==='TimeoutError'||error?.name==='TimeoutError')throw new Error(`${provider} request timed out`);throw new Error(`${provider} connection failed; check connectivity and provider configuration`)}
  if(!response.ok){try{await response.body?.cancel()}catch{}throw new Error(`${provider} returned HTTP ${response.status}; ${response.status===401||response.status===403?'check authorization, API key and model access':response.status===429?'rate limit or quota reached; retry later':response.status===404?'check the model name':'check provider availability'}`);}
  const reader=response.body?.getReader();
  if(!reader)throw new Error('Provider sent empty response');
@@ -51,6 +52,7 @@ async function requestAI(provider, opts, {count=8,description='',model,signal,tr
   }
  }catch(error){
   if(signal?.aborted)throw new Error('Generation cancelled');
+  if(requestSignal.reason?.name==='TimeoutError'||error?.name==='TimeoutError')throw new Error(`${provider} request timed out`);
   if(error.message==='Provider response exceeded 4 MiB safety limit')throw error;
   throw new Error('Provider response could not be read; check connectivity or timeout');
  }finally{reader.releaseLock()}

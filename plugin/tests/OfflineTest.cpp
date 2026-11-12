@@ -18,6 +18,7 @@ int main(int argc,char** argv){juce::ScopedJuceInitialiser_GUI init;Processor p;
   auto params=juce::JSON::parse(body);params.getDynamicObject()->setProperty("mode",mode);params.getDynamicObject()->setProperty("style",style);
   auto generated=offline::generate(params);check(generated.size()==8);for(const auto& idea:*generated.getArray()){auto* state=new juce::DynamicObject;state->setProperty("version",1);state->setProperty("idea",idea);auto text=juce::JSON::toString(juce::var(state));p.setStateInformation(text.toRawUTF8(),int(text.getNumBytesAsUTF8()));check(juce::JSON::toString(p.getIdea())==juce::JSON::toString(idea));}
  }
+ auto strict=offline::generate(juce::JSON::parse(body))[0].clone();auto* meta=strict["metadata"].getDynamicObject();meta->setProperty("bpm",87.0);meta->setProperty("seed",42.0);auto* signature=new juce::DynamicObject;signature->setProperty("numerator",4);signature->setProperty("denominator",4);meta->setProperty("timeSignature",juce::var(signature));Schedule parsed;check(wire::schedule(strict,parsed,true));
  if(argc>1){auto generated=offline::generate(juce::JSON::parse(body));check(juce::File(argv[1]).replaceWithText(juce::JSON::toString(generated)));}
  std::cout<<"eight native offline ideas, deterministic seed, bounds and scale passed\n";
 }

@@ -1,7 +1,7 @@
 #pragma once
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_audio_processors/juce_audio_processors.h>
-#include "Schedule.h"
+#include "Wire.h"
 #include "Offline.h"
 #include <atomic>
 #include <mutex>
@@ -10,7 +10,7 @@ static_assert(std::atomic<int>::is_always_lock_free);
 static_assert(std::atomic<bool>::is_always_lock_free);
 class Processor final : public juce::AudioProcessor, private juce::Thread {
 public:
- Processor():AudioProcessor(BusesProperties().withOutput("Audition",juce::AudioChannelSet::stereo(),true)),Thread("LoopForge composition") {
+ explicit Processor(int timeoutMs=95000):AudioProcessor(BusesProperties().withOutput("Audition",juce::AudioChannelSet::stereo(),true)),Thread("LoopForge composition"),requestTimeoutMs(juce::jlimit(1,95000,timeoutMs)) {
   slots[0].state=3; auto& s=slots[0].data;
   const int roots[]={48,44,51,46};
   for(int bar=0;bar<4;++bar){int r=roots[bar];
@@ -87,6 +87,7 @@ private:
  // Match the pinned VST3 converter; reserve up to 3*128 active note releases.
  static constexpr int maxMidiEvents=2048;int eventsWritten=0;std::atomic<bool> midiLimitReached{false};
  void emit(juce::MidiBuffer& midi,const juce::MidiMessage& message,int offset){midi.addEvent(message,offset);++eventsWritten;}
+ const int requestTimeoutMs;
  struct Slot{Schedule data;std::atomic<int> state{0};};std::array<Slot,3> slots;
  std::atomic<bool> cancelled{false};std::atomic<int> pending{-1};int active=0;double rate=44100,internalBeat=0,lastEnd=-1,lastStep=0;
  unsigned short noteCounts[16][128]{};float voices[16][128]{};double phases[16][128]{},increments[128]{};
@@ -94,19 +95,7 @@ private:
  void resetNotes(){for(auto& ch:voices)for(auto& v:ch)v=0;for(auto& ch:noteCounts)for(auto& n:ch)n=0;}
  void flush(juce::MidiBuffer& midi,int offset){for(int ch=0;ch<16;++ch)for(int p=0;p<128;++p)if(voices[ch][p]>0)emit(midi,juce::MidiMessage::noteOff(ch+1,p),offset);resetNotes();}
  bool install(const juce::var& idea){
-  Schedule s;auto metadata=idea["metadata"];s.beats=double(metadata["bars"])*4;s.bpm=double(metadata["bpm"]);
-  if((s.beats!=16&&s.beats!=32)||!std::isfinite(s.bpm)||s.bpm<40||s.bpm>240)return false;
-  auto layers=idea["layers"];int channel=1;
-  for(const char* name:{"bass","chords","melody"}){
-   auto list=layers[name];if(!list.isArray()||list.size()>800)return false;
-   for(const auto& n:*list.getArray()){
-    for(const char* field:{"pitch","start","duration","velocity"})if(!n[field].isInt()&&!n[field].isInt64()&&!n[field].isDouble())return false;
-    double pitch=n["pitch"],velocity=n["velocity"];
-    if(!std::isfinite(pitch)||!std::isfinite(velocity)||pitch<0||pitch>127||velocity<1||velocity>127||pitch!=std::floor(pitch)||velocity!=std::floor(velocity))return false;
-    if(!s.add(int(pitch),double(n["start"]),double(n["duration"]),int(velocity),channel))return false;
-   }++channel;
-  }
-  if(!s.count)return false;s.sort();
+  Schedule s;if(!wire::schedule(idea,s))return false;
   for(int i=0;i<3;++i){int free=0;if(slots[i].state.compare_exchange_strong(free,1)){
    slots[i].data=s;slots[i].state=2;int old=pending.exchange(i);if(old>=0)slots[old].state=0;
    auto* object=new juce::DynamicObject;object->setProperty("version",1);object->setProperty("idea",idea);saved=juce::var(object);return true;
@@ -128,12 +117,14 @@ private:
      ideas=generated;status="Offline ideas ready - no service required.";busy=false;continue;
     }
     // Use a direct loopback socket: native JUCE HTTP may ignore NO_PROXY on Linux.
+    const auto deadline=juce::Time::getMillisecondCounterHiRes()+requestTimeoutMs;
     juce::StreamingSocket socket;
-    if(!socket.connect("127.0.0.1",4177,2000))throw std::runtime_error("Local API unavailable. Run npm start in LoopHorge.");
-    auto request=juce::String(probe?"POST /api/probe HTTP/1.1\r\nHost:":"POST /api/generate HTTP/1.1\r\nHost:")+juce::String(" 127.0.0.1:4177\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: ")+juce::String(body.getNumBytesAsUTF8())+"\r\n\r\n"+body;
+    if(!socket.connect("127.0.0.1",4177,juce::jmin(2000,requestTimeoutMs)))throw std::runtime_error("Local API unavailable. Run npm start in LoopHorge.");
+    params.getDynamicObject()->removeProperty("action");body=juce::JSON::toString(params);
+    auto request=juce::String(probe?"POST /api/v1/probe HTTP/1.1\r\nHost:":"POST /api/v1/generate HTTP/1.1\r\nHost:")+juce::String(" 127.0.0.1:4177\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: ")+juce::String(body.getNumBytesAsUTF8())+"\r\n\r\n"+body;
     const char* data=request.toRawUTF8();int remaining=int(request.getNumBytesAsUTF8());
-    while(remaining>0){int sent=socket.write(data,remaining);if(sent<=0)throw std::runtime_error("API request could not be sent");data+=sent;remaining-=sent;}
-    juce::MemoryOutputStream bytes;char buffer[8192];const auto deadline=juce::Time::getMillisecondCounterHiRes()+95000;
+    while(remaining>0){if(cancelled||threadShouldExit())throw std::runtime_error("Generation cancelled");if(juce::Time::getMillisecondCounterHiRes()>deadline)throw std::runtime_error("Generation timed out");int sent=socket.write(data,remaining);if(sent<=0)throw std::runtime_error("API request could not be sent");data+=sent;remaining-=sent;}
+    juce::MemoryOutputStream bytes;char buffer[8192];
     while(true){
      if(cancelled||threadShouldExit()||juce::Time::getMillisecondCounterHiRes()>deadline)throw std::runtime_error("Generation cancelled or timed out");
      int ready=socket.waitUntilReady(true,100);if(ready<0)break;if(!ready)continue;
@@ -141,15 +132,21 @@ private:
      if(bytes.getDataSize()+size_t(n)>4*1024*1024+8192)throw std::runtime_error("API response exceeded limit");bytes.write(buffer,size_t(n));
     }
     auto raw=bytes.toString();int boundary=raw.indexOf("\r\n\r\n");
-    if(boundary<0)throw std::runtime_error("Invalid local API response");
-    if(!raw.startsWith("HTTP/1.1 200 ")){
-     auto error=juce::JSON::parse(raw.substring(boundary+4))["error"].toString().substring(0,512);
-     throw std::runtime_error(("Local API rejected request: "+(error.isEmpty()?juce::String("check server provider configuration"):error)).toStdString());
-    }
+    if(boundary<0||boundary>8192)throw std::runtime_error("Invalid local API headers");
     auto headers=raw.substring(0,boundary).toLowerCase();auto payload=raw.substring(boundary+4);
-    if(headers.contains("transfer-encoding:"))throw std::runtime_error("Restart the updated LoopForge server (Content-Length required).");
     if(payload.getNumBytesAsUTF8()>4*1024*1024)throw std::runtime_error("API response exceeded limit");
-    auto response=juce::JSON::parse(payload);auto list=response["ideas"];
+    if(!raw.startsWith("HTTP/1.1 200 ")){
+     auto response=juce::JSON::parse(payload);auto error=response["error"]["message"].toString().substring(0,512);
+     if(!wire::integer(response["protocolVersion"],1,1))error="check provider configuration and bridge version";
+     throw std::runtime_error(("Local API rejected request: "+error).toStdString());
+    }
+    if(headers.contains("transfer-encoding:"))throw std::runtime_error("Invalid local API transfer encoding");
+    juce::String length;int lengthHeaders=0;for(auto line:juce::StringArray::fromLines(headers))if(line.startsWith("content-length:")){length=line.fromFirstOccurrenceOf(":",false,false).trim();++lengthHeaders;}
+    if(lengthHeaders!=1||length.isEmpty()||!length.containsOnly("0123456789")||length.getLargeIntValue()!=juce::int64(payload.getNumBytesAsUTF8()))throw std::runtime_error("API response length mismatch");
+    auto response=wire::document(payload);if(!response.isObject())throw std::runtime_error("Invalid bridge JSON");auto list=response["ideas"];
+    if(!wire::integer(response["protocolVersion"],1,1))throw std::runtime_error("Unsupported bridge protocol; update the local service");
+    if(!wire::reply(response,probe))throw std::runtime_error("Invalid bridge response");
+    if(!probe){if(!list.isArray()||list.size()<1||list.size()>8)throw std::runtime_error("Invalid composition received");for(const auto& idea:*list.getArray()){Schedule checked;if(!wire::schedule(idea,checked,true))throw std::runtime_error("Invalid composition received");}}
     std::lock_guard lock(mutex);
     if(cancelled||threadShouldExit())throw std::runtime_error("Generation cancelled");
     if(probe){if(!bool(response["ok"]))throw std::runtime_error("Invalid provider probe response");status="Connected: "+response["provider"].toString()+" / "+response["model"].toString();busy=false;continue;}

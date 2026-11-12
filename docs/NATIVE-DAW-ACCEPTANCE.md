@@ -21,3 +21,7 @@ While a gesture is captured, replace/select/edit the idea; the exported file sho
 ## Results to retain
 
 For each scenario record Pass/Fail/Not run, exact steps, observed behaviour, expected behaviour, host logs/screenshots and any reproduced failure. Acceptance presently remains Not run for Windows REAPER load/routing/transport, actual OS drag/import and plugin unload. Update task.md with observed evidence and exact host versions; T12 cannot be checked from this template.
+
+## Available source-verified artifact
+
+Source2a004b7 passed native Windows11/11 and Linux12/12 tests in https://github.com/Aiorro/LoopHorge/actions/runs/43294644471 . The unsigned Windows bundle is https://github.com/Aiorro/LoopHorge/actions/runs/43294644471/artifacts/13979442439, GitHub-reported SHA25665644ead60e8214a4532e72cba111e633246cc4fcbae497efa216cb1d9c74e54. This is the candidate for the procedure above, not evidence that it was installed or host-loaded.

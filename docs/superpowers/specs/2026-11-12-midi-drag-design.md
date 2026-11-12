@@ -1,10 +1,10 @@
 # T12 MIDI drag/drop design
 
-Status: proposed; user approval pending. task.md is the sole task/progress checklist. This small design covers the drag source; real DAW acceptance is a separate part of T12 and stays unchecked until actually observed.
+Status: approved by the user on2026-11-12. task.md is the sole task/progress checklist. This small design covers the drag source; real DAW acceptance is a separate part of T12 and stays unchecked until actually observed.
 
 ## Intent and approach
 
-Drag the committed current idea into an application that accepts MIDI files, preserving the existing type1 encoder and Save dialog. Recommend a separate DRAG MIDI control next to EXPORT MIDI: it makes the gesture discoverable and keeps normal export behaviour predictable. A combined click-to-save/drag-to-copy control saves space but hides the second action and complicates accidental-drag handling. The separate control is the implementer's recommendation, not yet a user-approved choice. Use JUCE8.0.8's native performExternalDragDropOfFiles, not platform-specific virtual-file/COM implementations or an external service.
+Drag the committed current idea into an application that accepts MIDI files, preserving the existing type1 encoder and Save dialog. Recommend a separate DRAG MIDI control next to EXPORT MIDI: it makes the gesture discoverable and keeps normal export behaviour predictable. A combined click-to-save/drag-to-copy control saves space but hides the second action and complicates accidental-drag handling. The user approved the separate-control proposal. Use JUCE8.0.8's native performExternalDragDropOfFiles, not platform-specific virtual-file/COM implementations or an external service.
 
 ## Interaction and snapshot
 

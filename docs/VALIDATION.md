@@ -12,7 +12,7 @@ node scripts/verify-native-api.cjs build/native/processor_test
 node scripts/verify-native-failures.cjs build/native/processor_test
 ```
 
-On Windows use build/native/Release/processor_test.exe in the final two commands. Port 4177 must be free: the scripts start and stop only their own servers. Windows execution remains unverified. CI runs these checks and uploads unsigned artifacts.
+On Windows use build/native/Release/processor_test.exe in the final two commands. Port 4177 must be free: the scripts start and stop only their own servers. Windows execution is covered by the commit-specific CI evidence below. CI runs these checks and uploads unsigned artifacts.
 
 Optional scheduler memory/undefined-behavior check on GCC/Clang:
 
@@ -40,11 +40,11 @@ The repository contains the CMake targets, pinned JUCE commit, native source, te
 
 The current machine has CMake 4.4.4 and Ninja under /workspace/native-tools/bin, JUCE at /workspace/JUCE, development headers/libraries extracted under /workspace/native-sysroot, and built artifacts at /workspace/loopforge-build. Shared-library inspection found no missing runtime dependency in the Linux VST3. Normal machines should use the documented OS package installation, rather than copying this temporary sysroot.
 
-Git read/push access works. GitHub API access for CI inspection/PR creation still returns Forbidden. Fresh unauthenticated probes to api.openai.com, api.anthropic.com and openrouter.ai fail at the proxy CONNECT stage with 403; this is a network policy blocker, not a provider authentication result. Corresponding API-key variable names were checked without reading values and are missing. Local Ollama port 11434 is not listening. Required domain additions: api.github.com, api.openai.com, api.anthropic.com, openrouter.ai. Credentials belong in environment settings, never chat or repository files.
+Git read/push access and the connected GitHub API now work; PR2 and actual CI results are recorded below. Earlier unauthenticated probes to api.openai.com, api.anthropic.com and openrouter.ai failed at the proxy CONNECT stage with 403; this is a network policy blocker, not a provider authentication result. Corresponding API-key variable names were checked without reading values and are missing. Local Ollama port 11434 is not listening. Live-provider network access would require api.openai.com, api.anthropic.com and openrouter.ai. Credentials belong in environment settings, never chat or repository files.
 
 ## Outstanding acceptance
 
-A production-ready claim remains blocked by unverified Windows builds, actual DAW transport/audio/MIDI behavior, live AI providers, Windows CLI process-tree/deadline behavior and long-duration leak/profiling tests. Native editing, undo and drag-to-DAW are not implemented. These checks cover a defined stress matrix, not every host/device/plugin combination. See task.md for remaining work.
+A production-ready claim remains blocked by actual DAW transport/audio/MIDI behavior, live AI providers, whole-plugin analysis and long-duration leak/profiling tests. Windows builds and CLI process-tree/deadline behavior have commit-specific CI evidence below. Native editing, undo and drag-to-DAW are not implemented. These checks cover a defined stress matrix, not every host/device/plugin combination. See task.md for remaining work.
 
 ## Review remediation (2026-11-11)
 
@@ -77,3 +77,7 @@ Applied official Superpowers7.0.2 `requesting-code-review` and its reviewer temp
 Additional TDD regressions: negative-PPQ seeks could leave held notes because lastEnd<0 also represented 'no prior block'; a separate continuity flag fixes this without callback allocations. Boolean saved-state version was accepted through integer coercion; the shared strict numeric version check now rejects it. Old behavior was reproduced before both fixes.
 
 Verified after fixes: Node42/42; Linux VST3/Standalone build; CTest9/9; expanded native socket failure/recovery/cancellation/deadline suite; scheduler with ASan/UBSan; unchanged sample JSON/MIDI bytes. Sanitizer coverage is the scheduler, not the entire plugin. Callback allocation coverage still requires the prepared-MIDI-buffer contract. Actual DAW sessions, pluginval (not installed here), real provider accounts and release installation remain separate acceptance limits. The superseded f9d245d commit passed both native Windows/Linux and the three-OS Node20/22 matrix; the new fix commit receives separate CI checks.
+
+Environment installation: official Superpowers7.0.2 at pinned upstream22f0b463e7a5e579904dd6211a520321035526f7 is installed/enabled in the native Codex CLI; cached skill files hash-match the reviewed source. The separate Codex App Superpowers plugin is confirmed installed/ENABLED (catalog does not expose its version). Pluginval was unavailable; the dedicated static analyzers clang-tidy and cppcheck were also absent. JavaScript syntax checks passed for all16 files in src/scripts/tests, and git diff --check passed. T13 remains open rather than treating source review/scheduler sanitizers as complete whole-plugin analysis.
+
+Final source CI (2026-11-12), head0c6a132 / PR merge48441d646f6a7142dec86fb809dc3704cc45fa34: https://github.com/Aiorro/LoopHorge/actions/runs/43172603984 succeeded for Windows and Ubuntu, including VST3/Standalone builds, CTest8/8 on Windows and9/9 on Linux, and both actual native HTTP scripts. Prototype matrix https://github.com/Aiorro/LoopHorge/actions/runs/43172603983 passed Node20/22 on Windows/macOS/Linux. Windows unsigned artifact https://github.com/Aiorro/LoopHorge/actions/runs/43172603984/artifacts/13922639075 has GitHub-reported SHA2566062e80415eb2827c03952d1dd54f252d2b85a04ccb359daaa8c39b7328c215e; Linux artifact13923022117 has SHA25691e6930e070e88410fea1fcb2a73c25811f9b042ed305aae37c66399925d3d81. These are compiled/tested artifacts, not a host-validated release. A brief cloud runtime interruption occurred after local tests; the files and installed/enabled CLI plugin were rechecked after recovery. This evidence-only follow-up also removes one trailing blank line in Processor.h; it changes no runtime behavior.

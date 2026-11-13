@@ -4,6 +4,8 @@
 #include <iostream>
 #include <limits>
 #include <random>
+#include <chrono>
+#include <unordered_set>
 using namespace composer;
 #define check(x) do{if(!(x)){std::cerr<<"line "<<__LINE__<<": " #x "\n";std::abort();}}while(false)
 std::string fixture(){return R"({"schemaVersion":2,"ppq":480,"engineVersion":4294967295,"seed":4294967295,"id":"fixture","style":"trap","source":"native","legacyJson":"{\"value\":1}","timingNotice":"exact","endTick":6240,"tempos":[{"tick":0,"microsPerQuarter":500000},{"tick":2880,"microsPerQuarter":400000}],"meters":[{"tick":0,"numerator":3,"denominator":4},{"tick":2880,"numerator":5,"denominator":8}],"keys":[{"tick":0,"root":0,"scale":"natural-minor"},{"tick":2880,"root":2,"scale":"dorian"}],"sections":[{"id":"18446744073709551615","name":"Verse","startTick":0,"endTick":6240,"role":"verse"}],"chords":[{"id":"9007199254740993","startTick":0,"durationTicks":1440,"root":0,"pitchClasses":[0,3,7],"voicing":[48,51,55],"inversion":0,"tension":75,"explanation":"borrowed"}],"tracks":[{"id":"1","name":"Bass \u0411\u0430\u0441 \ud83c\udfb5","role":"bass","channel":16,"lowPitch":24,"highPitch":90,"program":33,"bank":{"msb":2,"lsb":7},"ownedPitches":"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","notes":[{"id":"18446744073709551614","pitch":60,"velocity":99,"startTick":240,"durationTicks":720}],"controls":[{"id":"9007199254740995","tick":120,"controller":64,"value":127}]}]})";}
@@ -78,5 +80,18 @@ int main(){
     rejects(replace(saved.json,"\"chords\":[","\"chords\":[{\"id\":\"999999\",\"startTick\":0,\"durationTicks\":1,\"root\":0,\"pitchClasses\":[0],\"voicing\":[],\"inversion\":0,\"tension\":50,\"explanation\":\"\"},"));
     std::mt19937 rng(123);for(int i=0;i<2048;++i){std::string bytes(size_t(rng()%128),' ');for(auto& b:bytes)b=char(rng()%256);rejects(bytes);}
     auto original=fixture();for(size_t i=0;i<original.size();i+=7)rejects(std::string_view(original).substr(0,i));
+    // Untrusted IDs must not make a bounded file quadratic to validate.
+    {
+        constexpr size_t count=131072;std::unordered_set<Id> oracle;
+        for(size_t i=1;i<=count+1;++i)oracle.insert(i);
+        auto hostile=c;hostile.sections.clear();hostile.chords.clear();hostile.tracks[0].controls.clear();hostile.tracks[0].notes.clear();
+        const auto bucket=Id(oracle.bucket_count());hostile.tracks[0].id=bucket;
+        for(size_t i=0;i<count;++i)hostile.tracks[0].notes.push_back({(i+2)*bucket,60,90,{0},{480}});
+        jsonDetail::SchemaWriter payload;payload.value(hostile);
+        auto start=std::chrono::steady_clock::now();auto decoded=decodeCompositionJson(payload.output);
+        auto elapsed=std::chrono::duration<double>(std::chrono::steady_clock::now()-start).count();
+        std::cout<<"adversarial ID decode seconds: "<<elapsed<<std::endl;
+        check(decoded.composition&&elapsed<2.0);
+    }
     std::cout<<"composition JSON exact fields/uint64/Unicode, strict schema,131072 notes/65536 CC, provenance and malformed inputs passed\n";
 }

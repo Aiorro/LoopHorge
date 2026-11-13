@@ -75,6 +75,8 @@ The canonical UTF-8 schema stores every current Composition field, including IDs
 
 Encoded/input JSON is capped at32MiB, decoded legacyJson at4MiB, metadata text at1024bytes and the composition ID/track/section names at128bytes; existing model budgets apply. Schema-directed parsing constructs bounded typed arrays directly without a generic DOM or input-controlled recursion. Large valid documents whose escaped representation exceeds32MiB cannot be saved in this format and return an explicit error. Reading/writing allocates and belongs outside processBlock. This is the composition-file codec, not yet the plugin's version2 state envelope: existing version1 presets, bridge-v1, restore/job cancellation, playback, history and UI still use the established path. Old plugin versions cannot read composition-v2 files. The complete project envelope and validated atomic publication remain E04 integration work.
 
+Shared model validation uses a balanced ID tree so attacker-selected numeric IDs cannot turn uniqueness checks into quadratic hash-collision work. Error strings are sanitized, and allocation failures are caught on a best-effort basis; these allocating APIs are not noexcept and cannot guarantee recovery under sustained global allocator exhaustion. The codec performs no file writes and does not provide filesystem atomicity/crash recovery.
+
 `PromptCompose.h` adds a local RU/EN direction interpreter and supported-loop adapter. Sources are UTF-8; compile consumers with `/utf-8` on MSVC, as the prompt test target does. The caller supplies a seed chosen once; parsing itself never chooses fresh randomness.
 
 ```cpp

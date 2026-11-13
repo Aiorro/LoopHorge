@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <unordered_set>
+#include <set>
 
 namespace composer {
 enum class ValidationCode { ok,version,identity,time,maps,track,note,control,harmony,sections,resource,density };
@@ -80,7 +80,8 @@ inline ValidationResult validate(const Composition& c) {
         }
     }
     for(const auto& k:c.keys)if(k.root<0||k.root>11||k.scale<Scale::major||k.scale>Scale::blues)return error(ValidationCode::maps,"Invalid key or scale");
-    std::unordered_set<Id> ids;
+    // IDs are untrusted; a balanced tree avoids attacker-selected hash collisions.
+    std::set<Id> ids;
     auto identity=[&](Id id){return id!=0&&ids.insert(id).second;};
     std::array<int,16> channels{};
     for(const auto& t:c.tracks)if(t.channel>=1&&t.channel<=16)++channels[size_t(t.channel-1)];

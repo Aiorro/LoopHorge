@@ -90,6 +90,14 @@ int main(){
         auto song=generateLoop(cfg);check(song.composition&&validate(*song.composition));
         for(size_t part:{size_t(0),size_t(2)}){const auto& notes=song.composition->tracks[part].notes;for(size_t i=1;i<notes.size();++i)check(notes[i].start>notes[i-1].start);}
     }
+    for(int complexity:{0,24})for(int style=0;style<5;++style)for(auto feel:{Feel::half,Feel::normal,Feel::doubleTime}){
+        Config selected;selected.drums=true;selected.complexity=complexity;selected.style=Style(style);selected.feel=feel;selected.humanization=0;selected.drumFills=false;
+        auto enabled=generateDrums(selected);check(enabled.track);bool actualGhost=false;const int snare=style==int(Style::ambient)?37:38;
+        for(const auto& n:enabled.track->notes){if(n.pitch==snare&&n.velocity<=42)actualGhost=true;}check(actualGhost);
+        selected.ghostNotes=false;auto disabled=generateDrums(selected);check(disabled.track);
+        for(const auto& n:disabled.track->notes){if(n.pitch==snare)check(n.velocity>42);}
+        check(enabled.track->notes.size()>disabled.track->notes.size());
+    }
     cfg=Config{};cfg.seed=std::numeric_limits<uint32_t>::max();cfg.root=11;cfg.scale=Scale::blues;cfg.style=Style::ambient;cfg.bpm=40;cfg.bars=32;
     cfg.numerator=12;cfg.denominator=2;cfg.complexity=100;cfg.humanization=100;cfg.swing=100;cfg.harmonicBars=4;cfg.modalInterchange=true;
     cfg.drums=true;cfg.feel=Feel::doubleTime;cfg.modulation=Modulation{28,5,Scale::harmonicMinor};

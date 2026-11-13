@@ -58,7 +58,7 @@ inline DrumResult generateDrums(const Config& config){
             voice(kicks[style],36,ambient?62:104,100,true);
             voice(snares[style],ambient?37:38,ambient?56:108,101,false);
             voice(hats[style],ambient?51:42,ambient?40:58,102,true);
-            if(config.ghostNotes&&config.complexity>=25)voice(ghosts[style],ambient?37:38,ambient?20:30,103,false);
+            if(config.ghostNotes)voice(ghosts[style],ambient?37:38,ambient?20:30,103,false);
             if(config.drumFills&&(bar+1)%4==0){
                 musicDetail::Random random(musicDetail::seedFor(config.seed,104,uint32_t(bar)));
                 int count=ambient?2:config.complexity>=75?8:4;

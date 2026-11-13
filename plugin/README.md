@@ -24,6 +24,29 @@ API keys belong only in the Node server process environment (`OPENAI_API_KEY`, `
 
 MCP clients can launch `node /absolute/path/src/mcp-server.js` over stdio to generate/export ideas using the same server-side engine. The native plugin uses the HTTP API, not an MCP model connection; the MCP client must explicitly call tools. MIDI files exported by MCP can be used in a DAW. Direct native loading of MCP-generated ideas is not implemented.
 
+## Composer-v2 developer API
+
+`Source/engine/Generation.h` contains the native C++ loop core for the approved Hybrid Composer architecture. It returns validated composition-v2 data with a shared chord/key timeline and bass/chords/lead tracks, plus optional General MIDI drums. It has no Node, network, model or JUCE dependency. Call generation on a composition worker, never in `processBlock()`:
+
+```cpp
+composer::Config config;
+config.seed = 42;
+config.drums = true;
+config.feel = composer::Feel::half;
+auto result = composer::generateLoop(config);
+if (result.composition) {
+    // Consume the validated candidate outside the audio callback.
+} // Otherwise result.error describes the rejected configuration or resource limit.
+```
+
+The core supports twelve roots, eleven scales, bounded chord inversions/voice leading, shared harmony, motif call/response, five genre grooves and explicit borrowing/modulation. `harmonicBars` selects automatic, one-, two- or four-bar harmony independently of time feel. A modal-interchange request needs at least two harmonic spans so borrowing can resolve; incompatible settings return an error.
+
+`Feel::half` stretches the source rhythm over two bars; `normal` retains it; `doubleTime` repeats it twice per bar. BPM, duration and harmonic timeline stay unchanged. Swing follows the original pulse phase and scales with feel. Bass, lead and drums share this timing transform. The normal-mode musical golden remains unchanged; generator metadata identifies the extended algorithm as engineVersion2/source-v2.
+
+`drums` defaults to false for existing three-track callers. Enabling it appends channel10 without changing melodic notes, IDs or seed streams. The fixed GM kit owns pitches35–59; no bank/program/CC events are emitted. `ghostNotes` enables quiet snare pickups independently of complexity; `drumFills` enables transitions on every fourth bar. Both default to true and apply only when drums are requested. Same-pitch/onset collisions merge and note gates end at or before the next same-pitch attack. All output remains within the chosen meter/bar and document limits.
+
+The current application controls, audio scheduler, saved-state format and MIDI export still use the legacy idea path described above. This developer API does not make v2 drum preview, full-song editing/playback or v2 export available in the UI. See [task.md](../task.md) for integration status and [the architecture](../docs/superpowers/specs/2026-11-13-hybrid-engine-design.md) for ownership/resource contracts. `LegacyMigration.h` provides explicit, loss-disclosing legacy import; existing projects are never converted automatically.
+
 ## Behavior and limits
 
 A built-in three-layer demo plays without Node. Generated compositions contain at most 1600 notes. A three-slot handoff keeps worker data writes outside the active audio schedule. Playhead PPQ, tempo and play state are used when provided by the host. Active notes are flushed on stops, seeks, loop wraps and schedule changes. Same-channel/pitch notes retrigger with a balanced off/on pair and sustain until the last overlapping note ends; MIDI 1.0 has no independent voice IDs for these overlaps. Seeking into a sustained note does not retrigger it. Native state persists the selected generated composition; provider controls/history are not yet persisted. The default demo is reconstructed when no saved composition exists.

@@ -1,26 +1,20 @@
 #pragma once
 #include "Harmony.h"
+#include "Rhythm.h"
 
 namespace composer {
 struct GenerationResult {std::optional<Composition> composition;std::string error;};
 namespace musicDetail {
 inline std::string configId(const Config& c){
-    std::string id="loop-"+std::to_string(c.seed);
+    std::string id="loop-v2-"+std::to_string(c.seed);
     for(int value:{c.root,int(c.scale),int(c.style),c.bpm,c.bars,c.numerator,c.denominator,c.complexity,c.humanization,c.swing,c.harmonicBars,int(c.modalInterchange)})id+="-"+std::to_string(value);
+    for(int value:{int(c.drums),int(c.ghostNotes),int(c.drumFills)})id+="-"+std::to_string(value);
     if(c.modulation)for(int value:{c.modulation->bar,c.modulation->root,int(c.modulation->scale)})id+="-"+std::to_string(value);
     return id;
 }
 inline const Chord& at(const std::vector<Chord>& chords,int64_t tick){
     auto it=std::upper_bound(chords.begin(),chords.end(),tick,[](int64_t t,const Chord& h){return t<h.start.value;});
     return *std::prev(it);
-}
-inline int64_t onset(int unit,int divisions,int64_t length,const Config& config,Random& random){
-    const int64_t base=int64_t(unit)*length/divisions;
-    if(unit==0)return 0;
-    const int64_t step=std::max<int64_t>(1,length/divisions);
-    const int64_t swing=unit%2?step*config.swing/200:0;
-    const int jitter=int(std::min<int64_t>((step-1)/4,24)*config.humanization/100);
-    return std::clamp(base+swing+random.offset(jitter),int64_t(0),length-1);
 }
 inline int registerPitch(int pitch,int previous,int low,int high){
     int best=pitch,bestDistance=1000;
@@ -37,7 +31,7 @@ inline GenerationResult generateLoop(const Config& config){
     try {
         auto harmony=planHarmony(config);if(!harmony.error.empty())return {{},harmony.error};
         const int64_t barTicks=480LL*4*config.numerator/config.denominator;
-        Composition c;c.id=musicDetail::configId(config);c.seed=config.seed;c.style=styleName(config.style);c.source="native-motif-rules-v1";
+        Composition c;c.id=musicDetail::configId(config);c.engineVersion=2;c.seed=config.seed;c.style=styleName(config.style);c.source="native-motif-rules-v2";
         c.endTick={config.bars*barTicks};c.tempos={{{0},int(std::llround(60000000.0/config.bpm))}};
         c.meters={{{0},config.numerator,config.denominator}};c.keys=harmony.keys;c.chords=harmony.chords;
         Id id=1;
@@ -90,6 +84,12 @@ inline GenerationResult generateLoop(const Config& config){
             }
         }
         c.tracks={std::move(bass),std::move(chords),std::move(lead)};
+        if(config.drums){
+            auto drums=generateDrums(config);if(!drums.track)return {{},drums.error};
+            drums.track->id=id++;
+            for(auto& note:drums.track->notes)note.id=id++;
+            c.tracks.push_back(std::move(*drums.track));
+        }
         auto validation=validate(c);if(!validation)return {{},validation.message};
         return {std::move(c),{}};
     }catch(const std::bad_alloc&){return {{},"Not enough memory to generate composition"};}

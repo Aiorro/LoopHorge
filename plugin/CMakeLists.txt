@@ -91,3 +91,5 @@ add_test(NAME music_theory COMMAND theory_test)
 
 add_executable(generation_test tests/GenerationTest.cpp)
 add_test(NAME native_music_generation COMMAND generation_test)
+add_executable(rhythm_test tests/RhythmTest.cpp)
+add_test(NAME native_rhythm COMMAND rhythm_test)

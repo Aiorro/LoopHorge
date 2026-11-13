@@ -10,6 +10,7 @@ struct Config {
     uint32_t seed=0;
     int complexity=50,humanization=20,swing=0,harmonicBars=0;
     bool modalInterchange=false;
+    bool drums=false,ghostNotes=true,drumFills=true;
     std::optional<Modulation> modulation;
 };
 inline const char* styleName(Style style){

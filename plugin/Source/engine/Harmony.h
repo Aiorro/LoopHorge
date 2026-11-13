@@ -19,7 +19,8 @@ inline HarmonyPlan planHarmony(const Config& config){
         if(config.modulation&&bar<config.modulation->bar)length=std::min(length,config.modulation->bar-bar);
         int degree=progressions[int(config.style)][(bar/harmonicBars)%4];
         if(bar+length==config.bars)degree=0;
-        bool borrowed=config.modalInterchange&&bar%4==2&&bar+length<config.bars;
+        const int spanIndex=bar/harmonicBars,totalSpans=config.bars/harmonicBars;
+        bool borrowed=config.modalInterchange&&(spanIndex%4==2||(totalSpans==2&&spanIndex==0))&&bar+length<config.bars;
         if(borrowed){context.scale=context.scale==Scale::major?Scale::naturalMinor:Scale::major;degree=3;}
         degree%=int(scaleIntervals(context.scale).size());
         int voices=(config.style==Style::rnb||config.style==Style::ambient)?(config.complexity>=80?5:4):3;

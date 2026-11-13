@@ -26,6 +26,8 @@ inline ValidationResult validateConfig(const Config& c){
        ||(c.harmonicBars!=0&&c.harmonicBars!=1&&c.harmonicBars!=2&&c.harmonicBars!=4))return invalid();
     if(c.modulation&&(c.modulation->bar<4||c.modulation->bar>=c.bars||c.modulation->bar%4!=0
        ||c.modulation->root<0||c.modulation->root>11||c.modulation->scale<Scale::major||c.modulation->scale>Scale::blues))return invalid();
+    const int harmonicBars=c.harmonicBars?c.harmonicBars:(c.style==Style::ambient?2:1);
+    if(c.modalInterchange&&c.bars/harmonicBars<2)return {ValidationCode::harmony,"Modal interchange needs at least two harmonic spans for borrowing and resolution"};
     return {};
 }
 namespace musicDetail {

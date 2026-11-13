@@ -58,6 +58,8 @@ int main(){
     cfg=Config{};cfg.modalInterchange=true;c=*generateLoop(cfg).composition;check(validate(c));
     bool borrowed=false;for(const auto& h:c.chords)if(!h.explanation.empty())borrowed=true;check(borrowed);
     for(const auto& n:c.tracks[0].notes)check(chordTone(chordAt(c,n.start.value),n.pitch));
+    for(int harmonicBars:{1,2,4}){auto requested=cfg;requested.harmonicBars=harmonicBars;auto song=generateLoop(requested);check(song.composition);
+        bool applied=false;for(const auto& h:song.composition->chords)if(!h.explanation.empty())applied=true;check(applied);}
     cfg.modulation=Modulation{4,7,Scale::major};c=*generateLoop(cfg).composition;
     check(validate(c)&&c.keys.size()==2&&c.keys[1].tick.value==7680&&c.keys[1].root==7);
     for(const auto& n:c.tracks[0].notes)check(chordTone(chordAt(c,n.start.value),n.pitch));
@@ -68,6 +70,6 @@ int main(){
     rejects([](auto& x){x.scale=Scale(999);});rejects([](auto& x){x.style=Style(999);});
     rejects([](auto& x){x.numerator=0;});rejects([](auto& x){x.denominator=3;});
     rejects([](auto& x){x.complexity=101;});rejects([](auto& x){x.humanization=-1;});rejects([](auto& x){x.swing=101;});
-    rejects([](auto& x){x.harmonicBars=3;});rejects([](auto& x){x.modulation=Modulation{3,4,Scale::major};});
+    rejects([](auto& x){x.harmonicBars=3;});rejects([](auto& x){x.bars=4;x.harmonicBars=4;x.modalInterchange=true;});rejects([](auto& x){x.modulation=Modulation{3,4,Scale::major};});
     std::cout<<"native generation: shared harmony, motifs,660configurations, groove, seed and bounds passed; golden="<<original<<"\n";
 }

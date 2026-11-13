@@ -88,3 +88,6 @@ target_link_libraries(legacy_migration_test PRIVATE juce::juce_core)
 add_test(NAME legacy_migration COMMAND legacy_migration_test ${CMAKE_CURRENT_SOURCE_DIR}/tests/idea.json)
 add_executable(theory_test tests/TheoryTest.cpp)
 add_test(NAME music_theory COMMAND theory_test)
+
+add_executable(generation_test tests/GenerationTest.cpp)
+add_test(NAME native_music_generation COMMAND generation_test)

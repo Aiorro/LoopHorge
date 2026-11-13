@@ -1,0 +1,97 @@
+#pragma once
+#include "Harmony.h"
+
+namespace composer {
+struct GenerationResult {std::optional<Composition> composition;std::string error;};
+namespace musicDetail {
+inline std::string configId(const Config& c){
+    std::string id="loop-"+std::to_string(c.seed);
+    for(int value:{c.root,int(c.scale),int(c.style),c.bpm,c.bars,c.numerator,c.denominator,c.complexity,c.humanization,c.swing,c.harmonicBars,int(c.modalInterchange)})id+="-"+std::to_string(value);
+    if(c.modulation)for(int value:{c.modulation->bar,c.modulation->root,int(c.modulation->scale)})id+="-"+std::to_string(value);
+    return id;
+}
+inline const Chord& at(const std::vector<Chord>& chords,int64_t tick){
+    auto it=std::upper_bound(chords.begin(),chords.end(),tick,[](int64_t t,const Chord& h){return t<h.start.value;});
+    return *std::prev(it);
+}
+inline int64_t onset(int unit,int divisions,int64_t length,const Config& config,Random& random){
+    const int64_t base=int64_t(unit)*length/divisions;
+    if(unit==0)return 0;
+    const int64_t step=std::max<int64_t>(1,length/divisions);
+    const int64_t swing=unit%2?step*config.swing/200:0;
+    const int jitter=int(std::min<int64_t>((step-1)/4,24)*config.humanization/100);
+    return std::clamp(base+swing+random.offset(jitter),int64_t(0),length-1);
+}
+inline int registerPitch(int pitch,int previous,int low,int high){
+    int best=pitch,bestDistance=1000;
+    for(int candidate=pitch%12;candidate<=127;candidate+=12)if(candidate>=low&&candidate<=high){
+        int distance=std::abs(candidate-previous);
+        if(distance<bestDistance){bestDistance=distance;best=candidate;}
+    }
+    return best;
+}
+}
+
+inline GenerationResult generateLoop(const Config& config){
+    auto checked=validateConfig(config);if(!checked)return {{},checked.message};
+    try {
+        auto harmony=planHarmony(config);if(!harmony.error.empty())return {{},harmony.error};
+        const int64_t barTicks=480LL*4*config.numerator/config.denominator;
+        Composition c;c.id=musicDetail::configId(config);c.seed=config.seed;c.style=styleName(config.style);c.source="native-motif-rules-v1";
+        c.endTick={config.bars*barTicks};c.tempos={{{0},int(std::llround(60000000.0/config.bpm))}};
+        c.meters={{{0},config.numerator,config.denominator}};c.keys=harmony.keys;c.chords=harmony.chords;
+        Id id=1;
+        for(auto& h:c.chords)h.id=id++;
+        c.sections={{id++,"Loop phrase",{0},c.endTick,SectionRole::verse}};
+        Track bass,chords,lead;
+        bass.id=id++;bass.name="Bass";bass.role=Role::bass;bass.channel=1;bass.lowPitch=28;bass.highPitch=52;
+        chords.id=id++;chords.name="Chords";chords.role=Role::chords;chords.channel=2;chords.lowPitch=48;chords.highPitch=84;
+        lead.id=id++;lead.name="Lead";lead.role=Role::lead;lead.channel=3;lead.lowPitch=60;lead.highPitch=96;
+        for(const auto& h:c.chords){
+            const int sustain=config.style==Style::ambient?98:config.style==Style::nuMetal?55:88;
+            for(int pitch:h.voicing)chords.notes.push_back({id++,pitch,72,{h.start},{std::max<int64_t>(1,h.duration.value*sustain/100)}});
+        }
+        const std::vector<int> bassUnits[]={{0,6,10,14},{0,7,12},{0,5,9,14},{0,8},{0,2,4,7,8,10,14}};
+        const std::vector<int> melodyUnits[]={{0,1,3,4,6,7},{0,3,4,7},{0,2,3,4,6,7},{0,3,6},{0,2,3,4,7}};
+        // One motif family per phrase; odd bars answer, later phrases preserve its contour.
+        const int motif[][2][6]={{{0,2,4,2,1,0},{0,1,2,4,2,0}},{{0,2,1,4,2,0},{0,4,2,1,2,0}}};
+        const auto family=musicDetail::seedFor(config.seed,3,0)%2;
+        int previous=72;
+        for(int bar=0;bar<config.bars;++bar){
+            const int64_t start=bar*barTicks;
+            const auto& h=musicDetail::at(c.chords,start);
+            musicDetail::Random bassRandom(musicDetail::seedFor(config.seed,1,uint32_t(bar)));
+            const auto& units=bassUnits[int(config.style)];
+            for(size_t i=0;i<units.size();++i){
+                int64_t tick=musicDetail::onset(units[i],16,barTicks,config,bassRandom);
+                int64_t next=i+1<units.size()?int64_t(units[i+1])*barTicks/16:barTicks;
+                int64_t duration=std::max<int64_t>(1,(next-tick)*(config.style==Style::ambient?95:78)/100);
+                duration=std::min(duration,barTicks-tick);
+                int velocity=std::clamp((i==0?108:units[i]%4?76:94)+bassRandom.offset(config.humanization/10),1,127);
+                bass.notes.push_back({id++,36+h.root,velocity,{start+tick},{duration}});
+            }
+            musicDetail::Random leadRandom(musicDetail::seedFor(config.seed,3,uint32_t(bar)));
+            auto onsets=melodyUnits[int(config.style)];int divisions=8;
+            if(config.complexity<25)onsets={0,4,7};
+            if(config.complexity>=90){onsets={0,1,2,3,4};divisions=5;}
+            for(size_t i=0;i<onsets.size();++i){
+                int offset=motif[family][bar%2][i%6];
+                if(i==0||i+1==onsets.size())offset=0;
+                auto pitch=degreePitch(harmony.contexts[size_t(bar)],harmony.degrees[size_t(bar)]+offset,4);
+                if(!pitch)return {{},"Motif exceeds supported pitch range"};
+                int target=*pitch;
+                if(std::abs(target-previous)>12)target=musicDetail::registerPitch(target,previous,lead.lowPitch,lead.highPitch);
+                previous=target;
+                int64_t tick=musicDetail::onset(onsets[i],divisions,barTicks,config,leadRandom);
+                int64_t next=i+1<onsets.size()?int64_t(onsets[i+1])*barTicks/divisions:barTicks;
+                int64_t duration=std::clamp((next-tick)*80/100,int64_t(1),barTicks-tick);
+                int velocity=std::clamp((i==0?94:78)+leadRandom.offset(config.humanization/8),1,127);
+                lead.notes.push_back({id++,target,velocity,{start+tick},{duration}});
+            }
+        }
+        c.tracks={std::move(bass),std::move(chords),std::move(lead)};
+        auto validation=validate(c);if(!validation)return {{},validation.message};
+        return {std::move(c),{}};
+    }catch(const std::bad_alloc&){return {{},"Not enough memory to generate composition"};}
+}
+}

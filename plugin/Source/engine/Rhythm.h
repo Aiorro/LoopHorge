@@ -41,16 +41,20 @@ inline DrumResult generateDrums(const Config& config){
         const int style=int(config.style);
         for(int bar=0;bar<config.bars;++bar){
             auto add=[&](int pitch,int64_t tick,int velocity){
-                const int64_t duration=std::min({int64_t(60),std::max<int64_t>(1,barTicks/32),barTicks-tick});
+                const int64_t base=std::min(int64_t(60),std::max<int64_t>(1,barTicks/32));
+                const int64_t duration=std::clamp(base*config.performance.gatePercent/100,int64_t(1),barTicks-tick);
                 track.notes.push_back({0,pitch,std::clamp(velocity,1,127),{bar*barTicks+tick},{duration}});
             };
             auto voice=[&](const std::vector<int>& units,int pitch,int velocity,uint32_t role,bool accented){
                 musicDetail::Random random(musicDetail::seedFor(config.seed,role,uint32_t(bar)));
                 auto grid=musicDetail::rhythmGrid(units,16,config.feel,bar);
                 for(const auto& pulse:grid.pulses){
+                    if(role==102&&pulse.sourceIndex%size_t(config.performance.bassStride)!=0&&pulse.sourceIndex+1!=units.size())continue;
                     int original=units[pulse.sourceIndex];
                     int64_t tick=musicDetail::onset(pulse.unit,grid.divisions,barTicks,config,random,original,grid.stepMultiplier);
                     int strength=velocity+(accented&&original%4==0?12:0)+random.offset(config.humanization/10);
+                    strength+=role==103?config.performance.velocityOffset/3:config.performance.velocityOffset;
+                    if(role==103)strength=std::clamp(strength,1,42);
                     add(pitch,tick,strength);
                 }
             };
@@ -69,7 +73,7 @@ inline DrumResult generateDrums(const Config& config){
                 for(int i=0;i<count;++i){
                     const int64_t tick=begin+int64_t(i)*length/count;
                     const int pitch=config.style==Style::trap?38:toms[(rotation+i)%3];
-                    add(pitch,tick,(ambient?42:84)+i*12/count+random.offset(config.humanization/10));
+                    add(pitch,tick,(ambient?42:84)+i*12/count+random.offset(config.humanization/10)+config.performance.velocityOffset);
                 }
             }
         }

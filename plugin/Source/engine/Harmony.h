@@ -24,15 +24,18 @@ inline HarmonyPlan planHarmony(const Config& config){
         if(borrowed){context.scale=context.scale==Scale::major?Scale::naturalMinor:Scale::major;degree=3;}
         degree%=int(scaleIntervals(context.scale).size());
         int voices=(config.style==Style::rnb||config.style==Style::ambient)?(config.complexity>=80?5:4):3;
+        voices=std::clamp(voices+config.performance.extraChordVoices,3,7);
         auto pitches=chordPitches(context,degree,voices,3);
         if(!pitches){plan.error="Requested harmony exceeds pitch range";return plan;}
         Chord chord;chord.start={bar*barTicks};chord.duration={length*barTicks};chord.root=(*pitches)[0]%12;
         for(int pitch:*pitches)chord.pitchClasses.push_back(pitch%12);
-        auto voicing=voiceLead(chord.pitchClasses,previous,48,84);
+        const int shift=config.performance.octaveOffset*12;
+        auto voicing=voiceLead(chord.pitchClasses,previous,48+shift,84+shift);
         if(!voicing){plan.error="No valid bounded chord voicing";return plan;}
         chord.voicing=*voicing;previous=*voicing;
         chord.inversion=int(std::find(chord.pitchClasses.begin(),chord.pitchClasses.end(),chord.voicing[0]%12)-chord.pitchClasses.begin());
         chord.tension=bar+length==config.bars?15:std::min(100,25+degree*6+config.complexity/5+(borrowed?15:0));
+        chord.tension=std::clamp(chord.tension+config.performance.tensionOffset,0,100);
         if(borrowed)chord.explanation=context.scale==Scale::major?"Modal interchange: IV from parallel major":"Modal interchange: iv from parallel natural minor";
         for(int i=bar;i<bar+length;++i){plan.contexts[size_t(i)]=context;plan.degrees[size_t(i)]=degree;}
         plan.chords.push_back(std::move(chord));bar+=length;

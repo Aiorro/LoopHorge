@@ -41,11 +41,33 @@ if (result.composition) {
 
 The core supports twelve roots, eleven scales, bounded chord inversions/voice leading, shared harmony, motif call/response, five genre grooves and explicit borrowing/modulation. `harmonicBars` selects automatic, one-, two- or four-bar harmony independently of time feel. A modal-interchange request needs at least two harmonic spans so borrowing can resolve; incompatible settings return an error.
 
-`Feel::half` stretches the source rhythm over two bars; `normal` retains it; `doubleTime` repeats it twice per bar. BPM, duration and harmonic timeline stay unchanged. Swing follows the original pulse phase and scales with feel. Bass, lead and drums share this timing transform. The normal-mode musical golden remains unchanged; generator metadata identifies the extended algorithm as engineVersion2/source-v2.
+`Feel::half` stretches the source rhythm over two bars; `normal` retains it; `doubleTime` repeats it twice per bar. BPM, duration and harmonic timeline stay unchanged. Swing follows the original pulse phase and scales with feel. Bass, lead and drums share this timing transform. Neutral normal-mode musical output remains unchanged; the mood-capable algorithm is identified as engineVersion3/source-v3. Its canonical field/seed identity encoding is bounded and independent of platform byte order.
 
 `drums` defaults to false for existing three-track callers. Enabling it appends channel10 without changing melodic notes, IDs or seed streams. The fixed GM kit owns pitches35–59; no bank/program/CC events are emitted. `ghostNotes` enables quiet snare pickups independently of complexity; `drumFills` enables transitions on every fourth bar. Both default to true and apply only when drums are requested. Same-pitch/onset collisions merge and note gates end at or before the next same-pitch attack. All output remains within the chosen meter/bar and document limits.
 
 The current application controls, audio scheduler, saved-state format and MIDI export still use the legacy idea path described above. This developer API does not make v2 drum preview, full-song editing/playback or v2 export available in the UI. See [task.md](../task.md) for integration status and [the architecture](../docs/superpowers/specs/2026-11-13-hybrid-engine-design.md) for ownership/resource contracts. `LegacyMigration.h` provides explicit, loss-disclosing legacy import; existing projects are never converted automatically.
+
+### Direction and mood API
+
+`PromptCompose.h` adds a local RU/EN direction interpreter and supported-loop adapter. Sources are UTF-8; compile consumers with `/utf-8` on MSVC, as the prompt test target does. The caller supplies a seed chosen once; parsing itself never chooses fresh randomness.
+
+```cpp
+composer::LocalPromptInterpreter interpreter;
+composer::ManualOverrides manual;
+manual.values.recipe.bpm = 110;
+manual.pinned.set(size_t(composer::Field::bpm));
+auto direction = interpreter.interpret(
+    "dark trap in D minor, 8 bars, 100 BPM, piano and drums", 42, manual);
+auto result = composer::generateResolvedLoop(direction);
+```
+
+This resolves BPM110 from the manual pin and retains the other text settings. `origins` identifies default/text/manual values; `recognized` contains original byte spans and normalized values; `diagnostics` retains conflicts, unsupported negation and unknown fragments. Pinned fields override text for that field only. Explicit numeric values override adjective hints; incompatible values of equal specificity require correction or a pin. Structural UTF-8/input errors and unrelated field errors remain errors. Input is capped at4096UTF-8 bytes, with strict Unicode scalar validation and no NUL/control data.
+
+Defaults are C natural minor, nu-metal,100BPM,4/4,16bars, humanization20 and seven mood axes50; explicit song mode defaults to180seconds. A request's `duration` is authoritative: the `recipe` is a native loop template whose bars are assigned at execution. Common English/Russian genre, key/scale, mood, instrument, duration and performance words are supported, including Cyrillic case/ё normalization, sharps/flats, decimal minutes and checked seed/tempo/meter values. This is a bounded dictionary/grammar, not arbitrary language comprehension. Unknown fragments produce visible warnings. Positive instrument mentions form the requested track set; negative-only mentions remove roles from the default bass/chords/lead set. Piano maps to the chords role with GM program0.
+
+`generateMoodLoop(recipe, mood)` derives bounded musical controls from darkness, energy, melancholy, tension, aggression, atmosphere and complexity. They affect register, note spacing/density, velocity, articulation, motif contour and chord voicings/tension; mood.complexity is the complexity source for this entry point. The plain `generateLoop` API retains direct low-level control. Neutral mood preserves the note golden; integer/threshold mappings are deliberate and do not promise a change for every single slider increment or every musical context.
+
+`ResolvedConfig::valid()` means the request is internally consistent, not that every requested capability is implemented. The adapter currently executes exact4/8/16/32-bar loops with selected bass/chords/lead/drums, mood and supported presets. Seconds/song requests, section arrangements, additional roles and genuine two-genre mixtures remain exact in the parsed request but return a capability error with no partial composition. Genre weights are validated and missing weights are reported as inferred defaults/complements. These limits prevent silently turning a three-minute arrangement into a short loop; full arrangement, v2 UI/state/playback/export remain tracked in task.md.
 
 ## Behavior and limits
 

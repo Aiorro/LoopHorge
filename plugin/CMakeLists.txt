@@ -79,3 +79,6 @@ target_include_directories(midi_drag_source_test PRIVATE $<TARGET_PROPERTY:LoopF
 target_compile_definitions(midi_drag_source_test PRIVATE $<TARGET_PROPERTY:LoopForge,COMPILE_DEFINITIONS>)
 target_link_libraries(midi_drag_source_test PRIVATE LoopForge)
 add_test(NAME midi_drag_source COMMAND midi_drag_source_test)
+
+add_executable(composition_test tests/CompositionTest.cpp)
+add_test(NAME composition_v2 COMMAND composition_test)

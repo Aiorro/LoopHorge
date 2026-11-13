@@ -1,6 +1,6 @@
 # Hybrid Offline Composer: architecture and source audit
 
-Date: 2026-11-13. Status: proposed for user approval; no engine implementation claim.
+Date: 2026-11-13. Status: approved by the user on2026-11-13 ("погнали я подтверждаю"); no engine implementation claim.
 
 Requirements: [verbatim supplied specification](../../../task-engine.md). Execution status lives only in [task.md](../../../task.md), E01–E06. Base: `bf93d10b6e088d34578eab3901a035a410bcc778`; isolated branch `codex/loopforge-hybrid-engine`.
 
@@ -37,7 +37,7 @@ Remote UI-source verification: native [43399121262](https://github.com/Aiorro/Lo
 2. **Introduce a native composition-v2 core alongside legacy playback, with explicit adapters.** Recommended: preserve v1 contracts and deploy independently tested slices, then connect v2 playback/UI/export atomically. Migration and two compatibility paths add work, but keep old projects usable throughout.
 3. **Put long-form generation behind Node or a mandatory model.** Could reuse the web generator, but violates native offline operation and adds service/model installation dependence. Reject as the baseline; existing providers remain opt-in.
 
-This recommendation is the architecture proposed for approval. It has not been selected by the user yet.
+The user approved approach2 and this architecture on2026-11-13.
 
 ## Composition-v2 and time semantics
 
@@ -132,7 +132,7 @@ E01 yields this audited architecture and requirements archive, followed by expli
 
 E02 starts with typed v2 data, checked validation and explicit legacy import fixtures, then a shared harmony/motif/groove engine generating validated small native documents. E03 adds deterministic prompt interpretation, mood derivation and resolved-parameter UI without replacing legacy playback prematurely. E04 connects full arrangement, resource-bounded prepared playback, v2 state/editing/history/UI and MIDI export/drag. E05 validates the optional neural boundary/model feasibility. E06 runs broad regression, musical and independent code review, Windows/Linux CI and lifecycle/RT evidence. T12–T15 remain separately scoped; no release is authorized.
 
-Builder check: a fresh independent C++/JUCE reviewer identified three consequential ambiguities. This revision resolves them as engineering proposals: over-density always rejects atomically (no export-only state); host origin is explicit with bounded controller/note chase; shared-channel10 tracks have disjoint pitch ownership and fixed GM configuration without bank/program/CC events. A follow-up reviewer check exposed the remaining cross-track controller-order dependency, prompting the stronger shared-channel restriction. None requires relaxing the supplied requirements. User approval is still pending.
+Builder check: a fresh independent C++/JUCE reviewer identified three consequential ambiguities. This revision resolves them as engineering proposals: over-density always rejects atomically (no export-only state); host origin is explicit with bounded controller/note chase; shared-channel10 tracks have disjoint pitch ownership and fixed GM configuration without bank/program/CC events. A follow-up reviewer check exposed the remaining cross-track controller-order dependency, prompting the stronger shared-channel restriction. None requires relaxing the supplied requirements. User approval was received on2026-11-13.
 
 First product slice after approval: v2 value model/validator and explicit import of the existing `plugin/tests/idea.json` fixture. Acceptance includes exact channel/tempo/seed preservation, disclosed PPQ quantization, valid endpoint, malformed/version/resource rejection and no legacy contract changes. Implementing this first proves the compatibility foundation before musical expansion.
 

@@ -77,6 +77,28 @@ Encoded/input JSON is capped at32MiB, decoded legacyJson at4MiB, metadata text a
 
 Shared model validation uses a balanced ID tree so attacker-selected numeric IDs cannot turn uniqueness checks into quadratic hash-collision work. Error strings are sanitized, and allocation failures are caught on a best-effort basis; these allocating APIs are not noexcept and cannot guarantee recovery under sustained global allocator exhaustion. The codec performs no file writes and does not provide filesystem atomicity/crash recovery.
 
+`Source/engine/Prepared.h` compiles a validated document on a worker. `prepareComposition(composition, optionalCancellationFlag)` returns a move-only `PreparedSong` or a sanitized error. The worker owns all vectors and must retain the owning, immutable value for every query/render; do not use moved-from handles or replace/free an active value. Actual vector capacities plus source storage must fit64MiB. Preparation checks cancellation between bounded stages; sorting/validation are bounded worker work, not an interruptible audio job.
+
+Prepared data includes note-state/CC lanes, stable time-sorted event references and tempo segments. `chase(Tick)` returns at most256 active keys with exact32bit overlap counts/last-onset velocity, up to256 latest CC values and16 presets. Its state includes events at the target; `firstAfter(target)` skips those events to prevent duplicate exact-target onsets. Querying before0/at-or-after end returns no chased notes/controllers. Fixed lane indexes avoid a whole-song note scan. Controller snapshots retain the relative chronological order of their selected latest values; they do not replay the complete controller/pedal history. Notes released before a seek and held only by past pedal activity are deliberately not resurrected.
+
+`Source/engine/Playback.h` renders bounded MIDI packets using that immutable source:
+
+```cpp
+auto prepared = composer::prepareComposition(composition); // worker only
+composer::Playback playback; // persistent, fixed-size render state
+composer::PlaybackBlock block;
+block.clock = composer::Clock::compositionSeconds; // or absolute hostQuarterBeats
+// packetSink(MidiPacket, int sampleOffset) must be noexcept and preallocated.
+if (prepared.song) {
+    auto status = playback.render(*prepared.song, block, packetSink);
+    block.position = status.nextPosition;
+} else { /* report prepared.error; keep the active source */ }
+```
+
+The caller supplies host PPQ or standalone seconds for each block. Host BPM controls host timing independently of the source tempo map; hostStartQuarterBeat is an explicit absolute origin, default0. Standalone uses precomputed tempo-map conversions. Each onset is emitted on the first sample at/after its tick. Continuous blocks use a cursor; seek/start/source/clock/origin changes flush/chase. Stop/end/overflow releases counted notes and resets CC64/66/69 on touched channels. Full songs stop once at the endpoint; transport jumps act as seeks, with explicit loop-range controls still pending. Zero-sample blocks leave render state untouched; invalid clocks flush and report an error.
+
+Each block is capped at2048 MIDI messages, reserving384 for cleanup; worst cleanup is256NoteOff+48pedal resets. The ordinary1664 budget also limits processed event references, including invisible overlap-count changes. Maximum chase is48bank/program+256CC+256NoteOn messages. Overflow releases all active state and stays paused across continuous playing blocks until stop/start, seek or a new source; the caller must surface status. Fixed-sink Linux tests intercept new/delete during cold/steady/seek/stop/dense/overflow rendering and indexed queries. This is not a whole-JUCE-wrapper allocation claim: actual MidiBuffer capacity, slot publication/reclamation, audition voices and transport/UI/state integration still require their integration tests. These APIs are not yet called by the current Processor; its legacy rendering remains unchanged.
+
 `PromptCompose.h` adds a local RU/EN direction interpreter and supported-loop adapter. Sources are UTF-8; compile consumers with `/utf-8` on MSVC, as the prompt test target does. The caller supplies a seed chosen once; parsing itself never chooses fresh randomness.
 
 ```cpp

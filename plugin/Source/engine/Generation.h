@@ -8,7 +8,7 @@ namespace musicDetail {
 inline std::string configId(const Config& c){
     std::string id="loop-v2-"+std::to_string(c.seed);
     for(int value:{c.root,int(c.scale),int(c.style),c.bpm,c.bars,c.numerator,c.denominator,c.complexity,c.humanization,c.swing,c.harmonicBars,int(c.modalInterchange)})id+="-"+std::to_string(value);
-    for(int value:{int(c.drums),int(c.ghostNotes),int(c.drumFills)})id+="-"+std::to_string(value);
+    for(int value:{int(c.drums),int(c.ghostNotes),int(c.drumFills),int(c.feel)})id+="-"+std::to_string(value);
     if(c.modulation)for(int value:{c.modulation->bar,c.modulation->root,int(c.modulation->scale)})id+="-"+std::to_string(value);
     return id;
 }
@@ -56,30 +56,35 @@ inline GenerationResult generateLoop(const Config& config){
             const auto& h=musicDetail::at(c.chords,start);
             musicDetail::Random bassRandom(musicDetail::seedFor(config.seed,1,uint32_t(bar)));
             const auto& units=bassUnits[int(config.style)];
-            for(size_t i=0;i<units.size();++i){
-                int64_t tick=musicDetail::onset(units[i],16,barTicks,config,bassRandom);
-                int64_t next=i+1<units.size()?int64_t(units[i+1])*barTicks/16:barTicks;
+            auto bassGrid=musicDetail::rhythmGrid(units,16,config.feel,bar);
+            for(size_t i=0;i<bassGrid.pulses.size();++i){
+                const auto& pulse=bassGrid.pulses[i];int original=units[pulse.sourceIndex];
+                int64_t tick=musicDetail::onset(pulse.unit,bassGrid.divisions,barTicks,config,bassRandom,original,bassGrid.stepMultiplier);
+                int64_t next=i+1<bassGrid.pulses.size()?int64_t(bassGrid.pulses[i+1].unit)*barTicks/bassGrid.divisions:barTicks;
                 int64_t duration=std::max<int64_t>(1,(next-tick)*(config.style==Style::ambient?95:78)/100);
                 duration=std::min(duration,barTicks-tick);
-                int velocity=std::clamp((i==0?108:units[i]%4?76:94)+bassRandom.offset(config.humanization/10),1,127);
+                int velocity=std::clamp((pulse.sourceIndex==0?108:original%4?76:94)+bassRandom.offset(config.humanization/10),1,127);
                 bass.notes.push_back({id++,36+h.root,velocity,{start+tick},{duration}});
             }
             musicDetail::Random leadRandom(musicDetail::seedFor(config.seed,3,uint32_t(bar)));
             auto onsets=melodyUnits[int(config.style)];int divisions=8;
             if(config.complexity<25)onsets={0,4,7};
             if(config.complexity>=90){onsets={0,1,2,3,4};divisions=5;}
-            for(size_t i=0;i<onsets.size();++i){
-                int offset=motif[family][bar%2][i%6];
-                if(i==0||i+1==onsets.size())offset=0;
+            auto leadGrid=musicDetail::rhythmGrid(onsets,divisions,config.feel,bar);
+            for(size_t i=0;i<leadGrid.pulses.size();++i){
+                const auto& pulse=leadGrid.pulses[i];
+                const int phraseBar=config.feel==Feel::half?bar/2:config.feel==Feel::doubleTime?bar*2+pulse.cycle:bar;
+                int offset=motif[family][phraseBar%2][pulse.sourceIndex%6];
+                if(pulse.sourceIndex==0||pulse.sourceIndex+1==onsets.size())offset=0;
                 auto pitch=degreePitch(harmony.contexts[size_t(bar)],harmony.degrees[size_t(bar)]+offset,4);
                 if(!pitch)return {{},"Motif exceeds supported pitch range"};
                 int target=*pitch;
                 if(std::abs(target-previous)>12)target=musicDetail::registerPitch(target,previous,lead.lowPitch,lead.highPitch);
                 previous=target;
-                int64_t tick=musicDetail::onset(onsets[i],divisions,barTicks,config,leadRandom);
-                int64_t next=i+1<onsets.size()?int64_t(onsets[i+1])*barTicks/divisions:barTicks;
+                int64_t tick=musicDetail::onset(pulse.unit,leadGrid.divisions,barTicks,config,leadRandom,onsets[pulse.sourceIndex],leadGrid.stepMultiplier);
+                int64_t next=i+1<leadGrid.pulses.size()?int64_t(leadGrid.pulses[i+1].unit)*barTicks/leadGrid.divisions:barTicks;
                 int64_t duration=std::clamp((next-tick)*80/100,int64_t(1),barTicks-tick);
-                int velocity=std::clamp((i==0?94:78)+leadRandom.offset(config.humanization/8),1,127);
+                int velocity=std::clamp((pulse.sourceIndex==0?94:78)+leadRandom.offset(config.humanization/8),1,127);
                 lead.notes.push_back({id++,target,velocity,{start+tick},{duration}});
             }
         }

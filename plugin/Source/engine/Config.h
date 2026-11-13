@@ -3,9 +3,11 @@
 
 namespace composer {
 enum class Style { trap,boomBap,rnb,ambient,nuMetal };
+enum class Feel { half,normal,doubleTime };
 struct Modulation {int bar=4,root=0;Scale scale=Scale::major;};
 struct Config {
     int root=0;Scale scale=Scale::naturalMinor;Style style=Style::nuMetal;
+    Feel feel=Feel::normal;
     int bpm=100,bars=8,numerator=4,denominator=4;
     uint32_t seed=0;
     int complexity=50,humanization=20,swing=0,harmonicBars=0;
@@ -20,7 +22,7 @@ inline const char* styleName(Style style){
 }
 inline ValidationResult validateConfig(const Config& c){
     auto invalid=[](){return ValidationResult{ValidationCode::identity,"Invalid native composer configuration"};};
-    if(c.root<0||c.root>11||c.scale<Scale::major||c.scale>Scale::blues||c.style<Style::trap||c.style>Style::nuMetal
+    if(c.root<0||c.root>11||c.scale<Scale::major||c.scale>Scale::blues||c.style<Style::trap||c.style>Style::nuMetal||c.feel<Feel::half||c.feel>Feel::doubleTime
        ||c.bpm<40||c.bpm>240||(c.bars!=4&&c.bars!=8&&c.bars!=16&&c.bars!=32)
        ||c.numerator<1||c.numerator>12||(c.denominator!=2&&c.denominator!=4&&c.denominator!=8&&c.denominator!=16)
        ||c.complexity<0||c.complexity>100||c.humanization<0||c.humanization>100||c.swing<0||c.swing>100

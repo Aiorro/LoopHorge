@@ -3,11 +3,25 @@
 
 namespace composer {
 namespace musicDetail {
-inline int64_t onset(int unit,int divisions,int64_t length,const Config& config,Random& random){
+struct Pulse {int unit=0;size_t sourceIndex=0;int cycle=0;};
+struct Grid {std::vector<Pulse> pulses;int divisions=0,stepMultiplier=1;};
+// Internal inputs are the fixed, ordered profiles below and the validated Config bar/feel.
+inline Grid rhythmGrid(const std::vector<int>& units,int divisions,Feel feel,int bar){
+    Grid grid;grid.divisions=feel==Feel::doubleTime?divisions*2:divisions;
+    grid.stepMultiplier=feel==Feel::half?2:1;
+    for(int cycle=0;cycle<(feel==Feel::doubleTime?2:1);++cycle)for(size_t i=0;i<units.size();++i){
+        int unit=units[i]+cycle*divisions;
+        if(feel==Feel::half){unit=units[i]*2-(bar%2)*divisions;if(unit<0||unit>=divisions)continue;}
+        grid.pulses.push_back({unit,i,cycle});
+    }
+    return grid;
+}
+inline int64_t onset(int unit,int divisions,int64_t length,const Config& config,Random& random,int originalUnit=-1,int stepMultiplier=1){
     const int64_t base=int64_t(unit)*length/divisions;
-    if(unit==0)return 0;
-    const int64_t step=std::max<int64_t>(1,length/divisions);
-    const int64_t swing=unit%2?step*config.swing/200:0;
+    if(originalUnit<0)originalUnit=unit;
+    if(unit==0||originalUnit==0)return base;
+    const int64_t step=std::max<int64_t>(1,length*stepMultiplier/divisions);
+    const int64_t swing=originalUnit%2?step*config.swing/200:0;
     const int jitter=int(std::min<int64_t>((step-1)/4,24)*config.humanization/100);
     return std::clamp(base+swing+random.offset(jitter),int64_t(0),length-1);
 }
@@ -32,9 +46,11 @@ inline DrumResult generateDrums(const Config& config){
             };
             auto voice=[&](const std::vector<int>& units,int pitch,int velocity,uint32_t role,bool accented){
                 musicDetail::Random random(musicDetail::seedFor(config.seed,role,uint32_t(bar)));
-                for(int unit:units){
-                    int64_t tick=musicDetail::onset(unit,16,barTicks,config,random);
-                    int strength=velocity+(accented&&unit%4==0?12:0)+random.offset(config.humanization/10);
+                auto grid=musicDetail::rhythmGrid(units,16,config.feel,bar);
+                for(const auto& pulse:grid.pulses){
+                    int original=units[pulse.sourceIndex];
+                    int64_t tick=musicDetail::onset(pulse.unit,grid.divisions,barTicks,config,random,original,grid.stepMultiplier);
+                    int strength=velocity+(accented&&original%4==0?12:0)+random.offset(config.humanization/10);
                     add(pitch,tick,strength);
                 }
             };
@@ -45,7 +61,9 @@ inline DrumResult generateDrums(const Config& config){
             if(config.ghostNotes&&config.complexity>=25)voice(ghosts[style],ambient?37:38,ambient?20:30,103,false);
             if(config.drumFills&&(bar+1)%4==0){
                 musicDetail::Random random(musicDetail::seedFor(config.seed,104,uint32_t(bar)));
-                const int count=ambient?2:config.complexity>=75?8:4;
+                int count=ambient?2:config.complexity>=75?8:4;
+                if(config.feel==Feel::half)count=std::max(1,count/2);
+                if(config.feel==Feel::doubleTime)count*=2;
                 const int toms[]{45,47,50};const int rotation=int(random.next()%3);
                 const int64_t begin=barTicks*3/4,length=barTicks-begin;
                 for(int i=0;i<count;++i){

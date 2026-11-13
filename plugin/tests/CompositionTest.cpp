@@ -99,8 +99,12 @@ int main() {
     auto t=c.tracks.back();t.id=id++;t.channel=3;t.notes={Note{id++,60,90,{0},{480}}};
     c.tracks.push_back(t);check(validate(c).code==ValidationCode::density);
     c.tracks.back().notes[0].start={480}; check(validate(c));
-    c=fixture();for(int i=0;i<1000;++i)c.tracks[0].notes.push_back({uint64_t(i+3),60,90,{0},{480}});
+    c=fixture();for(size_t i=1;i<limits::notes;++i)c.tracks[0].notes.push_back({uint64_t(i+2),60,90,{0},{480}});
     check(validate(c));
+
+    c=fixture();c.endTick={172800};c.tracks[0].notes.clear();
+    for(int i=0;i<24000;++i)c.tracks[0].notes.push_back({uint64_t(i+2),60+i%12,90,{i*7},{5}});
+    check(validate(c));check(std::abs(secondsAt(c,c.endTick)->value-180.0)<1e-9);
 
     c=fixture();c.tracks.clear();
     Track drums;drums.id=1;drums.channel=10;drums.name="Drums";drums.role=Role::drums;

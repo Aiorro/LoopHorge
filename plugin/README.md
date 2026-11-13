@@ -45,7 +45,19 @@ The core supports twelve roots, eleven scales, bounded chord inversions/voice le
 
 `drums` defaults to false for existing three-track callers. Enabling it appends channel10 without changing melodic notes, IDs or seed streams. The fixed GM kit owns pitches35–59; no bank/program/CC events are emitted. `ghostNotes` enables quiet snare pickups independently of complexity; `drumFills` enables transitions on every fourth bar. Both default to true and apply only when drums are requested. Same-pitch/onset collisions merge and note gates end at or before the next same-pitch attack. All output remains within the chosen meter/bar and document limits.
 
-The current application controls, audio scheduler, saved-state format and MIDI export still use the legacy idea path described above. This developer API does not make v2 drum preview, full-song editing/playback or v2 export available in the UI. See [task.md](../task.md) for integration status and [the architecture](../docs/superpowers/specs/2026-11-13-hybrid-engine-design.md) for ownership/resource contracts. `LegacyMigration.h` provides explicit, loss-disclosing legacy import; existing projects are never converted automatically.
+The current application controls, audio scheduler, saved-state format and MIDI export still use the legacy idea path described above. These developer APIs do not make v2 drum preview, full-song editing/playback or v2 export available in the UI. See [task.md](../task.md) for integration status and [the architecture](../docs/superpowers/specs/2026-11-13-hybrid-engine-design.md) for ownership/resource contracts. `LegacyMigration.h` provides explicit, loss-disclosing legacy import; existing projects are never converted automatically.
+
+`Source/engine/Midi.h` exports a validated composition-v2 on a worker without JUCE, file I/O or network access:
+
+```cpp
+auto midi = composer::encodeCompositionMidi(*generated.composition);
+if (!midi) { /* show midi.error; no partial bytes are returned */ }
+else { /* write midi.bytes to the chosen file outside the audio thread */ }
+```
+
+Output is standard MIDI type1/PPQ480, one conductor plus all source tracks with their original channels, names, bank/program, CC and tick endpoints. Tempo/meter/key changes and section-start markers are exported. Every track retains the full duration including trailing silence. Notes sharing a pitch use counted lifetimes: a later onset retriggers, an earlier end cannot silence the later note. Simultaneous unisons share one onset (last source velocity) and remain held until all their intervals end. Source data is immutable; unsorted note/CC collections are stably ordered for output. Touched sustain/sostenuto/hold2 controllers64/66/69 are reset at the endpoint.
+
+SMF has only major/minor key-signature metadata. Every key point therefore also carries exact `LoopForge key: <tonic> <scale>` text. Diatonic modes use their relative-major accidental set; harmonic/melodic minor use the tonic minor signature; pentatonic/blues use the tonic major/minor base. Text preserves the exact mode; importer display/interpretation varies. Chord analysis/provenance/IDs are not a MIDI project-state format. Gaps exceeding the SMF four-byte delta limit use zero-payload sequencer-specific meta padding. Encoding rejects invalid/resource-exceeding documents and is capped at32MiB. This API is not called by the current UI, playback or drag path; v2 state and application integration remain pending.
 
 ### Direction and mood API
 

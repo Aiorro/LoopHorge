@@ -12,3 +12,5 @@
 .primary[aria-disabled=true]{opacity:.65;cursor:wait}
 
 .prompt-label p{font:12px/1.5 system-ui,sans-serif;color:var(--muted);margin:8px 0 0}
+/* Labels stay compact; editable values use a readable, zoomable body size. */
+select,input{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:.875rem;font-weight:400;letter-spacing:normal}

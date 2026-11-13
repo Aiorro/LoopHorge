@@ -61,6 +61,20 @@ SMF has only major/minor key-signature metadata. Every key point therefore also 
 
 ### Direction and mood API
 
+`Source/engine/CompositionJson.h` provides exact document persistence on a worker:
+
+```cpp
+auto saved = composer::encodeCompositionJson(composition);
+if (!saved) { /* show saved.error; saved.json is empty */ }
+auto loaded = composer::decodeCompositionJson(saved.json);
+if (!loaded.composition) { /* show loaded.error; keep the current project */ }
+// Publish the validated candidate only through the future worker/revision handoff.
+```
+
+The canonical UTF-8 schema stores every current Composition field, including IDs, source/legacy provenance, maps, chord analysis, section roles, original note/CC order, track ranges, ownership and optional presets. Numeric track/event/section/chord IDs are positive canonical decimal strings through UINT64_MAX; the composition ID remains an opaque string. Numeric fields require integer JSON tokens (fractions/exponents/strings/bools are rejected). Role/scale/section role enums use explicit kebab-case names; program/bank are explicit null when absent, and ownedPitches is a128-character binary mask (pitch127 first). All fields are required; arbitrary object field order is accepted. Unknown versions/fields, duplicate names including escaped aliases, missing fields, invalid Unicode/UTF-8/NUL, bad types, invalid model data and collection/byte overflows fail without a partial document. No lossy normalization or automatic v1 conversion occurs.
+
+Encoded/input JSON is capped at32MiB, decoded legacyJson at4MiB, metadata text at1024bytes and the composition ID/track/section names at128bytes; existing model budgets apply. Schema-directed parsing constructs bounded typed arrays directly without a generic DOM or input-controlled recursion. Large valid documents whose escaped representation exceeds32MiB cannot be saved in this format and return an explicit error. Reading/writing allocates and belongs outside processBlock. This is the composition-file codec, not yet the plugin's version2 state envelope: existing version1 presets, bridge-v1, restore/job cancellation, playback, history and UI still use the established path. Old plugin versions cannot read composition-v2 files. The complete project envelope and validated atomic publication remain E04 integration work.
+
 `PromptCompose.h` adds a local RU/EN direction interpreter and supported-loop adapter. Sources are UTF-8; compile consumers with `/utf-8` on MSVC, as the prompt test target does. The caller supplies a seed chosen once; parsing itself never chooses fresh randomness.
 
 ```cpp

@@ -103,3 +103,5 @@ target_include_directories(composition_midi_test PRIVATE $<TARGET_PROPERTY:LoopF
 target_compile_definitions(composition_midi_test PRIVATE $<TARGET_PROPERTY:LoopForge,COMPILE_DEFINITIONS>)
 target_link_libraries(composition_midi_test PRIVATE LoopForge)
 add_test(NAME composition_midi COMMAND composition_midi_test)
+add_executable(composition_json_test tests/CompositionJsonTest.cpp)
+add_test(NAME composition_json COMMAND composition_json_test)

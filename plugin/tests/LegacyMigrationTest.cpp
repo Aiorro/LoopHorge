@@ -1,4 +1,5 @@
 #include "../Source/engine/LegacyMigration.h"
+#include "../Source/engine/CompositionJson.h"
 #include <iostream>
 #include <cstdlib>
 
@@ -18,6 +19,9 @@ int main(int argc,char** argv) {
     check(c.tracks[0].notes[0].pitch==38&&c.tracks[0].notes[0].duration.value==480);
     check(c.tracks[2].notes[0].start.value==240&&c.tracks[2].notes[0].duration.value==240);
     check(c.legacyJson==original.toStdString());check(juce::JSON::toString(idea,true)==original);
+    auto saved=encodeCompositionJson(c);check(saved);auto restored=decodeCompositionJson(saved.json);check(restored.composition);
+    check(restored.composition->legacyJson==original.toStdString()&&restored.composition->timingNotice==c.timingNotice);
+    check(restored.composition->tracks[2].notes[0].id==c.tracks[2].notes[0].id&&restored.composition->tracks[0].notes[0].pitch==38);
     auto repeat=importLegacyIdea(idea);check(repeat.composition->id==c.id);
     check(repeat.composition->tracks[2].notes[0].id==c.tracks[2].notes[0].id);
     check(!result.timingNotice.empty());

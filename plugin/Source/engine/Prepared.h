@@ -101,8 +101,10 @@ inline PrepareResult prepareComposition(const Composition& c,const std::atomic<b
             const auto key=edges[i].key;auto& lane=song.noteLanes[key];lane.begin=uint32_t(song.notes.size());uint32_t held=0;uint8_t velocity=0;
             while(i<edges.size()&&edges[i].key==key){
                 if((i&4095)==0&&stop())return {{},"Playback preparation cancelled"};
-                const auto tick=edges[i].tick;bool onset=false;
-                do{const auto& e=edges[i++];if(e.on){++held;velocity=e.velocity;onset=true;}else --held;}while(i<edges.size()&&edges[i].key==key&&edges[i].tick==tick);
+                const auto tick=edges[i].tick;bool onset=false,released=false;
+                do{const auto& e=edges[i++];if(e.on){++held;velocity=e.velocity;onset=true;}else if(--held==0)released=true;}while(i<edges.size()&&edges[i].key==key&&edges[i].tick==tick);
+                // A final old release must remain before same-tick controllers/new onsets.
+                if(released&&onset){song.notes.push_back({tick,0,key,velocity,false});++lane.count;}
                 song.notes.push_back({tick,held,key,velocity,onset});++lane.count;
             }
         }

@@ -18,29 +18,44 @@ public:
         if(b.samples==0)return r;
         const bool host=b.clock==Clock::hostQuarterBeats;
         const double origin=host?b.hostStartQuarterBeat:0;
-        const double start=b.position-origin;
+        const double inputStart=b.position-origin;
         const double step=host?b.bpm/(60*b.sampleRate):1/b.sampleRate;
         const double next=b.position+b.samples*step;
         if(b.samples<0||(b.clock!=Clock::hostQuarterBeats&&b.clock!=Clock::compositionSeconds)
-           ||!std::isfinite(b.position)||!std::isfinite(origin)||!std::isfinite(start)||!std::isfinite(next)
+           ||!std::isfinite(b.position)||!std::isfinite(origin)||!std::isfinite(inputStart)||!std::isfinite(next)
            ||!std::isfinite(b.sampleRate)||b.sampleRate<1||b.sampleRate>768000
            ||(host&&(!std::isfinite(b.bpm)||b.bpm<1||b.bpm>1000))){
             flush(sink,r,0);have=false;inSong=false;paused=false;r.invalidClock=true;return r;
         }
         const double tolerance=std::max({1e-12,lastStep*1e-6,step*1e-6,std::abs(b.position)*std::numeric_limits<double>::epsilon()*8});
         const bool reset=!have||lastSong!=&song||lastClock!=b.clock||lastOrigin!=origin||!wasPlaying||std::abs(b.position-lastNext)>tolerance;
-        lastSong=&song;lastClock=b.clock;lastOrigin=origin;lastNext=next;lastStep=step;have=true;wasPlaying=b.playing;
-        r.nextPosition=b.playing?next:b.position;
+        // Anchor a constant-step run to integer frames, avoiding accumulated block rounding.
+        if(reset||step!=lastStep||anchorFrames>UINT32_MAX){anchorUnits=inputStart;anchorFrames=0;}
+        const auto base=anchorFrames;const double start=anchorUnits+double(base)*step;
+        if(b.playing)anchorFrames+=uint32_t(b.samples);
+        const double following=origin+anchorUnits+double(anchorFrames)*step;
+        lastSong=&song;lastClock=b.clock;lastOrigin=origin;lastNext=following;lastStep=step;have=true;wasPlaying=b.playing;
+        r.nextPosition=b.playing?following:b.position;
         if(!b.playing){flush(sink,r,0);inSong=false;paused=false;return r;}
         if(reset){flush(sink,r,0);inSong=false;paused=false;}
         if(paused){r.overflow=true;return r;}
         const double end=host?song.endTick().value/480.0:song.durationSeconds();
-        auto offset=[&](double at){double sample=std::ceil((at-start)/step-1e-7);if(sample<0)return 0;if(sample>=b.samples)return b.samples;return int(sample);};
-        if(start>=end){flush(sink,r,0);inSong=false;r.ended=true;if(!host){r.nextPosition=end;lastNext=end;}return r;}
+        auto offset=[&](double at){
+            double sample=std::clamp(std::ceil((at-anchorUnits)/step-double(base)),0.0,double(b.samples));
+            // Compare forward times instead of admitting genuinely future events via epsilon.
+            if(sample>0&&anchorUnits+(double(base)+sample-1)*step>=at)--sample;
+            if(sample<b.samples&&anchorUnits+(double(base)+sample)*step<at)++sample;
+            return int(sample);
+        };
+        if(start>=end&&!inSong){flush(sink,r,0);r.ended=true;if(!host){r.nextPosition=end;lastNext=end;}return r;}
         if(!inSong){
             const double target=std::max(0.0,start);const int sample=offset(target);if(sample>=b.samples)return r;
             const double tick=host?target*480:*song.tickAtSeconds(target);
-            const Tick at{int64_t(std::floor(tick))};const auto state=song.chase(at);
+            Tick at{int64_t(std::floor(tick))};
+            auto units=[&](int64_t t){return host?t/480.0:*song.secondsAtTick(double(t));};
+            if(at<song.endTick()&&units(at.value+1)<=target)++at.value;
+            if(at.value>0&&units(at.value)>target)--at.value;
+            const auto state=song.chase(at);
             for(int ch=0;ch<16;++ch){const auto& p=state.presets[size_t(ch)];
                 if(p.bankMsb>=0){emit(sink,r,{uint8_t(0xb0|ch),0,uint8_t(p.bankMsb),3},sample);emit(sink,r,{uint8_t(0xb0|ch),32,uint8_t(p.bankLsb),3},sample);}
                 if(p.program>=0)emit(sink,r,{uint8_t(0xc0|ch),uint8_t(p.program),0,2},sample);
@@ -50,7 +65,7 @@ public:
             cursor=song.firstAfter(at);inSong=true;
         }
         while(auto point=song.event(cursor)){
-            if(point->tick>=song.endTick())break;
+            if(point->tick>song.endTick())break;
             const double at=host?point->tick.value/480.0:*song.secondsAtTick(double(point->tick.value));const int sample=offset(at);
             if(sample>=b.samples)break;
             const auto key=point->key;int needed=point->control?1:point->onset?(held[key]?2:1):(!point->count&&held[key]?1:0);
@@ -72,6 +87,7 @@ private:
     std::array<uint32_t,2048> held{};uint16_t touched=0;size_t cursor=0;
     const PreparedSong* lastSong=nullptr;Clock lastClock=Clock::hostQuarterBeats;
     double lastOrigin=0,lastNext=0,lastStep=0;bool have=false,wasPlaying=false,inSong=false,paused=false;
+    double anchorUnits=0;uint64_t anchorFrames=0;
     template<class Sink>void emit(Sink& sink,PlaybackResult& r,MidiPacket packet,int sample)noexcept{sink(packet,sample);++r.messages;touched|=uint16_t(1u<<(packet.status&15));}
     template<class Sink>void flush(Sink& sink,PlaybackResult& r,int sample)noexcept{
         for(size_t key=0;key<held.size();++key)if(held[key]){emit(sink,r,{uint8_t(0x80|(key/128)),uint8_t(key%128),0,3},sample);held[key]=0;}

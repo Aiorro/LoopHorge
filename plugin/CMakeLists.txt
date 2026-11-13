@@ -82,3 +82,7 @@ add_test(NAME midi_drag_source COMMAND midi_drag_source_test)
 
 add_executable(composition_test tests/CompositionTest.cpp)
 add_test(NAME composition_v2 COMMAND composition_test)
+add_executable(legacy_migration_test tests/LegacyMigrationTest.cpp)
+target_compile_definitions(legacy_migration_test PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
+target_link_libraries(legacy_migration_test PRIVATE juce::juce_core)
+add_test(NAME legacy_migration COMMAND legacy_migration_test ${CMAKE_CURRENT_SOURCE_DIR}/tests/idea.json)

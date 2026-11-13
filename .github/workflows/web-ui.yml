@@ -1,0 +1,45 @@
+name: Web UI
+on:
+  push:
+    paths: ['web/**', 'src/**', 'scripts/verify-web-ui.cjs', '.github/workflows/web-ui.yml']
+  pull_request:
+    paths: ['web/**', 'src/**', 'scripts/verify-web-ui.cjs', '.github/workflows/web-ui.yml']
+  workflow_dispatch:
+concurrency:
+  group: web-ui-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install isolated browser test tools
+        run: |
+          npm install --prefix "$RUNNER_TEMP/ui-tools" --ignore-scripts --no-audit --no-fund playwright@1.62.1 axe-core@4.14.0
+          "$RUNNER_TEMP/ui-tools/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Verify browser UI
+        env:
+          NODE_PATH: ${{ runner.temp }}/ui-tools/node_modules
+          LOOPFORGE_PORT: 4180
+          LOOPFORGE_AXE: '1'
+          LOOPFORGE_UI_SCREENSHOTS: ${{ runner.temp }}/web-ui-artifacts
+        run: |
+          node src/server.js > "$RUNNER_TEMP/web-ui-server.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:4180/api/status > /dev/null; then break; fi
+            sleep 1
+          done
+          node scripts/verify-web-ui.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-ui-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/web-ui-artifacts/**
+            ${{ runner.temp }}/web-ui-server.log

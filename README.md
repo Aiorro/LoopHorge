@@ -115,3 +115,6 @@ Local server binds only to 127.0.0.1. No browser access to secret credentials. A
 ## Originality
 
 This is a clean-room implementation using public feature descriptions as functional requirements. All code in this prototype is original; no proprietary assets or model weights are included.
+## UI controls and verification
+
+Browser/native keyboard controls, responsive UI behaviour, installed Modern Web Guidance provenance and reproducible browser tests are documented in [docs/UI-REFINEMENT.md](docs/UI-REFINEMENT.md). The browser verification tools are isolated from the dependency-free app runtime.

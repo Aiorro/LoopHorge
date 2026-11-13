@@ -9,6 +9,7 @@ namespace composer {
 enum class ValidationCode { ok,version,identity,time,maps,track,note,control,harmony,sections,resource,density };
 struct ValidationResult {
     ValidationCode code=ValidationCode::ok; std::string message;
+    size_t accountedBytes=0;
     explicit operator bool()const{return code==ValidationCode::ok;}
 };
 namespace detail {
@@ -136,6 +137,6 @@ inline ValidationResult validate(const Composition& c) {
         if(edge.delta>0){if(count++==0&&++active>256)return error(ValidationCode::density,"Composition exceeds 256 simultaneous channel/pitch keys");}
         else if(--count==0)--active;
     }
-    return {};
+    return {ValidationCode::ok,{},bytes};
 }
 }

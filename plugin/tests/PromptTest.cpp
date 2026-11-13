@@ -78,6 +78,24 @@ int main(){
         check(piano.composition&&chords.composition&&bass.composition);check(piano.composition->id!=chords.composition->id);check(chords.composition->id!=bass.composition->id);}
     r=parse("loop 8 bars D minor 100 bpm seed42 with piano and drums dark aggressive");
     check(r.valid());generated=generateResolvedLoop(r);check(generated.composition&&validate(*generated.composition));
+    {
+        int failures=0;auto expect=[&](bool value,const char* name){if(!value){std::cerr<<"review regression: "<<name<<"\n";++failures;}};
+        for(const auto* text:{"key C sharp minor","key D flat major","тональность ре бемоль мажор","key C#minor"}){
+            auto key=parse(text);expect(key.valid()&&key.config.recipe.root==1,text);
+        }
+        for(const auto* text:{"trap70% ambient","70% trap 30% ambient"}){auto mix=parse(text);expect(mix.valid()&&mix.config.blend&&mix.config.blend->primaryWeight==70,text);}
+        auto first=parse("dark bright darkness90"),last=parse("darkness90 dark bright");
+        expect(first.valid()&&last.valid()&&first.config.mood.darkness==90&&last.config.mood.darkness==90,"numeric priority in both orders");
+        auto a=generateResolvedLoop(first),b=generateResolvedLoop(last);expect(a.composition&&b.composition&&a.composition->id==b.composition->id,"numeric priority actual generation");
+        auto excluded=parse("without bass, chords and lead");expect(!excluded.valid()&&!generateResolvedLoop(excluded).composition,"coordinated exclusions do not become inclusions");
+        auto selected=parse("without bass, chords and lead with drums");auto onlyDrums=generateResolvedLoop(selected);
+        expect(selected.valid()&&onlyDrums.composition&&onlyDrums.composition->tracks.size()==1&&onlyDrums.composition->tracks[0].role==Role::drums,"negative list with explicit positive reset");
+        auto noBassDrums=generateResolvedLoop(parse("no bass and drums"));
+        expect(noBassDrums.composition&&noBassDrums.composition->tracks.size()==2&&noBassDrums.composition->tracks[0].role==Role::chords&&noBassDrums.composition->tracks[1].role==Role::lead,"negative list output tracks");
+        expect(!parse("- 120 BPM").valid(),"spaced negative tempo is not positive tempo");
+        expect(!parse("- 8 bars").valid()&&!generateResolvedLoop(parse("- 8 bars")).composition,"spaced negative bars never render positively");
+        check(failures==0);
+    }
     uint32_t fuzz=42;
     for(size_t trial=0;trial<2048;++trial){std::string input;for(size_t i=0;i<trial%129;++i){fuzz^=fuzz<<13;fuzz^=fuzz>>17;fuzz^=fuzz<<5;input+=char(fuzz&255);}
         auto result=parse(input);spans(result,input);if(result.valid())check(validateDirection(result.config));}

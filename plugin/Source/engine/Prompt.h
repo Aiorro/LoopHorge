@@ -86,6 +86,14 @@ inline std::optional<int> root(Word word){
         if(base&&(tail==U"flat"||tail==U"бемоль"))return (*base+11)%12;}
     return {};
 }
+inline std::optional<std::pair<int,Scale>> compactKey(Word word){
+    for(size_t split=1;split<word.size();++split){auto prefix=word.substr(0,split),tail=word.substr(split);if(!prefix.empty()&&prefix.back()==U'-')prefix.remove_suffix(1);
+        auto key=root(prefix);
+        if(key&&(tail==U"minor"||tail==U"min"||tail==U"минор"))return {{*key,Scale::naturalMinor}};
+        if(key&&(tail==U"major"||tail==U"maj"||tail==U"мажор"))return {{*key,Scale::major}};
+    }
+    return {};
+}
 inline bool negation(Word w){return w==U"no"||w==U"not"||w==U"without"||w==U"без"||w==U"не";}
 inline std::optional<std::pair<int,size_t>> instrument(const std::vector<Token>& t,size_t i){
     return lookup(t,i,{{U"bass",0},{U"бас",0},{U"басом",0},{U"баса",0},{U"chords",1},{U"аккорды",1},{U"аккордов",1},{U"piano",1},{U"пианино",1},{U"фортепиано",1},
@@ -97,9 +105,11 @@ class Parser {
     std::string_view input;const ManualOverrides& manual;ResolvedConfig result;
     std::vector<Token> tokens;std::vector<bool> used;std::vector<Field> numberOwner;
     std::array<int,fieldCount> priority{};
+    struct Conflict {Field field;int priority;size_t diagnostic;};std::vector<Conflict> conflicts;
     struct StyleMention {Style style;std::optional<int> weight;size_t at,count;};std::vector<StyleMention> styles;
     std::array<std::optional<bool>,roleCount> roles{};bool hasPositive=false,hasInstruments=false;
     std::array<std::optional<int>,roleCount> programs{};Span instrumentSpan{};
+    bool instrumentExclusion=false;
     Span span(size_t i,size_t count=1)const{return {tokens[i].begin,tokens[i+count-1].end-tokens[i].begin};}
     void cover(size_t i,size_t count=1){for(size_t j=i;j<i+count;++j)used[j]=true;}
     void problem(Field f,const char* message,Span s={},Severity severity=Severity::error){
@@ -109,8 +119,12 @@ class Parser {
     template<class Update> void set(Field f,size_t i,size_t count,int confidence,Update update){
         auto candidate=result.config;update(candidate);auto value=fieldValue(candidate,f);size_t k=size_t(f);
         result.recognized.push_back({f,span(i,count),value});cover(i,count);
+        if(confidence>priority[k])for(const auto& conflict:conflicts)if(conflict.field==f&&conflict.priority<confidence){
+            auto& diagnostic=result.diagnostics[conflict.diagnostic];diagnostic.severity=Severity::info;
+            diagnostic.message="A more specific value supersedes the earlier hint conflict";
+        }
         if(priority[k]&&fieldValue(result.config,f)!=value){
-            if(confidence==priority[k]){problem(f,"Conflicting explicit values; pin a manual value or correct the direction",span(i,count));return;}
+            if(confidence==priority[k]){conflicts.push_back({f,confidence,result.diagnostics.size()});problem(f,"Conflicting explicit values; pin a manual value or correct the direction",span(i,count));return;}
             if(confidence<priority[k])return;
         }
         if(confidence>=priority[k]){copyField(result.config,candidate,f);priority[k]=confidence;result.origins[k]=Origin::text;}
@@ -161,6 +175,7 @@ class Parser {
         if(roles[k]&&*roles[k]!=include)problem(Field::instruments,"An instrument is both requested and excluded",span(i,length));
         else roles[k]=include;
         if(include&&(tokens[i].text==U"piano"||tokens[i].text==U"пианино"||tokens[i].text==U"фортепиано"))programs[k]=0;
+        result.recognized.push_back({Field::instruments,span(i,length),std::string(include?"include ":"exclude ")+roleName(Role(which))});
         cover(i,length);
     }
     void finishStyles(){
@@ -183,17 +198,23 @@ class Parser {
     }
     void scan(size_t i){
         const auto w=Word(tokens[i].text);
+        if(w==U"-"&&i+1<tokens.size()&&connected(i,i+1)){
+            double value=0;if(real(tokens[i+1].text,value)){cover(i);problem(Field::count,"Spaced minus is ambiguous; write a signed number without a space",span(i,2));return;}
+        }
+        if(w==U"with"||w==U"include"||w==U"add"||w==U"but"||w==U"с"||w==U"но"||w==U"добавь"||w==U"включи"||w==U"оставь"){
+            instrumentExclusion=false;cover(i);return;
+        }
         if(negation(w)){
-            if(i+1<tokens.size())if(auto found=instrument(tokens,i+1)){role(i+1,found->second,found->first,false);cover(i);return;}
+            if(i+1<tokens.size())if(auto found=instrument(tokens,i+1)){role(i+1,found->second,found->first,false);instrumentExclusion=true;cover(i);return;}
             cover(i);problem(Field::count,"Negation is supported for instrument names only",span(i));return;
         }
-        if(auto found=instrument(tokens,i)){role(i,found->second,found->first,true);return;}
+        if(auto found=instrument(tokens,i)){role(i,found->second,found->first,!instrumentExclusion);return;}
         if(auto found=lookup(tokens,i,{{U"nu-metal",4},{U"nu metal",4},{U"numetal",4},{U"ню-метал",4},{U"ню метал",4},{U"ню-металл",4},{U"trap",0},{U"трэп",0},{U"треп",0},{U"boom-bap",1},{U"boom bap",1},{U"бум-бэп",1},{U"бум бэп",1},{U"r&b",2},{U"rnb",2},{U"r n b",2},{U"ambient",3},{U"эмбиент",3},{U"эмбиэнт",3}})){
             size_t length=found->second;std::optional<int> weight;
-            auto percent=[&](size_t at){auto text=Word(tokens[at].text);if(text.empty()||text.back()!=U'%')return false;int64_t value=0;
+            auto percent=[&](size_t at){if(used[at])return false;auto text=Word(tokens[at].text);if(text.empty()||text.back()!=U'%')return false;int64_t value=0;
                 if(!integer(text.substr(0,text.size()-1),value)||value<0||value>100)problem(Field::style,"Invalid genre percentage",span(at));else weight=int(value);cover(at);return true;};
-            if(i+length<tokens.size()&&connected(i+length-1,i+length))percent(i+length);
-            if(!weight&&i&&connected(i-1,i))percent(i-1);
+            if(i&&connected(i-1,i))percent(i-1);
+            if(!weight&&i+length<tokens.size()&&connected(i+length-1,i+length))percent(i+length);
             styles.push_back({Style(found->first),weight,i,length});cover(i,length);return;
         }
         if(w==U"min"&&number(i,Field::duration,false)){numeric(i,Field::duration,false,1);return;}
@@ -207,10 +228,25 @@ class Parser {
                 if(auto key=root(tokens[at].text))set(Field::root,at,i-at,2,[&](auto& c){c.recipe.root=(*key+accidental+12)%12;});}
             return;
         }
-        for(size_t split=1;split<w.size();++split){auto prefix=w.substr(0,split),tail=w.substr(split);if(!prefix.empty()&&prefix.back()==U'-')prefix.remove_suffix(1);
-            auto key=root(prefix);if(key&&(tail==U"minor"||tail==U"min"||tail==U"минор"||tail==U"major"||tail==U"maj"||tail==U"мажор")){
-                set(Field::root,i,1,2,[&](auto& c){c.recipe.root=*key;});set(Field::scale,i,1,2,[&](auto& c){c.recipe.scale=(tail==U"minor"||tail==U"min"||tail==U"минор")?Scale::naturalMinor:Scale::major;});return;}}
-        if(w==U"key"||w==U"тональность"){cover(i);if(i+1<tokens.size())if(auto key=root(tokens[i+1].text)){set(Field::root,i,2,2,[&](auto& c){c.recipe.root=*key;});return;}problem(Field::root,"Key requires a recognized note name",span(i));return;}
+        if(auto key=compactKey(w)){
+            set(Field::root,i,1,2,[&](auto& c){c.recipe.root=key->first;});set(Field::scale,i,1,2,[&](auto& c){c.recipe.scale=key->second;});return;
+        }
+        if(w==U"key"||w==U"тональность"){
+            cover(i);
+            if(i+1<tokens.size()){
+                if(auto key=root(tokens[i+1].text)){
+                    int value=*key;size_t count=2;
+                    if(i+2<tokens.size()){auto accidental=Word(tokens[i+2].text);
+                        if(accidental==U"flat"||accidental==U"бемоль"){value=(value+11)%12;count=3;}
+                        if(accidental==U"sharp"||accidental==U"диез"){value=(value+1)%12;count=3;}}
+                    set(Field::root,i,count,2,[&](auto& c){c.recipe.root=value;});return;
+                }
+                if(auto key=compactKey(tokens[i+1].text)){
+                    set(Field::root,i,2,2,[&](auto& c){c.recipe.root=key->first;});set(Field::scale,i,2,2,[&](auto& c){c.recipe.scale=key->second;});return;
+                }
+            }
+            problem(Field::root,"Key requires a recognized note name",span(i));return;
+        }
         auto plain=ascii(w);if(plain.find('/')!=std::string::npos){auto slash=plain.find('/');int64_t top=0,bottom=0;
             if(integer(w.substr(0,slash),top)&&integer(w.substr(slash+1),bottom)&&top>=1&&top<=12&&(bottom==2||bottom==4||bottom==8||bottom==16))set(Field::meter,i,1,2,[&](auto& c){c.recipe.numerator=int(top);c.recipe.denominator=int(bottom);});
             else {cover(i);problem(Field::meter,"Invalid time signature",span(i));}return;}
@@ -243,7 +279,10 @@ public:
     ResolvedConfig run(){
         if(input.size()>4096||!tokenize(input,tokens)){problem(Field::count,"Direction exceeds4096bytes or contains invalid UTF-8/control data",{0,input.size()});return result;}
         used.resize(tokens.size());numberOwner.resize(tokens.size(),Field::count);
-        for(size_t i=0;i<tokens.size();++i)if(!used[i])scan(i);
+        for(size_t i=0;i<tokens.size();++i){
+            if(i){auto gap=input.substr(tokens[i-1].end,tokens[i].begin-tokens[i-1].end);if(gap.find_first_of(".;!?\r\n")!=std::string_view::npos)instrumentExclusion=false;}
+            if(!used[i])scan(i);
+        }
         finishStyles();
         if(hasInstruments){if(hasPositive)result.config.instruments.reset();for(size_t i=0;i<roleCount;++i)if(roles[i])result.config.instruments[i]=*roles[i];
             result.config.programs=programs;result.origins[size_t(Field::instruments)]=Origin::text;result.recognized.push_back({Field::instruments,instrumentSpan,fieldValue(result.config,Field::instruments)});}

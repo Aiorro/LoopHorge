@@ -25,6 +25,10 @@ jobs:
         run: node scripts/verify-native-api.cjs build/native/processor_test
       - if: runner.os == 'Linux'
         run: node scripts/verify-native-failures.cjs build/native/processor_test
+      - if: runner.os == 'Windows'
+        run: node scripts/verify-composer-worker.cjs build/native/Release/composer_processor_test.exe
+      - if: runner.os == 'Linux'
+        run: node scripts/verify-composer-worker.cjs build/native/composer_processor_test
       - uses: actions/upload-artifact@v4
         with:
           name: LoopForge-${{ runner.os }}-${{ github.sha }}-unsigned

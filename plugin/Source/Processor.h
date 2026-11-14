@@ -4,6 +4,9 @@
 #include "Wire.h"
 #include "Offline.h"
 #include "Editing.h"
+#include "engine/ProjectJson.h"
+#include "engine/Prepared.h"
+#include "PreparedMidi.h"
 #include <deque>
 #include <atomic>
 #include <mutex>
@@ -26,14 +29,31 @@ public:
  double getTailLengthSeconds()const override{return 0;} int getNumPrograms()override{return 1;} int getCurrentProgram()override{return 0;}
  void setCurrentProgram(int)override{} const juce::String getProgramName(int)override{return "Default";} void changeProgramName(int,const juce::String&)override{}
  bool isBusesLayoutSupported(const BusesLayout& l)const override{return l.getMainOutputChannelSet()==juce::AudioChannelSet::stereo();}
- void prepareToPlay(double sr,int)override {rate=std::isfinite(sr)&&sr>=1&&sr<=768000?sr:44100;midiLimitReached=false;for(int p=0;p<128;++p)increments[p]=juce::MathConstants<double>::twoPi*juce::MidiMessage::getMidiNoteInHertz(p)/rate;resetNotes();internalBeat=0;lastEnd=-1;lastStep=0;haveLastBlock=false;}
- void releaseResources()override{resetNotes();haveLastBlock=false;}
+ void prepareToPlay(double sr,int)override {rate=std::isfinite(sr)&&sr>=1&&sr<=768000?sr:44100;midiLimitReached=false;for(int p=0;p<128;++p)increments[p]=juce::MathConstants<double>::twoPi*juce::MidiMessage::getMidiNoteInHertz(p)/rate;resetNotes();internalBeat=0;internalSeconds=0;composerPlayback=composer::Playback{};lastEnd=-1;lastStep=0;haveLastBlock=false;}
+ void releaseResources()override{resetNotes();composerPlayback=composer::Playback{};internalSeconds=0;haveLastBlock=false;}
  void processBlock(juce::AudioBuffer<float>& audio,juce::MidiBuffer& midi)override {
   juce::ScopedNoDenormals noDenormals;audio.clear();midi.clear();eventsWritten=0;
   if(audio.getNumSamples()==0)return;
   bool changed=false;int next=pending.exchange(-1);
   if(next>=0){slots[next].state=3;int old=active;active=next;slots[old].state=0;changed=true;}
-  const auto& s=slots[active].data;double beat=internalBeat,bpm=s.bpm;bool playing=play.load();bool host=false;
+  const auto& runtime=slots[active];
+  if(runtime.composer!=renderComposer){
+   if(renderComposer){composer::PreparedMidiSink sink(midi);composerPlayback.stop(sink);}else flush(midi,0);
+   renderComposer=runtime.composer;internalBeat=internalSeconds=0;haveLastBlock=false;
+   // An empty old ledger needs no drain block; preserve short notes at a cold host origin.
+   if(!midi.isEmpty())return;
+  }
+  if(runtime.composer){
+   composer::PlaybackBlock block;block.clock=composer::Clock::compositionSeconds;block.position=internalSeconds;block.sampleRate=rate;block.samples=audio.getNumSamples();block.playing=play.load();block.hostStartQuarterBeat=runtime.origin;
+   if(auto* ph=getPlayHead())if(auto pos=ph->getPosition())if(auto ppq=pos->getPpqPosition()){
+    block.clock=composer::Clock::hostQuarterBeats;block.position=*ppq;block.playing=pos->getIsPlaying();if(auto bpm=pos->getBpm())block.bpm=*bpm;
+   }
+   composer::PreparedMidiSink sink(midi);auto result=composerPlayback.render(*runtime.song,block,sink);
+   midiLimitReached=result.overflow||sink.rejected();
+   if(block.clock==composer::Clock::compositionSeconds)internalSeconds=block.playing?result.nextPosition:0;
+   return;
+  }
+  const auto& s=runtime.data;double beat=internalBeat,bpm=s.bpm;bool playing=play.load();bool host=false;
   if(auto* ph=getPlayHead())if(auto pos=ph->getPosition()){
    if(auto ppq=pos->getPpqPosition()){host=true;beat=*ppq;playing=pos->getIsPlaying();if(auto tempo=pos->getBpm())bpm=*tempo;}
   }
@@ -72,27 +92,44 @@ public:
   haveLastBlock=playing;lastStep=step;lastEnd=playing?beat+samples*step:-1;if(!host)internalBeat=playing?beat+samples*step:0;
  }
  bool hasEditor()const override{return true;} juce::AudioProcessorEditor* createEditor()override;
- void getStateInformation(juce::MemoryBlock& dest)override {std::lock_guard lock(mutex);auto text=juce::JSON::toString(saved);dest.replaceAll(text.toRawUTF8(),text.getNumBytesAsUTF8());}
+ void getStateInformation(juce::MemoryBlock& dest)override {std::lock_guard lock(mutex);if(!stateJson.empty())dest.replaceAll(stateJson.data(),stateJson.size());else{auto text=juce::JSON::toString(saved);dest.replaceAll(text.toRawUTF8(),text.getNumBytesAsUTF8());}}
  void setStateInformation(const void* data,int size)override {
-  if(size<=0||size>4*1024*1024)return;
-  auto value=wire::document(std::string_view(static_cast<const char*>(data),size_t(size)));
-  std::lock_guard lock(mutex);if(wire::integer(value["version"],1,1) && install(value["idea"])){saved=value;ideas=juce::Array<juce::var>{value["idea"]};selectedIndex=0;if(busy){cancelled=true;notify();}status="Restored composition";}
+  if(!data||size<=0||size>int(composer::jsonDetail::maximumBytes)){std::lock_guard lock(mutex);status="Restore rejected: invalid project size";return;}
+  const std::string_view text(static_cast<const char*>(data),size_t(size));
+  try{
+   auto decoded=composer::decodeProjectJson(text);
+   if(decoded.project){restoreV2(std::move(*decoded.project),std::string(text));return;}
+   auto value=wire::document(text);Schedule checked;
+   if(!wire::integer(value["version"],1,1)||!wire::schedule(value["idea"],checked)){std::lock_guard lock(mutex);status="Restore rejected: invalid or unsupported project";return;}
+   std::string original(text);juce::var list=juce::Array<juce::var>{value["idea"]};
+   std::lock_guard lock(mutex);
+   if(!install(value["idea"],false,&original)){status="Restore rejected: playback storage unavailable";return;}
+   saved=std::move(value);ideas=std::move(list);selectedIndex=0;cancelRestoredWork();status="Restored composition";
+  }catch(const std::bad_alloc&){std::lock_guard lock(mutex);status="Restore rejected: insufficient memory";}
  }
- void request(const juce::String& body){std::lock_guard lock(mutex);if(busy)return;requestBody=body;cancelled=false;status="Queued...";busy=true;notify();}
+ bool isComposerMode(){std::lock_guard lock(mutex);return composerMode;}
+ void request(const juce::String& body){std::lock_guard lock(mutex);if(composerMode){status="Legacy generation unavailable in Composer mode";return;}if(busy)return;requestBody=body;requestRevision=revision;++jobGeneration;cancelled=false;status="Queued...";busy=true;notify();}
  void cancel(){std::lock_guard lock(mutex);if(busy){cancelled=true;status="Cancelling...";notify();}}
- void choose(int index){std::lock_guard lock(mutex);if(auto* list=ideas.getArray())if(index>=0&&index<list->size()&&install((*list)[index]))selectedIndex=index;}
- juce::String getStatus(){std::lock_guard lock(mutex);return status+(midiLimitReached?" MIDI block limit reached; playback paused for this block.":"");}
- juce::var getIdea(){std::lock_guard lock(mutex);return saved["idea"];}
- int selectedIdeaIndex(){std::lock_guard lock(mutex);return selectedIndex;}
- int ideaCount(){std::lock_guard lock(mutex);return ideas.isArray()?ideas.size():0;}
- editing::Snapshot snapshot(){std::lock_guard lock(mutex);return {saved["idea"].clone(),revision,replacement};}
- bool canUndo(){std::lock_guard lock(mutex);return !undo.empty();}
- bool canRedo(){std::lock_guard lock(mutex);return !redo.empty();}
+ void choose(int index){std::lock_guard lock(mutex);if(composerMode)return;if(auto* list=ideas.getArray())if(index>=0&&index<list->size()&&install((*list)[index]))selectedIndex=index;}
+ juce::String getStatus(){
+  std::lock_guard lock(mutex);juce::String detail;
+  if(composerMode){char number[64];auto end=std::to_chars(number,number+sizeof(number),composerOrigin,std::chars_format::general,std::numeric_limits<double>::max_digits10);
+   detail=" Composer: MIDI output only; audition, editor and export unavailable. Origin PPQ "+juce::String::fromUTF8(number,int(end.ptr-number))+".";
+  }
+  if(projectV2)detail+=" Old plugin versions cannot open v2 projects.";
+  return status+detail+(midiLimitReached?" MIDI block limit reached; playback paused for this block.":"");
+ }
+ juce::var getIdea(){std::lock_guard lock(mutex);return composerMode?juce::var{}:saved["idea"];}
+ int selectedIdeaIndex(){std::lock_guard lock(mutex);return composerMode?0:selectedIndex;}
+ int ideaCount(){std::lock_guard lock(mutex);return !composerMode&&ideas.isArray()?ideas.size():0;}
+ editing::Snapshot snapshot(){std::lock_guard lock(mutex);return {composerMode?juce::var{}:saved["idea"].clone(),revision,replacement};}
+ bool canUndo(){std::lock_guard lock(mutex);return !composerMode&&!undo.empty();}
+ bool canRedo(){std::lock_guard lock(mutex);return !composerMode&&!redo.empty();}
  bool edit(uint64_t expected,const juce::String& layer,int index,int pitch,double start,double duration,bool remove=false){
-  bool changed=false;{std::lock_guard lock(mutex);if(expected!=revision){status="Composition changed; edit cancelled";return false;}auto candidate=saved["idea"].clone();if(!editing::change(candidate,layer,index,pitch,start,duration,remove))return false;changed=commitEdit(candidate);}if(changed)updateHostDisplay(ChangeDetails{}.withNonParameterStateChanged(true));return changed;
+  bool changed=false;{std::lock_guard lock(mutex);if(composerMode||expected!=revision){status="Composition changed; edit cancelled";return false;}auto candidate=saved["idea"].clone();if(!editing::change(candidate,layer,index,pitch,start,duration,remove))return false;changed=commitEdit(candidate);}if(changed)updateHostDisplay(ChangeDetails{}.withNonParameterStateChanged(true));return changed;
  }
  bool quantize(uint64_t expected,const juce::String& layer){
-  bool changed=false;{std::lock_guard lock(mutex);if(expected!=revision)return false;auto candidate=saved["idea"].clone();if(!editing::quantize(candidate,layer))return false;changed=commitEdit(candidate);}if(changed)updateHostDisplay(ChangeDetails{}.withNonParameterStateChanged(true));return changed;
+  bool changed=false;{std::lock_guard lock(mutex);if(composerMode||expected!=revision)return false;auto candidate=saved["idea"].clone();if(!editing::quantize(candidate,layer))return false;changed=commitEdit(candidate);}if(changed)updateHostDisplay(ChangeDetails{}.withNonParameterStateChanged(true));return changed;
  }
  bool undoEdit(){return travelHistory(true);}
  bool redoEdit(){return travelHistory(false);}
@@ -102,10 +139,11 @@ private:
  static constexpr int maxMidiEvents=2048;int eventsWritten=0;std::atomic<bool> midiLimitReached{false};
  void emit(juce::MidiBuffer& midi,const juce::MidiMessage& message,int offset){midi.addEvent(message,offset);++eventsWritten;}
  const int requestTimeoutMs;
- struct Slot{Schedule data;std::atomic<int> state{0};};std::array<Slot,3> slots;
+ struct Slot{Schedule data;std::optional<composer::PreparedSong> song;bool composer=false;double origin=0;std::atomic<int> state{0};};std::array<Slot,3> slots;
  bool haveLastBlock=false;std::atomic<bool> cancelled{false};std::atomic<int> pending{-1};int active=0;double rate=44100,internalBeat=0,lastEnd=-1,lastStep=0;
  unsigned short noteCounts[16][128]{};float voices[16][128]{};double phases[16][128]{},increments[128]{};
- uint64_t revision=0,replacement=0;std::deque<juce::var> undo,redo;
+ composer::Playback composerPlayback;bool renderComposer=false,composerMode=false,projectV2=false;double internalSeconds=0,composerOrigin=0;std::string stateJson;
+ uint64_t jobGeneration=0,requestRevision=0,revision=0,replacement=0;std::deque<juce::var> undo,redo;
  int selectedIndex=0;std::mutex mutex;juce::String requestBody,status="Built-in demo ready. Generate offline ideas without a service.";juce::var ideas,saved;
  void resetNotes(){for(auto& ch:voices)for(auto& v:ch)v=0;for(auto& ch:noteCounts)for(auto& n:ch)n=0;}
  void flush(juce::MidiBuffer& midi,int offset){for(int ch=0;ch<16;++ch)for(int p=0;p<128;++p)if(voices[ch][p]>0)emit(midi,juce::MidiMessage::noteOff(ch+1,p),offset);resetNotes();}
@@ -116,25 +154,54 @@ private:
   if(!install(candidate,true)){status="Edit rejected: invalid notes or schedule unavailable";return false;}
   remember(undo,previous);redo.clear();updateSelected();status="Composition edited";return true;
  }
- bool travelHistory(bool backward){bool changed=false;{std::lock_guard lock(mutex);auto& from=backward?undo:redo;auto& to=backward?redo:undo;if(from.empty())return false;auto old=saved["idea"];if(!install(from.back(),true)){status="Schedule unavailable; try again";return false;}from.pop_back();remember(to,old);updateSelected();status=backward?"Edit undone":"Edit redone";changed=true;}if(changed)updateHostDisplay(ChangeDetails{}.withNonParameterStateChanged(true));return changed;}
- bool install(const juce::var& idea,bool preserveHistory=false){
-  Schedule s;if(!wire::schedule(idea,s))return false;
+ bool travelHistory(bool backward){bool changed=false;{std::lock_guard lock(mutex);if(composerMode)return false;auto& from=backward?undo:redo;auto& to=backward?redo:undo;if(from.empty())return false;auto old=saved["idea"];if(!install(from.back(),true)){status="Schedule unavailable; try again";return false;}from.pop_back();remember(to,old);updateSelected();status=backward?"Edit undone":"Edit redone";changed=true;}if(changed)updateHostDisplay(ChangeDetails{}.withNonParameterStateChanged(true));return changed;}
+ // All producer operations are serialized by mutex; callback only returns slot indexes.
+ void reclaimReturned(){for(auto& slot:slots){int free=0;if(slot.state.compare_exchange_strong(free,1)){slot.song.reset();slot.state.store(0,std::memory_order_release);}}}
+ int reserveSlot(size_t incoming=0){
+  reclaimReturned();size_t retained=0;for(const auto& slot:slots)if(slot.song)retained+=slot.song->storageBytes();
   for(int i=0;i<3;++i){int free=0;if(slots[i].state.compare_exchange_strong(free,1)){
-   slots[i].data=s;slots[i].state=2;int old=pending.exchange(i);if(old>=0)slots[old].state=0;
-   auto* object=new juce::DynamicObject;object->setProperty("version",1);object->setProperty("idea",idea);saved=juce::var(object);++revision;if(!preserveHistory){++replacement;undo.clear();redo.clear();}return true;
-  }}return false;
+   const auto old=slots[i].song?slots[i].song->storageBytes():0;
+   if(incoming>composer::limits::documentBytes-(retained-old)){slots[i].state=0;return -1;}
+   slots[i].song.reset();return i;
+  }}return -1;
+ }
+ void publishSlot(int index){slots[index].state.store(2,std::memory_order_release);int old=pending.exchange(index,std::memory_order_acq_rel);if(old>=0)slots[old].state.store(0,std::memory_order_release);}
+ void cancelRestoredWork(){++jobGeneration;if(busy){cancelled=true;notify();}}
+ void restoreV2(composer::ProjectState candidate,std::string original){
+  const bool mode=candidate.activeMode==composer::ProjectMode::composer;
+  std::optional<composer::PreparedSong> prepared;
+  if(mode){auto ready=composer::prepareComposition(*candidate.composition);if(!ready.song){std::lock_guard lock(mutex);status="Restore rejected: invalid prepared composition";return;}prepared=std::move(ready.song);}
+  juce::var legacyState,list;Schedule schedule;
+  if(candidate.legacyStateJson){legacyState=wire::document(*candidate.legacyStateJson);list=juce::Array<juce::var>{legacyState["idea"]};if(!mode&&!wire::schedule(legacyState["idea"],schedule))return;}
+  std::lock_guard lock(mutex);const int index=reserveSlot(prepared?prepared->storageBytes():0);
+  if(index<0){status="Restore rejected: playback storage unavailable";return;}
+  auto& slot=slots[index];slot.data=schedule;slot.composer=mode;slot.origin=candidate.hostStartQuarterBeat;slot.song=std::move(prepared);
+  saved=std::move(legacyState);ideas=std::move(list);selectedIndex=0;stateJson.swap(original);projectV2=true;composerMode=mode;composerOrigin=candidate.hostStartQuarterBeat;
+  ++revision;++replacement;undo.clear();redo.clear();cancelRestoredWork();status="Restored project v2";publishSlot(index);
+ }
+ bool install(const juce::var& idea,bool preserveHistory=false,const std::string* restored=nullptr){
+  if(composerMode&&!restored)return false;
+  Schedule schedule;if(!wire::schedule(idea,schedule))return false;
+  auto* object=new juce::DynamicObject;object->setProperty("version",1);object->setProperty("idea",idea);juce::var nextSaved(object);
+  std::string nextJson=restored?*restored:juce::JSON::toString(nextSaved).toStdString();
+  const bool keepV2=projectV2&&!restored;
+  if(keepV2){auto decoded=composer::decodeProjectJson(stateJson);if(!decoded.project)return false;decoded.project->activeMode=composer::ProjectMode::legacy;decoded.project->legacyStateJson=nextJson;auto encoded=composer::encodeProjectJson(*decoded.project);if(!encoded)return false;nextJson=std::move(encoded.json);}
+  const int index=reserveSlot();if(index<0)return false;
+  auto& slot=slots[index];slot.data=schedule;slot.composer=false;slot.origin=0;
+  saved=std::move(nextSaved);stateJson.swap(nextJson);projectV2=keepV2;composerMode=false;++revision;if(!preserveHistory){++replacement;undo.clear();redo.clear();}
+  publishSlot(index);return true;
  }
  void run()override{
   while(!threadShouldExit()){
-   wait(200);juce::String body;
-   {std::lock_guard lock(mutex);if(!busy)continue;body=requestBody;status="Generating...";}
+   wait(200);juce::String body;uint64_t baseRevision=0,job=0;
+   {std::lock_guard lock(mutex);reclaimReturned();if(!busy)continue;body=requestBody;baseRevision=requestRevision;job=jobGeneration;status="Generating...";}
    juce::String resultStatus;
    try{
     auto params=wire::document(std::string_view(body.toRawUTF8(),body.getNumBytesAsUTF8()));if(!params.isObject())throw std::runtime_error("Invalid composition request");bool probe=params["action"].toString()=="probe";
     if(cancelled||threadShouldExit())throw std::runtime_error("Generation cancelled");
     if(params["provider"].toString()=="offline"||params["provider"].isVoid()){
      auto generated=offline::generate(params);std::lock_guard lock(mutex);
-     if(cancelled||threadShouldExit())throw std::runtime_error("Generation cancelled");
+     if(cancelled||threadShouldExit()||revision!=baseRevision||jobGeneration!=job||composerMode)throw std::runtime_error("Generation cancelled");
      if(probe){status="Offline generator ready - no service required.";busy=false;continue;}
      if(!install(generated[0]))throw std::runtime_error("Invalid offline composition");
      ideas=generated;selectedIndex=0;status="Offline ideas ready - no service required.";busy=false;continue;
@@ -172,7 +239,7 @@ private:
     if(!wire::reply(response,probe))throw std::runtime_error("Invalid bridge response");
     if(!probe){if(!list.isArray()||list.size()<1||list.size()>8)throw std::runtime_error("Invalid composition received");for(const auto& idea:*list.getArray()){Schedule checked;if(!wire::schedule(idea,checked,true))throw std::runtime_error("Invalid composition received");}}
     std::lock_guard lock(mutex);
-    if(cancelled||threadShouldExit())throw std::runtime_error("Generation cancelled");
+    if(cancelled||threadShouldExit()||revision!=baseRevision||jobGeneration!=job||composerMode)throw std::runtime_error("Generation cancelled");
     if(probe){if(!bool(response["ok"]))throw std::runtime_error("Invalid provider probe response");status="Connected: "+response["provider"].toString()+" / "+response["model"].toString();busy=false;continue;}
     if(!list.isArray()||list.size()<1||list.size()>8||!install(list[0]))throw std::runtime_error("Invalid composition received");
     ideas=list;selectedIndex=0;resultStatus="Ideas ready - choose a variation, then play or export.";

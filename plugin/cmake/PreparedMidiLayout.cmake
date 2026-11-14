@@ -2,6 +2,9 @@
 # Normalize checkout line endings, but require review for any source/layout drift.
 function(loopforge_verify_prepared_midi_layout midi_dir)
  foreach(name IN ITEMS juce_MidiBuffer.h juce_MidiBuffer.cpp)
+  if(NOT CMAKE_SCRIPT_MODE_FILE)
+   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${midi_dir}/${name}")
+  endif()
   file(READ "${midi_dir}/${name}" source)
   string(REPLACE "\r\n" "\n" source "${source}")
   string(SHA256 actual "${source}")

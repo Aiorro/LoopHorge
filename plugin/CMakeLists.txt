@@ -125,6 +125,8 @@ add_test(NAME composer_player COMMAND composer_player_test)
 add_test(NAME prepared_midi_layout COMMAND ${CMAKE_COMMAND}
  -DJUCE_MIDI_DIR=${JUCE_MODULES_DIR}/juce_audio_basics/midi
  -DLAYOUT_MODULE=${CMAKE_CURRENT_SOURCE_DIR}/cmake/PreparedMidiLayout.cmake
+ -DBUILD_GENERATOR=${CMAKE_GENERATOR}
+ -DBUILD_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}
  -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/PreparedMidiLayoutTest.cmake)
 add_executable(composer_player_bench EXCLUDE_FROM_ALL tests/ComposerPlayerBench.cpp)
 target_include_directories(composer_player_bench PRIVATE $<TARGET_PROPERTY:LoopForge,INCLUDE_DIRECTORIES>)

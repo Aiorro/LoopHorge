@@ -12,6 +12,11 @@ struct MidiPacket {uint8_t status=0,data1=0,data2=0,size=3;};
 struct PlaybackResult {double nextPosition=0;int messages=0,events=0;bool overflow=false,invalidClock=false,ended=false;};
 class Playback {
 public:
+    template<class Sink>PlaybackResult stop(Sink&& sink)noexcept{
+        static_assert(std::is_nothrow_invocable_v<Sink&,MidiPacket,int>,"Playback sink must be nonthrowing and preallocated");
+        PlaybackResult r;flush(sink,r,0);have=false;wasPlaying=false;inSong=false;paused=false;lastSong=nullptr;cursor=0;
+        lastOrigin=0;lastNext=0;lastStep=0;anchorUnits=0;anchorFrames=0;return r;
+    }
     template<class Sink>PlaybackResult render(const PreparedSong& song,const PlaybackBlock& b,Sink&& sink)noexcept{
         static_assert(std::is_nothrow_invocable_v<Sink&,MidiPacket,int>,"Playback sink must be nonthrowing and preallocated");
         PlaybackResult r;r.nextPosition=std::isfinite(b.position)?b.position:0;

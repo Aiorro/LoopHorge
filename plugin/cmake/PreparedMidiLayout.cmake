@@ -1,0 +1,17 @@
+# The ordered short-packet sink uses this pinned public raw storage format.
+# Normalize checkout line endings, but require review for any source/layout drift.
+function(loopforge_verify_prepared_midi_layout midi_dir)
+ foreach(name IN ITEMS juce_MidiBuffer.h juce_MidiBuffer.cpp)
+  file(READ "${midi_dir}/${name}" source)
+  string(REPLACE "\r\n" "\n" source "${source}")
+  string(SHA256 actual "${source}")
+  if(name STREQUAL "juce_MidiBuffer.h")
+   set(expected "5b6a9d36d0489dfb4015f7daf94649da54c5fc51e3af3756690d5e0b082511fe")
+  else()
+   set(expected "e700fd3335b9e3fdc6c69b0649b808981970d73035ae3c1b43aef856b492b683")
+  endif()
+  if(NOT actual STREQUAL expected)
+   message(FATAL_ERROR "JUCE prepared MIDI layout changed (${name}); review PreparedMidi.h and its layout guard")
+  endif()
+ endforeach()
+endfunction()

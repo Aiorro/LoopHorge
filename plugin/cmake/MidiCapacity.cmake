@@ -1,5 +1,9 @@
 # JUCE 8.0.8 owns the MIDI buffers passed to processBlock. Reserve output at
 # device/plugin preparation, not inside the callback. Leave the JUCE checkout intact.
+include("${CMAKE_CURRENT_LIST_DIR}/PreparedMidiLayout.cmake")
+loopforge_verify_prepared_midi_layout("${JUCE_MODULES_DIR}/juce_audio_basics/midi")
+add_library(loopforge_prepared_midi INTERFACE)
+target_compile_definitions(loopforge_prepared_midi INTERFACE LOOPFORGE_VERIFIED_MIDI_LAYOUT=1)
 function(loopforge_write_copy path content)
  file(WRITE "${path}.tmp" "${content}")
  configure_file("${path}.tmp" "${path}" COPYONLY)

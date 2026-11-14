@@ -132,3 +132,8 @@ add_executable(composer_player_bench EXCLUDE_FROM_ALL tests/ComposerPlayerBench.
 target_include_directories(composer_player_bench PRIVATE $<TARGET_PROPERTY:LoopForge,INCLUDE_DIRECTORIES>)
 target_compile_definitions(composer_player_bench PRIVATE $<TARGET_PROPERTY:LoopForge,COMPILE_DEFINITIONS>)
 target_link_libraries(composer_player_bench PRIVATE LoopForge loopforge_prepared_midi)
+
+add_executable(project_json_test tests/ProjectJsonTest.cpp)
+target_compile_definitions(project_json_test PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
+target_link_libraries(project_json_test PRIVATE juce::juce_core)
+add_test(NAME project_json COMMAND project_json_test ${CMAKE_CURRENT_SOURCE_DIR}/tests/idea.json)

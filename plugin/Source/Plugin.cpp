@@ -68,7 +68,7 @@ private:
   if(auto state=processor.presentation(viewRevision)){viewRevision=state->revision;saveProject.setEnabled(state->hasState);
    if(state->composer){auto project=composer::decodeProjectJson(state->json);if(project.project&&project.project->composition)overview.setDocument(*project.project->composition,project.project->hostStartQuarterBeat);}
    juce::Component* target=state->composer?static_cast<juce::Component*>(&overview):static_cast<juce::Component*>(&roll);
-   if(viewport.getViewedComponent()!=target){viewport.setViewedComponent(target,false);resized();viewport.setViewPosition(0,state->composer?0:roll.preferredScrollY());}
+   const bool changed=viewport.getViewedComponent()!=target;if(changed)viewport.setViewedComponent(target,false);resized();if(changed)viewport.setViewPosition(0,state->composer?0:roll.preferredScrollY());
   }
  }
  void chooseProject(bool saving){
@@ -87,7 +87,7 @@ private:
  void exportMidi(){auto idea=processor.getIdea();if(!idea.isObject()){status.setText("Generate an idea before export",juce::dontSendNotification);return;}
   chooser=std::make_unique<juce::FileChooser>("Export MIDI",juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("loopforge.mid"),"*.mid");
   chooser->launchAsync(juce::FileBrowserComponent::saveMode|juce::FileBrowserComponent::canSelectFiles|juce::FileBrowserComponent::warnAboutOverwriting,[safe=juce::Component::SafePointer<Editor>(this),idea](const juce::FileChooser& fc){if(!safe||fc.getResult()==juce::File{})return;
-   auto bytes=encodeMidi(idea);bool ok=bytes.getSize()>0&&fc.getResult().replaceWithData(bytes.getData(),bytes.getSize());safe->status.setText(ok?"MIDI exported":"MIDI export failed",juce::dontSendNotification);
+   auto bytes=encodeMidi(idea);bool ok=bytes.getSize()>0&&projectFiles::replaceChecked(fc.getResult(),{static_cast<const char*>(bytes.getData()),bytes.getSize()}).isEmpty();safe->status.setText(ok?"MIDI exported":"MIDI export failed",juce::dontSendNotification);
   });
  }
 };

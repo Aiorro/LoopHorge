@@ -159,3 +159,9 @@ target_compile_definitions(composer_overview_test PRIVATE $<TARGET_PROPERTY:Loop
 target_compile_options(composer_overview_test PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
 target_link_libraries(composer_overview_test PRIVATE LoopForge)
 add_test(NAME composer_overview COMMAND composer_overview_test)
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+ add_test(NAME project_write_failure COMMAND composer_overview_test --write-failure)
+endif()
+
+add_test(NAME composer_overview_reflow COMMAND composer_overview_test --reflow)

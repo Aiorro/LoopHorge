@@ -13,12 +13,25 @@ inline ReadResult read(const juce::File& file){
   return {std::move(text),{}};
  }catch(const std::bad_alloc&){return {{},"Insufficient memory to open project"};}
 }
+// Shared with legacy MIDI export: publish only a verified complete staging file.
+inline juce::String replaceChecked(const juce::File& file,std::string_view bytes){
+ if(bytes.empty()||bytes.size()>composer::jsonDetail::maximumBytes)return "File exceeds 32 MiB or is empty";
+ juce::TemporaryFile temporary(file);
+ {
+  juce::FileOutputStream output(temporary.getFile());
+  if(!output.openedOk())return "Cannot create temporary save file";
+  const bool complete=output.write(bytes.data(),bytes.size());
+  output.flush();
+  if(!complete||output.getStatus().failed()||output.getPosition()!=juce::int64(bytes.size())||temporary.getFile().getSize()!=juce::int64(bytes.size()))return "Cannot write complete file; original preserved";
+ }
+ return temporary.overwriteTargetFileWithTemporary()?juce::String{}:juce::String("Cannot replace saved file");
+}
 inline juce::String write(const juce::File& file,std::string_view text){
  if(text.empty()||text.size()>composer::jsonDetail::maximumBytes)return "Project exceeds 32 MiB or is empty";
  try{
   auto project=composer::decodeProjectJson(text);
   if(!project.project){auto legacy=wire::document(text);Schedule checked;if(!wire::integer(legacy["version"],1,1)||!wire::schedule(legacy["idea"],checked))return "Cannot save an invalid project";}
-  return file.replaceWithData(text.data(),text.size())?juce::String{}:juce::String("Cannot save project file");
+  return replaceChecked(file,text);
  }catch(const std::bad_alloc&){return "Insufficient memory to save project";}
 }
 }

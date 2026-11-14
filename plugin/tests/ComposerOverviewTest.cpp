@@ -1,7 +1,13 @@
 #include "../Source/Processor.h"
 #include "../Source/ComposerOverview.h"
 #include "../Source/ProjectFiles.h"
+#include "../Source/MidiExport.h"
 #include <iostream>
+#include <cstring>
+#if JUCE_LINUX
+ #include <sys/resource.h>
+ #include <csignal>
+#endif
 #define check(x) do{if(!(x)){std::cerr<<"line "<<__LINE__<<": " #x "\n";std::abort();}}while(false)
 using namespace composer;
 Composition fixture(){
@@ -15,8 +21,35 @@ std::string saved(Processor& p){juce::MemoryBlock b;p.getStateInformation(b);ret
 juce::Viewport* viewport(juce::Component& editor){for(int i=0;i<editor.getNumChildComponents();++i)if(auto* v=dynamic_cast<juce::Viewport*>(editor.getChildComponent(i)))return v;return nullptr;}
 juce::TextButton* button(juce::Component& editor,const char* text){for(int i=0;i<editor.getNumChildComponents();++i)if(auto* b=dynamic_cast<juce::TextButton*>(editor.getChildComponent(i)))if(b->getButtonText()==text)return b;return nullptr;}
 juce::String details(juce::Component& view){for(int i=0;i<view.getNumChildComponents();++i)if(auto* t=dynamic_cast<juce::TextEditor*>(view.getChildComponent(i))){check(t->isReadOnly());return t->getText();}return {};}
+#if JUCE_LINUX
+int writeFailureCase(){
+ auto root=juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("loopforge-write-limit-"+juce::Uuid().toString());check(root.createDirectory());auto file=root.getChildFile("existing.json");
+ const auto json=project(fixture());check(json.size()>1024&&projectFiles::write(file,json).isEmpty());
+ auto midi=encodeMidi(offline::generate(juce::JSON::parse("{\"seed\":42}"))[0]);check(midi.getSize()>16);const std::string midiBytes(static_cast<const char*>(midi.getData()),midi.getSize());auto midiFile=root.getChildFile("existing.mid");check(projectFiles::replaceChecked(midiFile,midiBytes).isEmpty()&&midiFile.loadFileAsData(midi));
+ struct rlimit original;check(getrlimit(RLIMIT_FSIZE,&original)==0);auto limited=original;limited.rlim_cur=1024;auto oldSignal=std::signal(SIGXFSZ,SIG_IGN);check(setrlimit(RLIMIT_FSIZE,&limited)==0);
+ const auto error=projectFiles::write(file,json);const auto actual=file.loadFileAsString().toStdString();
+ limited.rlim_cur=16;check(setrlimit(RLIMIT_FSIZE,&limited)==0);const auto midiError=projectFiles::replaceChecked(midiFile,midiBytes);juce::MemoryBlock retained;check(midiFile.loadFileAsData(retained));const bool midiKept=retained.getSize()==midiBytes.size()&&std::memcmp(retained.getData(),midiBytes.data(),midiBytes.size())==0;
+ check(setrlimit(RLIMIT_FSIZE,&original)==0);std::signal(SIGXFSZ,oldSignal);root.deleteRecursively();
+ check(error.isNotEmpty()&&actual==json&&midiError.isNotEmpty()&&midiKept);
+ std::cout<<"Partial write rejected; previous valid project preserved\\n";return 0;
+}
+#endif
+void sameModeReflow(){
+ auto owner=std::make_unique<Processor>();auto& p=*owner;auto small=fixture();small.tracks.resize(1);const auto one=project(small),sixteen=project(fixture());check(p.restoreStateInformation(one.data(),int(one.size())));
+ std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());auto* vp=viewport(*editor);auto* view=dynamic_cast<ComposerOverview*>(vp->getViewedComponent());check(view&&view->getHeight()==view->requiredHeight());
+ check(p.restoreStateInformation(sixteen.data(),int(sixteen.size())));
+ juce::Timer::callAfterDelay(260,[&]{
+  check(view->getHeight()==view->requiredHeight()&&view->getWidth()==vp->getMaximumVisibleWidth());check(view->keyPressed(juce::KeyPress(juce::KeyPress::endKey))&&vp->getViewPositionY()>0);
+  check(p.restoreStateInformation(one.data(),int(one.size())));
+  juce::Timer::callAfterDelay(260,[&]{check(view->getHeight()==view->requiredHeight()&&vp->getViewPositionY()==0&&view->getWidth()==vp->getMaximumVisibleWidth());juce::MessageManager::getInstance()->stopDispatchLoop();});
+ });juce::MessageManager::getInstance()->runDispatchLoop();
+}
 int main(int argc,char** argv){
- juce::ScopedJuceInitialiser_GUI init;auto owner=std::make_unique<Processor>();auto& p=*owner;
+#if JUCE_LINUX
+ if(argc>1&&std::string_view(argv[1])=="--write-failure")return writeFailureCase();
+#endif
+
+ juce::ScopedJuceInitialiser_GUI init;if(argc>1&&std::string_view(argv[1])=="--reflow"){sameModeReflow();return 0;}auto owner=std::make_unique<Processor>();auto& p=*owner;
  auto first=p.presentation(UINT64_MAX);check(first&&!first->composer&&!first->hasState&&first->json.empty());check(!p.presentation(first->revision));
  auto c=fixture();const auto json=project(c);check(p.restoreStateInformation(json.data(),int(json.size())));auto next=p.presentation(first->revision);check(next&&next->composer&&next->hasState&&next->json==json);check(!p.presentation(next->revision));
  check(!p.restoreStateInformation("{}",2)&&saved(p)==json);check(!p.presentation(next->revision));

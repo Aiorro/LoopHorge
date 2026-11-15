@@ -172,3 +172,9 @@ target_compile_definitions(native_compose_test PRIVATE $<TARGET_PROPERTY:LoopFor
 target_compile_options(native_compose_test PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
 target_link_libraries(native_compose_test PRIVATE LoopForge)
 add_test(NAME native_compose COMMAND native_compose_test)
+
+add_executable(native_compose_ui_test tests/NativeComposeUITest.cpp)
+target_include_directories(native_compose_ui_test PRIVATE $<TARGET_PROPERTY:LoopForge,INCLUDE_DIRECTORIES>)
+target_compile_definitions(native_compose_ui_test PRIVATE $<TARGET_PROPERTY:LoopForge,COMPILE_DEFINITIONS>)
+target_link_libraries(native_compose_ui_test PRIVATE LoopForge)
+add_test(NAME native_compose_ui COMMAND native_compose_ui_test)

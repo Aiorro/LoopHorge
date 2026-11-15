@@ -78,3 +78,5 @@ ERR-001/ERR-002: implementation5c5eafa; Linux VST3/Standalone/CTest32/32, Node42
 ## Updating the register
 
 Add reproduced defects and observed failures here during the same work. Retain IDs, severity, evidence and owning task when updating statuses. Mark Fixed only after a meaningful regression passes; state platform/tool boundaries. New actionable work belongs in task.md. A local green suite does not turn an external Investigating/Blocked item into Fixed.
+
+| ERR-056 | Low | Native UI | Fixed | New Composer settings label compressed the full provenance summary into unreadably narrow text; a non-ASCII separator rendered incorrectly. | Minimum-window snapshot exposed the issue; replaced with12px read-only scrollable settings text and ASCII separator. Real-editor test checks accessible committed seed/origin text; final screenshots rechecked. | E03/E04 |

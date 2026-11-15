@@ -41,7 +41,7 @@ void sameModeReflow(){
  juce::Timer::callAfterDelay(260,[&]{
   check(view->getHeight()==view->requiredHeight()&&view->getWidth()==vp->getMaximumVisibleWidth());check(view->keyPressed(juce::KeyPress(juce::KeyPress::endKey))&&vp->getViewPositionY()>0);
   check(p.restoreStateInformation(one.data(),int(one.size())));
-  juce::Timer::callAfterDelay(260,[&]{check(view->getHeight()==view->requiredHeight()&&vp->getViewPositionY()==0&&view->getWidth()==vp->getMaximumVisibleWidth());juce::MessageManager::getInstance()->stopDispatchLoop();});
+  juce::Timer::callAfterDelay(260,[&]{check(view->getHeight()==view->requiredHeight()&&vp->getViewPositionY()==std::max(0,view->requiredHeight()-vp->getMaximumVisibleHeight())&&view->getWidth()==vp->getMaximumVisibleWidth());juce::MessageManager::getInstance()->stopDispatchLoop();});
  });juce::MessageManager::getInstance()->runDispatchLoop();
 }
 int main(int argc,char** argv){

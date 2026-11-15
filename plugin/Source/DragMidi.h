@@ -21,7 +21,7 @@ public:
 #if JUCE_WINDOWS
   handle=CreateFileW(file.getFullPathName().toWideCharPointer(),GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
 #else
-  handle=::open(file.getFullPathName().toRawUTF8(),O_RDONLY|O_NOFOLLOW);if(handle>=0&&::flock(handle,LOCK_SH|LOCK_NB)!=0){::close(handle);handle=-1;}
+  handle=::open(file.getFullPathName().toRawUTF8(),O_RDONLY|O_NOFOLLOW|O_CLOEXEC);if(handle>=0&&::flock(handle,LOCK_SH|LOCK_NB)!=0){::close(handle);handle=-1;}
 #endif
  }
  ~DragMidiLease(){
@@ -43,7 +43,7 @@ public:
 #if JUCE_WINDOWS
   return file.deleteFile(); // Active read handles deny deletion, including across processes.
 #else
-  int fd=::open(file.getFullPathName().toRawUTF8(),O_RDONLY|O_NOFOLLOW);if(fd<0)return false;bool removed=false;if(::flock(fd,LOCK_EX|LOCK_NB)==0)removed=::unlink(file.getFullPathName().toRawUTF8())==0;::close(fd);return removed;
+  int fd=::open(file.getFullPathName().toRawUTF8(),O_RDONLY|O_NOFOLLOW|O_CLOEXEC);if(fd<0)return false;bool removed=false;if(::flock(fd,LOCK_EX|LOCK_NB)==0)removed=::unlink(file.getFullPathName().toRawUTF8())==0;::close(fd);return removed;
 #endif
  }
 private:
@@ -89,7 +89,7 @@ private:
 #if JUCE_WINDOWS
   auto h=CreateFileW(file.getFullPathName().toWideCharPointer(),GENERIC_WRITE,FILE_SHARE_READ,nullptr,CREATE_NEW,FILE_ATTRIBUTE_NORMAL,nullptr);if(h==INVALID_HANDLE_VALUE)return false;DWORD written=0;bool ok=WriteFile(h,bytes.getData(),DWORD(bytes.getSize()),&written,nullptr)&&written==bytes.getSize();CloseHandle(h);
 #else
-  int h=::open(file.getFullPathName().toRawUTF8(),O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,0600);if(h<0)return false;size_t offset=0;while(offset<bytes.getSize()){auto n=::write(h,static_cast<const char*>(bytes.getData())+offset,bytes.getSize()-offset);if(n<0&&errno==EINTR)continue;if(n<=0)break;offset+=size_t(n);}bool ok=offset==bytes.getSize();::close(h);
+  int h=::open(file.getFullPathName().toRawUTF8(),O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW|O_CLOEXEC,0600);if(h<0)return false;size_t offset=0;while(offset<bytes.getSize()){auto n=::write(h,static_cast<const char*>(bytes.getData())+offset,bytes.getSize()-offset);if(n<0&&errno==EINTR)continue;if(n<=0)break;offset+=size_t(n);}bool ok=offset==bytes.getSize();::close(h);
 #endif
   if(!ok)file.deleteFile();return ok;
  }

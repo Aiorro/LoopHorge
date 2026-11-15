@@ -1,6 +1,7 @@
 #pragma once
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "DragMidi.h"
+#include <atomic>
 class MidiDragSource final:public juce::TextButton {
 public:
  using Dispatch=std::function<bool(const juce::StringArray&,bool,juce::Component*,std::function<void()>)>;
@@ -20,7 +21,11 @@ public:
   juce::TextButton::mouseDrag(e);if(!armed||!e.mods.isLeftButtonDown()||e.position.getDistanceFrom(anchor)<6)return;armed=false;
   auto prepared=cache.prepare(captured);auto sink=status;auto start=dispatch;
   if(!prepared.lease){sink(prepared.error);return;}
-  auto lease=std::move(prepared.lease);bool started=start({lease->file.getFullPathName()},false,this,[lease]{});
+  auto lease=std::move(prepared.lease);
+  // Callback copies share one thread-safe hold; a retained finished callback must not pin the file.
+  auto completionLease=std::make_shared<std::atomic<std::shared_ptr<DragMidiLease>>>(lease);
+  bool started=start({lease->file.getFullPathName()},false,this,[completionLease]{completionLease->store({});});
+  if(!started)completionLease->store({});
   // A native modal operation may have destroyed the source; only copied values remain in use.
   sink(started?"MIDI drag started; import depends on target":"MIDI drag unavailable; use Export MIDI");
  }

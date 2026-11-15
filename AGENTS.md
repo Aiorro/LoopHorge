@@ -101,3 +101,7 @@ Preserve tested behavior and keep the standalone/offline generator usable throug
 For every task `Txx`, use the acceptance/evidence described in `task.md`. Test code changes at the narrowest useful level and run `npm test` before committing; for MIDI changes also run `npm run sample`. For JUCE changes, perform CMake configure/build/CTest or explain exactly why unavailable. For releases require a real artifact and independently verified CI, never a placeholder `.vst3`.
 
 Only edit task priorities or scope when new dependencies or reproducible evidence justify it; briefly explain the change in `task.md`. Do not silently auto-check milestones. Follow `task.md` until all possible tasks are closed or an external blocker is documented.
+
+## Diagnostic register
+
+The user requested root errors.md on2026-11-15. Maintain stable finding IDs, severity, status and verification evidence there. It is a diagnostic register, not a second execution checklist: task.md remains the sole source of priorities/actionable checkboxes. Add new findings and update statuses during the same work; never imply unverified platform/host acceptance from a local fix.

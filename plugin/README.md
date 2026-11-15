@@ -215,3 +215,10 @@ Presentation JSON copies/decodes only on a new revision. Pitch/bin difference ar
 Composer generation controls, multi-track editing/history, audition and MIDI export/drag remain separate work. Project JSON save is available now; MIDI export remains disabled in Composer. A MIDI overflow correctly pauses Composer until transport stop/start, seek or a new source; the status now explains that recovery instead of promising a one-block pause. Native OS chooser interaction, Windows/DAW/pluginval and crash recovery still need their separate acceptance.
 
 Same-mode Composer replacement updates viewport geometry on every accepted revision, including one-to16tracks and16-toone without a manual window resize. Ordinary partial-write rejection is covered by an isolated Linux RLIMIT_FSIZE regression for existing project and MIDI files; prior complete bytes must remain unchanged. This is an ordinary write-failure check, not power-loss/directory-fsync or Windows filesystem certification.
+
+
+## Drag descriptor and completion ownership
+
+POSIX drag-file lease, cleanup and exclusive-write descriptors are created with atomic close-on-exec flags. A successfully execed host child cannot prolong the parent lease through an inherited descriptor; fork-only children are outside that exec guarantee. Windows retains its existing non-inheritable handle creation. A real exec-child test verifies expiry cleanup while the child remains alive.
+
+Native completion callback copies share a thread-safe lease hold. Completion (including repeated/concurrent calls) or rejected native startup clears that hold even if a platform retains its callback object. The local dispatch frame still keeps a lease until it returns, and the cache still retains files for24hours; completion does not immediately delete the file. Tests preserve the active lease after source destruction and then allow expiry cleanup with completed callback copies still alive. Actual OS/DAW interoperability remains separate acceptance.

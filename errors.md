@@ -71,6 +71,10 @@ Native evidence below is local Linux unless a row explicitly cites earlier platf
 | ERR-054 | High | Overview refresh | Fixed | Same-mode1→16track replacement hid lower tracks/maps. | 8febeea; real editor1→16→1without window resize. | E04 |
 | ERR-055 | Medium | Test harness | Fixed | Restarting terminal JUCE dispatch loop skipped later assertions. | Isolated reflow process; actual failure observed before fix. | E06 |
 
+## Latest verification
+
+ERR-001/ERR-002: implementation5c5eafa; Linux VST3/Standalone/CTest32/32, Node42/42/sample equality, native protocol scripts and scoped ASan/UBSan/TSan passed. Independent gpt-6-astra/high review found no Critical/Important/Minor, reran the two focused tests and verified the55entry counts. Other Fixed rows retain their historical scope rather than inheriting a new full audit.
+
 ## Updating the register
 
 Add reproduced defects and observed failures here during the same work. Retain IDs, severity, evidence and owning task when updating statuses. Mark Fixed only after a meaningful regression passes; state platform/tool boundaries. New actionable work belongs in task.md. A local green suite does not turn an external Investigating/Blocked item into Fixed.

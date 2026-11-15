@@ -1,0 +1,40 @@
+#include "../Source/Processor.h"
+#include <iostream>
+#include <thread>
+using namespace composer;
+#define check(x) do{if(!(x)){std::cerr<<"line "<<__LINE__<<": " #x "\n";std::abort();}}while(false)
+std::string saved(Processor& p){juce::MemoryBlock b;p.getStateInformation(b);return {static_cast<const char*>(b.getData()),b.getSize()};}
+void idle(Processor& p){for(int i=0;i<1000&&p.busy;++i)juce::Thread::sleep(5);check(!p.busy);}
+const juce::String direction="4 bars C minor ambient bass chords lead drums";
+const std::string legacy=R"({"version":1,"extension":{"precise":1.234567890123e-2},"idea":{"metadata":{"bars":4,"bpm":120},"layers":{"bass":[{"pitch":38,"start":0,"duration":4,"velocity":90}],"chords":[],"melody":[]}}})";
+int main(){
+ juce::ScopedJuceInitialiser_GUI init;auto owner=std::make_unique<Processor>();auto& p=*owner;
+ check(saved(p)=="null"&&p.ideaCount()==0&&!p.canSwitchMode());
+ check(p.requestComposer(direction,42));idle(p);check(p.isComposerMode());
+ auto first=decodeProjectJson(saved(p));check(first.project&&first.project->composition->tracks.size()==4&&first.project->legacyStateJson);
+ auto demo=*first.project->legacyStateJson;auto raw=wire::document(demo);Schedule checked;check(wire::schedule(raw["idea"],checked));
+ check(raw["idea"]["layers"]["bass"].size()==16&&raw["idea"]["layers"]["chords"].size()==12);
+ auto json=encodeCompositionJson(*first.project->composition);check(json);
+ check(p.composerSummary().contains("seed")&&p.composerSummary().contains("text"));
+ check(p.requestComposer(direction,42));idle(p);auto same=decodeProjectJson(saved(p));check(encodeCompositionJson(*same.project->composition).json==json.json);
+ check(p.requestComposer(direction,43));idle(p);check(encodeCompositionJson(*decodeProjectJson(saved(p)).project->composition).json!=json.json);
+ for(auto text:{juce::String("3 minutes song"),juce::String("4 bars 8 bars"),juce::String("4 bars pads")}){
+  auto before=saved(p);check(p.requestComposer(text,42));idle(p);std::cerr<<text<<": "<<p.getStatus()<<"\n";check(saved(p)==before&&!p.getStatus().contains("ready"));
+ }
+ auto before=saved(p);check(!p.requestComposer(juce::String::repeatedString("a",4097),42));check(saved(p)==before&&!p.busy);
+ check(p.selectMode(ProjectMode::legacy));check(!p.isComposerMode()&&p.getIdea().isObject());check(*decodeProjectJson(saved(p)).project->legacyStateJson==demo);
+ check(p.selectMode(ProjectMode::composer));check(p.isComposerMode());
+ check(p.restoreStateInformation(legacy.data(),int(legacy.size())));check(!p.canSwitchMode());
+ check(p.requestComposer(juce::String::fromUTF8("4 такта до минор бас аккорды мелодия ударные"),42));idle(p);auto ru=decodeProjectJson(saved(p));check(ru.project&&ru.project->composition->tracks.size()==4&&*ru.project->legacyStateJson==legacy);
+ ru.project->hostStartQuarterBeat=17.25;auto origin=encodeProjectJson(*ru.project);check(origin);check(p.restoreStateInformation(origin.json.data(),int(origin.json.size())));
+ check(p.selectMode(ProjectMode::legacy));check(p.selectMode(ProjectMode::composer));check(decodeProjectJson(saved(p)).project->hostStartQuarterBeat==17.25);
+ check(p.requestComposer(direction,44));idle(p);check(decodeProjectJson(saved(p)).project->hostStartQuarterBeat==17.25);
+ p.prepareToPlay(48000,64);p.play=true;juce::AudioBuffer<float> audio(2,64);juce::MidiBuffer midi;midi.ensureSize(32768);p.processBlock(audio,midi);check(!midi.isEmpty()&&audio.getMagnitude(0,64)==0);
+ int cancelled=0;for(int i=0;i<40;++i){auto prior=saved(p);check(p.requestComposer("32 bars ambient bass chords lead drums",uint32_t(i)));if(p.cancel()){++cancelled;idle(p);check(saved(p)==prior);}else idle(p);}
+ check(cancelled>0);
+ for(int i=0;i<20;++i){check(p.requestComposer("32 bars ambient bass chords lead drums",uint32_t(i)));check(p.restoreStateInformation(legacy.data(),int(legacy.size())));idle(p);check(saved(p)==legacy);}
+ check(p.requestComposer(direction,42));idle(p);check(p.selectMode(ProjectMode::legacy));
+ for(int i=0;i<20;++i){check(p.requestComposer("32 bars ambient bass chords lead drums",uint32_t(i)));auto snapshot=p.snapshot();check(p.edit(snapshot.revision,"bass",0,39+i%2,0,4));auto edited=saved(p);idle(p);check(saved(p)==edited);}
+ check(p.requestComposer(direction,42));idle(p);for(int i=0;i<20;++i){check(p.requestComposer("32 bars ambient bass chords lead drums",uint32_t(i)));check(p.selectMode(ProjectMode::legacy));auto selected=saved(p);idle(p);check(saved(p)==selected);check(p.selectMode(ProjectMode::composer));}
+ std::cout<<"Native direction/seed, preservation, mode, MIDI, cancellation and stale-result checks passed\n";
+}

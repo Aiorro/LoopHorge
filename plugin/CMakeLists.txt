@@ -165,3 +165,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 add_test(NAME composer_overview_reflow COMMAND composer_overview_test --reflow)
+
+add_executable(native_compose_test tests/NativeComposeTest.cpp)
+target_include_directories(native_compose_test PRIVATE $<TARGET_PROPERTY:LoopForge,INCLUDE_DIRECTORIES>)
+target_compile_definitions(native_compose_test PRIVATE $<TARGET_PROPERTY:LoopForge,COMPILE_DEFINITIONS>)
+target_compile_options(native_compose_test PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
+target_link_libraries(native_compose_test PRIVATE LoopForge)
+add_test(NAME native_compose COMMAND native_compose_test)

@@ -16,13 +16,37 @@ inline Grid rhythmGrid(const std::vector<int>& units,int divisions,Feel feel,int
     }
     return grid;
 }
+struct Profile {std::vector<int> units;int divisions;};
+inline Profile meterProfile(const std::vector<int>& original,int divisions,const Config& c,int role){
+    if((c.numerator==4&&c.denominator==4)||divisions==5)return {original,divisions};
+    const int count=c.numerator;std::vector<int> groups;
+    if(count>=6&&count%3==0)groups.assign(size_t(count/3),3);
+    else if(count==5||count==7||count==11){groups.push_back(3);for(int left=count-3;left>0;left-=2)groups.push_back(2);}
+    else groups.assign(size_t(count),1);
+    std::vector<int> units;int position=0;
+    if(role==1||role==3||role==100){
+        // Snap the selected style/density profile onto denominator subdivisions.
+        for(int unit:original){int mapped=std::min(count*2-1,(unit*count*2+divisions/2)/divisions);if(units.empty()||mapped!=units.back())units.push_back(mapped);}
+        return {std::move(units),count*2};
+    }
+    if(role==102){for(int i=0;i<count;++i)units.push_back(i*2);}
+    else if(role==101){for(size_t i=0;i<groups.size();++i){if(i)units.push_back(position*2);position+=groups[i];}if(units.empty())units.push_back(count);}
+    else if(role==103){for(size_t i=0;i<groups.size();++i){if(i)units.push_back(position*2-1);position+=groups[i];}if(units.empty())units.push_back(count*2-1);}
+    else {for(size_t i=0;i<groups.size();++i){units.push_back(position*2);if(role==3&&groups[i]>1)units.push_back(position*2+2);position+=groups[i];}}
+    return {std::move(units),count*2};
+}
 inline int64_t onset(int unit,int divisions,int64_t length,const Config& config,Random& random,int originalUnit=-1,int stepMultiplier=1){
     const int64_t base=int64_t(unit)*length/divisions;
     if(originalUnit<0)originalUnit=unit;
-    if(unit==0||originalUnit==0)return base;
+    if(unit==0)return base;
     const int64_t step=std::max<int64_t>(1,length*stepMultiplier/divisions);
-    const int64_t swing=originalUnit%2?step*config.swing/200:0;
-    const int jitter=int(std::min<int64_t>((step-1)/4,24)*config.humanization/100);
+    const bool compound=config.numerator>=6&&config.numerator%3==0;
+    int64_t swingStep=compound?1920/config.denominator/2:240;
+    if(config.feel==Feel::half)swingStep*=2;
+    if(config.feel==Feel::doubleTime)swingStep=std::max<int64_t>(1,swingStep/2);
+    const int64_t phase=base%(swingStep*2);
+    const int64_t swing=std::min(std::min(phase,swingStep*2-phase)*config.swing/200,(length-1-base)/2);
+    const int jitter=int(std::min<int64_t>((step-1)/8,24)*config.humanization/100);
     return std::clamp(base+swing+random.offset(jitter),int64_t(0),length-1);
 }
 }
@@ -47,10 +71,11 @@ inline DrumResult generateDrums(const Config& config){
             };
             auto voice=[&](const std::vector<int>& units,int pitch,int velocity,uint32_t role,bool accented){
                 musicDetail::Random random(musicDetail::seedFor(config.seed,role,uint32_t(bar)));
-                auto grid=musicDetail::rhythmGrid(units,16,config.feel,bar);
+                auto profile=musicDetail::meterProfile(units,16,config,int(role));
+                auto grid=musicDetail::rhythmGrid(profile.units,profile.divisions,config.feel,bar);
                 for(const auto& pulse:grid.pulses){
-                    if(role==102&&pulse.sourceIndex%size_t(config.performance.bassStride)!=0&&pulse.sourceIndex+1!=units.size())continue;
-                    int original=units[pulse.sourceIndex];
+                    if(role==102&&pulse.sourceIndex%size_t(config.performance.bassStride)!=0&&pulse.sourceIndex+1!=profile.units.size())continue;
+                    int original=profile.units[pulse.sourceIndex];
                     int64_t tick=musicDetail::onset(pulse.unit,grid.divisions,barTicks,config,random,original,grid.stepMultiplier);
                     int strength=velocity+(accented&&original%4==0?12:0)+random.offset(config.humanization/10);
                     strength+=role==103?config.performance.velocityOffset/3:config.performance.velocityOffset;

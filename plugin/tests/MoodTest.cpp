@@ -19,7 +19,7 @@ int main(){
     Config base;base.seed=42;base.humanization=0;
     Mood neutral;
     auto ordinary=generateLoop(base),same=generateMoodLoop(base,neutral);
-    check(same.composition&&notes(*same.composition)==notes(*ordinary.composition));check(same.composition->engineVersion==3);
+    check(same.composition&&notes(*same.composition)==notes(*ordinary.composition));check(same.composition->engineVersion==4);
     auto pair=[&](int Mood::*axis){Mood low,high;low.*axis=0;high.*axis=100;
         auto a=generateMoodLoop(base,low),b=generateMoodLoop(base,high);check(a.composition&&b.composition);
         check(validate(*a.composition)&&validate(*b.composition));check(notes(*a.composition)!=notes(*b.composition));

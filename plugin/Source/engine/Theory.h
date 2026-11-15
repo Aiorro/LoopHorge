@@ -39,6 +39,12 @@ inline std::optional<std::vector<int>> chordPitches(const Key& key,int degree,in
         auto pitch=degreePitch(key,degree+i*2,octave);if(!pitch)return {};
         if(!classes.test(size_t(*pitch%12))){result.push_back(*pitch);classes.set(size_t(*pitch%12));}
     }
+    // Even-cardinality palettes can cycle before all requested voices are filled.
+    const int count=int(scaleIntervals(key.scale).size());
+    for(int step=0;int(result.size())<std::min(voices,count)&&step<count;++step){
+        auto pitch=degreePitch(key,degree+step,octave);if(!pitch)return {};
+        if(!classes.test(size_t(*pitch%12))){result.push_back(*pitch);classes.set(size_t(*pitch%12));}
+    }
     return result;
 }
 

@@ -1,0 +1,7 @@
+# Musical audit fixes
+User requests immediate resolution without further design questions; existing architecture and audit define scope. Execute inline/TDD with one fresh final review. task.md remains authoritative.
+
+1. ERR059: retain alternate-degree chords but fill an exhausted even-cardinality cycle with unused palette tones, never silently collapse requested extensions. Verify all eleven palettes, all five Blues tension effects and real prompt path.
+2. ERR060/061: explicit denominator-based simple/compound/additive beat-group profiles outside4/4; swing is one continuous triangular time warp on shared eighth-note pulse (compound: half denominator-note), scaled by feel. Preserve monotonicity under bounded jitter. Verify actual6/8 versus3/4 events, shared positions, all existing boundary matrices. Existing4/4 straight timing retained; obsolete per-layer swing expectations change with documented policy.
+3. ERR062: seeded phrase-repeating motif construction before performance jitter; anchor notes remain harmonic roots and contour/ranges remain bounded. Bump native algorithm to4; persisted source documents and Legacy generation unchanged. Verify exact event diversity with humanization0, determinism, all roots/scales/styles, mood corners, prompt/processor integration.
+4. Full build/CTest/Node/sample/sanitizers; fresh final code review and one test-first fix pass. Update errors/task/README with evidence, retain platform/resource blockers. No claim of subjective listening quality or full-song completion.

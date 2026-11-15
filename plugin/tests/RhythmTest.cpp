@@ -81,9 +81,9 @@ int main(){
         for(size_t i=0;i<3;++i)check(signature(before.tracks[i])==signature(after.tracks[i]));}
     cfg=Config{};cfg.style=Style::trap;cfg.humanization=0;cfg.swing=100;cfg.ghostNotes=false;cfg.drumFills=false;
     cfg.feel=Feel::half;r=generateDrums(cfg);check(r.track);bool halfSwing=false;
-    for(const auto& n:r.track->notes){if(n.pitch==42&&n.start.value==360)halfSwing=true;}check(halfSwing);
+    for(const auto& n:r.track->notes){if(n.pitch==42&&n.start.value==720)halfSwing=true;}check(halfSwing);
     cfg.feel=Feel::doubleTime;r=generateDrums(cfg);bool firstSwing=false,secondSwing=false;
-    for(const auto& n:r.track->notes){if(n.pitch==42){if(n.start.value==90)firstSwing=true;if(n.start.value==1050)secondSwing=true;}}check(firstSwing&&secondSwing);
+    for(const auto& n:r.track->notes){if(n.pitch==42){if(n.start.value==180)firstSwing=true;if(n.start.value==1140)secondSwing=true;}}check(firstSwing&&secondSwing);
     for(auto feel:{Feel::half,Feel::normal,Feel::doubleTime})for(int numerator:{1,6,12})for(int denominator:{2,8,16})for(int style=0;style<5;++style)for(uint32_t seed=0;seed<16;++seed){
         cfg=Config{};cfg.drums=true;cfg.feel=feel;cfg.numerator=numerator;cfg.denominator=denominator;cfg.style=Style(style);cfg.seed=seed;
         cfg.humanization=100;cfg.swing=100;cfg.complexity=100;r=generateDrums(cfg);check(r.track);bounds(cfg,*r.track);

@@ -6,7 +6,7 @@ namespace composer {
 struct GenerationResult {std::optional<Composition> composition;std::string error;};
 namespace musicDetail {
 inline std::string configId(const Config& c){
-    std::string id="loop-v3-";
+    std::string id="loop-v4-";
     // Injective byte encoding of validated bounded fields; no hash or host-endian dependency.
     auto byte=[&](unsigned value){constexpr char hex[]="0123456789abcdef";id+=hex[(value>>4)&15];id+=hex[value&15];};
     for(int value:{c.root,int(c.scale),int(c.style),c.bpm,c.bars,c.numerator,c.denominator,c.complexity,c.humanization,c.swing,c.harmonicBars,int(c.modalInterchange),int(c.drums),int(c.ghostNotes),int(c.drumFills),int(c.feel)})byte(unsigned(value));
@@ -36,7 +36,7 @@ inline GenerationResult generateLoop(const Config& config){
     try {
         auto harmony=planHarmony(config);if(!harmony.error.empty())return {{},harmony.error};
         const int64_t barTicks=480LL*4*config.numerator/config.denominator;
-        Composition c;c.id=musicDetail::configId(config);c.engineVersion=3;c.seed=config.seed;c.style=styleName(config.style);c.source="native-motif-rules-v3";
+        Composition c;c.id=musicDetail::configId(config);c.engineVersion=4;c.seed=config.seed;c.style=styleName(config.style);c.source="native-motif-rules-v4";
         c.endTick={config.bars*barTicks};c.tempos={{{0},int(std::llround(60000000.0/config.bpm))}};
         c.meters={{{0},config.numerator,config.denominator}};c.keys=harmony.keys;c.chords=harmony.chords;
         Id id=1;
@@ -62,8 +62,9 @@ inline GenerationResult generateLoop(const Config& config){
             const int64_t start=bar*barTicks;
             const auto& h=musicDetail::at(c.chords,start);
             musicDetail::Random bassRandom(musicDetail::seedFor(config.seed,1,uint32_t(bar)));
-            const auto& units=bassUnits[int(config.style)];
-            auto bassGrid=musicDetail::rhythmGrid(units,16,config.feel,bar);
+            auto bassProfile=musicDetail::meterProfile(bassUnits[int(config.style)],16,config,1);
+            const auto& units=bassProfile.units;
+            auto bassGrid=musicDetail::rhythmGrid(units,bassProfile.divisions,config.feel,bar);
             for(size_t i=0;i<bassGrid.pulses.size();++i){
                 const auto& pulse=bassGrid.pulses[i];int original=units[pulse.sourceIndex];
                 if(pulse.sourceIndex%size_t(config.performance.bassStride)!=0&&pulse.sourceIndex+1!=units.size())continue;
@@ -78,6 +79,7 @@ inline GenerationResult generateLoop(const Config& config){
             auto onsets=melodyUnits[int(config.style)];int divisions=8;
             if(config.complexity<25)onsets={0,4,7};
             if(config.complexity>=90){onsets={0,1,2,3,4};divisions=5;}
+            auto leadProfile=musicDetail::meterProfile(onsets,divisions,config,3);onsets=std::move(leadProfile.units);divisions=leadProfile.divisions;
             auto leadGrid=musicDetail::rhythmGrid(onsets,divisions,config.feel,bar);
             for(size_t i=0;i<leadGrid.pulses.size();++i){
                 const auto& pulse=leadGrid.pulses[i];
@@ -86,11 +88,14 @@ inline GenerationResult generateLoop(const Config& config){
                 int offset=motif[family][phraseBar%2][pulse.sourceIndex%6];
                 if(config.performance.contour==Contour::rising)offset=int(pulse.sourceIndex);
                 if(config.performance.contour==Contour::falling)offset=int(onsets.size()-pulse.sourceIndex-1);
+                // Seeded motif construction repeats every four phrase bars, independently of microtiming.
+                const auto variant=musicDetail::seedFor(config.seed,uint32_t(200+pulse.sourceIndex),uint32_t(phraseBar%4));
+                if(config.performance.contour==Contour::seeded)offset+=int(variant%5)-2;
                 if(pulse.sourceIndex==0||pulse.sourceIndex+1==onsets.size())offset=0;
                 auto pitch=degreePitch(harmony.contexts[size_t(bar)],harmony.degrees[size_t(bar)]+offset,4+config.performance.octaveOffset);
                 if(!pitch)return {{},"Motif exceeds supported pitch range"};
                 int target=*pitch;
-                if(std::abs(target-previous)>12)target=musicDetail::registerPitch(target,previous,lead.lowPitch,lead.highPitch);
+                if(target<lead.lowPitch||target>lead.highPitch||std::abs(target-previous)>12)target=musicDetail::registerPitch(target,previous,lead.lowPitch,lead.highPitch);
                 previous=target;
                 int64_t tick=musicDetail::onset(pulse.unit,leadGrid.divisions,barTicks,config,leadRandom,onsets[pulse.sourceIndex],leadGrid.stepMultiplier);
                 int64_t next=i+1<leadGrid.pulses.size()?int64_t(leadGrid.pulses[i+1].unit)*barTicks/leadGrid.divisions:barTicks;

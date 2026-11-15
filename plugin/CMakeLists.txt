@@ -180,3 +180,6 @@ target_include_directories(native_compose_ui_test PRIVATE $<TARGET_PROPERTY:Loop
 target_compile_definitions(native_compose_ui_test PRIVATE $<TARGET_PROPERTY:LoopForge,COMPILE_DEFINITIONS>)
 target_link_libraries(native_compose_ui_test PRIVATE LoopForge)
 add_test(NAME native_compose_ui COMMAND native_compose_ui_test)
+
+add_executable(musical_audit_test tests/MusicalAuditTest.cpp)
+add_test(NAME musical_audit COMMAND musical_audit_test)

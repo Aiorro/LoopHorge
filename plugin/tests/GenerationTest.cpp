@@ -20,8 +20,8 @@ int main(){
     Config cfg;cfg.seed=42;cfg.humanization=0;
     auto generated=generateLoop(cfg);check(generated.composition&&generated.error.empty());auto c=*generated.composition;
     check(validate(c));check(c.tracks.size()==3&&c.chords.size()==8&&c.endTick.value==15360);
-    check(c.seed==42&&c.tempos[0].microsPerQuarter==600000);check(c.engineVersion==3);
-    auto original=signature(c);check(original==7194293116935115149ULL);check(signature(*generateLoop(cfg).composition)==original);
+    check(c.seed==42&&c.tempos[0].microsPerQuarter==600000);check(c.engineVersion==4);
+    auto original=signature(c);check(original==5970328224193018206ULL);check(signature(*generateLoop(cfg).composition)==original);
     ++cfg.seed;check(signature(*generateLoop(cfg).composition)!=original);cfg.seed=42;
     for(const auto& n:c.tracks[0].notes)check(chordTone(chordAt(c,n.start.value),n.pitch));
     for(const auto& n:c.tracks[2].notes)if(n.start.value%1920==0)check(chordTone(chordAt(c,n.start.value),n.pitch));

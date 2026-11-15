@@ -10,7 +10,7 @@ Updated: 2026-11-15. Imported from recorded reviews/regressions in [task.md](tas
 | --- | --- | --- | --- | --- | --- | --- |
 | ERR-003 | Low | Coverage gap | Open | Meter regression uses equal-length6/8→3/4; different-length/nonzero-origin coverage remains missing. | Foundation review; current arithmetic assessed correct. | E02/E06 |
 | ERR-004 | Medium | CI failure | Investigating | Windows Node22 CLI availability returned unavailable after2222ms against a2000ms deadline. | Workflow43400295998; not reproduced on Windows here. Do not weaken tests without a proven cause. | T13/E06 |
-| ERR-005 | High | Infrastructure | Blocked | GitHub jobs finish without runner assignment or executed steps. | At8febeea: Native43621251168/Prototype43621251236 have runner_id0/steps0; cause unknown. | T07/T13/E06 |
+| ERR-005 | High | Infrastructure | Blocked | GitHub jobs finish without runner assignment or executed steps. | At325d70f: Native43736828671/Prototype43736828619 have runner_id0/steps0 across8jobs; cause unknown. No compilation/test step executed. | T07/T13/E06 |
 | ERR-006 | High | Acceptance gap | Blocked | Fresh Windows/real DAW/pluginval/OS drag and chooser acceptance is unverified. | Linux/component screenshots do not establish platform execution; see NATIVE-DAW-ACCEPTANCE.md. | T12–T15/E06 |
 | ERR-007 | High | Resource gap | Open | Whole256MiB workspace and transient memory peak are not measured. | Retained64MiB accounting excludes other jobs, JSON/UI/history/scratch. | E04/E06 |
 | ERR-008 | Medium | Failure-handling risk | Open | Severe allocation failure during commit may leave partial control state. | Explicit review boundary; no unconditional transactional OOM guarantee. | T13/E06 |
@@ -79,6 +79,8 @@ Native evidence below is local Linux unless a row explicitly cites earlier platf
 ## Latest verification
 
 ERR-001/ERR-002: implementation5c5eafa; Linux VST3/Standalone/CTest32/32, Node42/42/sample equality, native protocol scripts and scoped ASan/UBSan/TSan passed. Independent gpt-6-astra/high review found no Critical/Important/Minor, reran the two focused tests and verified the55entry counts. Other Fixed rows retain their historical scope rather than inheriting a new full audit.
+
+Native Composer controls: implementation33326e9/1859a19 and final review fixes325d70f; ERR-056/057/058 verified in the stated UI scope. Post-fix Linux build/CTest34/34, Node42/42/sample equality and scoped native ASan/UBSan/TSan plus UI ASan/UBSan passed. Independent reviewer reran34/34, reproduced ERR-057/058, then one test-first fix pass closed both; no second review. Current58entries:49Fixed/6Open/1Investigating/2Blocked. At325d70f GitHub runs43736828619/43736828671 again have8jobs with no assigned runner or steps; ERR-005/006 remain blocked.
 
 ## Updating the register
 

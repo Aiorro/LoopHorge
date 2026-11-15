@@ -85,7 +85,9 @@ Native evidence below is local Linux unless a row explicitly cites earlier platf
 
 ERR-001/ERR-002: implementation5c5eafa; Linux VST3/Standalone/CTest32/32, Node42/42/sample equality, native protocol scripts and scoped ASan/UBSan/TSan passed. Independent gpt-6-astra/high review found no Critical/Important/Minor, reran the two focused tests and verified the55entry counts. Other Fixed rows retain their historical scope rather than inheriting a new full audit.
 
-Native Composer controls: implementation33326e9/1859a19 and final review fixes325d70f; ERR-056/057/058 verified in the stated UI scope. Post-fix Linux build/CTest34/34, Node42/42/sample equality and scoped native ASan/UBSan/TSan plus UI ASan/UBSan passed. Independent reviewer reran34/34, reproduced ERR-057/058, then one test-first fix pass closed both; no second review. Current58entries:49Fixed/6Open/1Investigating/2Blocked. At325d70f GitHub runs43736828619/43736828671 again have8jobs with no assigned runner or steps; ERR-005/006 remain blocked.
+Native Composer controls: implementation33326e9/1859a19 and final review fixes325d70f; ERR-056/057/058 verified in the stated UI scope. Post-fix Linux build/CTest34/34, Node42/42/sample equality and scoped native ASan/UBSan/TSan plus UI ASan/UBSan passed. Independent reviewer reran34/34, reproduced ERR-057/058, then one test-first fix pass closed both; no second review. That controls-verification snapshot had58entries:49Fixed/6Open/1Investigating/2Blocked. At325d70f GitHub runs43736828619/43736828671 again have8jobs with no assigned runner or steps; ERR-005/006 remain blocked.
+
+Musical-logic audit at598ca27: actual source/probe comparisons reproduced ERR-059/060/061/062; all remain Open. Native CTest34/34 and Node42/42 passed despite these uncovered cases. See docs/audits/2026-11-15-musical-logic.md for pinned historical/theory sources, exact-event evidence, priorities versus style-policy boundaries and executable probe. Current62entries:49Fixed/10Open/1Investigating/2Blocked. No production algorithm changed.
 
 ## Updating the register
 

@@ -32,7 +32,7 @@ Native evidence below is local Linux unless a row explicitly cites earlier platf
 | ERR-015 | High | Timing | Fixed | Tempo changes skipped/duplicated notes at the previous sample boundary. | Literal .00095/.00195beat RED→GREEN at32/64samples. | T13 |
 | ERR-016 | High | MIDI output | Fixed | Exceeding the2048event converter cap silently dropped output/releases. | Reserved cleanup, bounded output and real VST3 converter counts. | T13/E04 |
 | ERR-017 | High | RT safety | Fixed | Small JUCE MIDI reservations could allocate in tested callbacks. | Guarded32768byte preparation and allocation/free hooks; prepared caller buffers remain required, not whole-wrapper proof. | T13/E06 |
-| ERR-018 | Medium | Installation | Fixed | Native eight-idea generation depended on localhost Node4177. | Native offline legacy generator/parity/OfflineTest; not completed Composer UI generation. | T09 |
+| ERR-018 | Medium | Installation | Fixed | Native eight-idea generation depended on localhost Node4177. | Native offline legacy generator/parity/OfflineTest; native Composer loop request/UI additionally verified2026-11-15, full Composer acceptance remains open. | T09 |
 | ERR-019 | Medium | Provider UI | Fixed | Model ID/probe/auth diagnostics/cancel controls were absent. | Native controls and mocked API/failure tests; live paid credentials not claimed. | T08/T11 |
 | ERR-020 | High | CLI lifecycle | Fixed | Abort/timeout/overflow/root exit left children; Windows taskkill had creation/assignment races. | POSIX groups and atomic Windows Job Objects; recorded lifecycle CI. Escape boundary is ERR-011. | T03/T11/T13 |
 | ERR-021 | Medium | Provider compatibility | Fixed | Blank model was rejected instead of selecting provider default. | Blank-to-absent normalization/probe regression. | T11 |
@@ -71,6 +71,11 @@ Native evidence below is local Linux unless a row explicitly cites earlier platf
 | ERR-054 | High | Overview refresh | Fixed | Same-mode1→16track replacement hid lower tracks/maps. | 8febeea; real editor1→16→1without window resize. | E04 |
 | ERR-055 | Medium | Test harness | Fixed | Restarting terminal JUCE dispatch loop skipped later assertions. | Isolated reflow process; actual failure observed before fix. | E06 |
 
+| ERR-056 | Low | Native UI | Fixed | New Composer settings label compressed the full provenance summary into unreadably narrow text; a non-ASCII separator rendered incorrectly. | Minimum-window snapshot exposed the issue; replaced with12px read-only scrollable settings text and ASCII separator. Real-editor test checks accessible committed seed/origin text; final screenshots rechecked. | E03/E04 |
+
+| ERR-057 | Medium | Input validation | Fixed | Seed character/length filters silently changed actual pasted negative/decimal/long values before validation (e.g.-1 became1). | Independent probe committed seed1; actual insertion regression RED→GREEN after preserving full text and validating before queue; CTest34/34. | E03 |
+| ERR-058 | Medium | Input validation | Fixed | Oversized direction paste could lose an unsupported suffix and generate the truncated prefix. | Independent4110byte paste lost suffix; actual ASCII/multibyte insertion regression RED→GREEN after preserving text for4096UTF8byte rejection; CTest34/34. | E03 |
+
 ## Latest verification
 
 ERR-001/ERR-002: implementation5c5eafa; Linux VST3/Standalone/CTest32/32, Node42/42/sample equality, native protocol scripts and scoped ASan/UBSan/TSan passed. Independent gpt-6-astra/high review found no Critical/Important/Minor, reran the two focused tests and verified the55entry counts. Other Fixed rows retain their historical scope rather than inheriting a new full audit.
@@ -78,5 +83,3 @@ ERR-001/ERR-002: implementation5c5eafa; Linux VST3/Standalone/CTest32/32, Node42
 ## Updating the register
 
 Add reproduced defects and observed failures here during the same work. Retain IDs, severity, evidence and owning task when updating statuses. Mark Fixed only after a meaningful regression passes; state platform/tool boundaries. New actionable work belongs in task.md. A local green suite does not turn an external Investigating/Blocked item into Fixed.
-
-| ERR-056 | Low | Native UI | Fixed | New Composer settings label compressed the full provenance summary into unreadably narrow text; a non-ASCII separator rendered incorrectly. | Minimum-window snapshot exposed the issue; replaced with12px read-only scrollable settings text and ASCII separator. Real-editor test checks accessible committed seed/origin text; final screenshots rechecked. | E03/E04 |

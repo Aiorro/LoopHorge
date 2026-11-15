@@ -14,6 +14,8 @@ juce_add_plugin(LoopForge COMPANY_NAME LoopForge PLUGIN_MANUFACTURER_CODE LpFg P
  IS_SYNTH TRUE NEEDS_MIDI_INPUT TRUE NEEDS_MIDI_OUTPUT TRUE IS_MIDI_EFFECT FALSE
  COPY_PLUGIN_AFTER_BUILD FALSE)
 target_sources(LoopForge PRIVATE Source/Plugin.cpp)
+# Prompt.h is included by Processor consumers too; preserve RU source literals on MSVC.
+target_compile_options(LoopForge PUBLIC $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
 target_compile_definitions(LoopForge PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
 target_link_libraries(LoopForge PRIVATE juce::juce_audio_utils juce::juce_audio_processors juce::juce_dsp PUBLIC juce::juce_recommended_config_flags)
 include(cmake/MidiCapacity.cmake)

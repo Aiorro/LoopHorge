@@ -15,9 +15,10 @@ public:
   mode.setName("Composer mode");compose.setName("Compose offline loop");seed.setName("Composer fallback seed");prompt.setName("Musical direction");
   compose.setButtonText("COMPOSE OFFLINE LOOP");compose.setTooltip("Native deterministic4/8/16/32bar loop. Text/defaults choose Composer parameters; no service. MIDI output only.");addChildComponent(compose);compose.onClick=[this]{composeLoop();};
   addAndMakeVisible(mode);mode.onClick=[this]{if(processor.canSwitchMode()){processor.selectMode(processor.isComposerMode()?composer::ProjectMode::legacy:composer::ProjectMode::composer);timerCallback();}else composeLoop();};mode.setTooltip("Create a native Composer loop or switch between both preserved source documents. Switching cancels an active generation.");
-  seed.setInputRestrictions(10,"0123456789");seed.setText("42");seed.setTooltip("Fallback unsigned32bit seed (0-4294967295). An explicit seed in direction text wins. Next request only; not a persisted recipe.");addAndMakeVisible(seed);caption(seedLabel,"Composer seed",seed);
-  prompt.setTooltip("Composer uses this text and fallback seed; other parameters come from text/defaults. Legacy uses the controls below. Next-request text is not saved as a full recipe.");
-  prompt.setMultiLine(true);prompt.setInputRestrictions(4096);prompt.setText("Dark atmospheric nu-metal, coherent bass and melody");addAndMakeVisible(prompt);
+  // Preserve complete insertions: filtering characters/length can change the requested seed.
+  seed.setText("42");seed.setTooltip("Fallback unsigned32bit seed (0-4294967295). An explicit seed in direction text wins. Next request only; not a persisted recipe.");addAndMakeVisible(seed);caption(seedLabel,"Composer seed",seed);
+  prompt.setTooltip("Composer rejects directions above4096UTF8bytes without truncation. Composer uses this text and fallback seed; other parameters come from text/defaults. Legacy uses the controls below. Next-request text is not saved as a full recipe.");
+  prompt.setMultiLine(true);prompt.setText("Dark atmospheric nu-metal, coherent bass and melody");addAndMakeVisible(prompt);
   setup(provider,{"offline","openai","anthropic","openrouter","ollama","codex-cli","claude-cli"});
   setup(key,{"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"});key.setSelectedId(3);
   setup(scale,{"minor","major","dorian","phrygian"});setup(style,{"nu-metal","trap","boom-bap","r&b","ambient"});setup(bars,{"4","8"});

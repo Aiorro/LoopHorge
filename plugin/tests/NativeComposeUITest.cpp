@@ -11,7 +11,13 @@ struct Flow:juce::Timer{
  int phase=0,ticks=0,dirtyBeforeClose=0;juce::TextButton *mode=nullptr,*compose=nullptr;juce::TextEditor *seed=nullptr,*direction=nullptr;std::string first;juce::Viewport* vp=nullptr;
  Flow(){static_cast<juce::AudioProcessor&>(*p).addListener(&listener);for(int i=0;i<editor->getNumChildComponents();++i){auto* c=editor->getChildComponent(i);if(c->getName()=="Composer mode")mode=dynamic_cast<juce::TextButton*>(c);if(c->getName()=="Compose offline loop")compose=dynamic_cast<juce::TextButton*>(c);if(c->getName()=="Composer fallback seed")seed=dynamic_cast<juce::TextEditor*>(c);if(c->getName()=="Musical direction")direction=dynamic_cast<juce::TextEditor*>(c);if(auto* v=dynamic_cast<juce::Viewport*>(c))vp=v;}
   check(mode&&compose&&seed&&direction&&vp);check(mode->getButtonText()=="COMPOSE LOOP"&&mode->isEnabled()&&!compose->isVisible());
-  direction->setText("4 bars ambient bass chords lead drums");seed->setText("4294967296");mode->onClick();check(!p->busy&&!p->isComposerMode());seed->clear();mode->onClick();check(!p->busy);seed->setText("42");mode->onClick();startTimer(50);
+  direction->setText("4 bars ambient bass chords lead drums");
+  // Real insertion exercises JUCE filters; setText alone bypasses them.
+  for(const auto& invalid:juce::StringArray{"-1","1.5","10000000000","12x","4294967296"}){seed->selectAll();seed->insertTextAtCaret(invalid);mode->onClick();check(!p->busy&&!p->isComposerMode());check(seed->getText()==invalid);}
+  seed->setText("42");
+  auto prefix=direction->getText();const juce::String oversized=prefix+juce::String::repeatedString(" ",4096-prefix.length())+"3 minutes song";
+  for(const auto& invalid:juce::StringArray{oversized,juce::String::repeatedString(juce::String::fromUTF8("я"),2050)}){direction->selectAll();direction->insertTextAtCaret(invalid);mode->onClick();check(!p->busy&&!p->isComposerMode());check(direction->getText()==invalid);check(p->getStatus().contains("4096"));}
+  direction->setText(prefix);seed->setText("4294967296");mode->onClick();check(!p->busy&&!p->isComposerMode());seed->clear();mode->onClick();check(!p->busy);seed->setText("42");mode->onClick();startTimer(50);
  }
  ~Flow(){static_cast<juce::AudioProcessor&>(*p).removeListener(&listener);}
  void snapshot(const char* path){auto image=editor->createComponentSnapshot(editor->getLocalBounds());juce::MemoryOutputStream out;juce::PNGImageFormat png;check(png.writeImageToStream(image,out)&&juce::File(path).replaceWithData(out.getData(),out.getDataSize()));}

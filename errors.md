@@ -18,6 +18,11 @@ Updated: 2026-11-15. Imported from recorded reviews/regressions in [task.md](tas
 | ERR-010 | High | Lifecycle gap | Open | Final MIDI delivery at releaseResources/reprepare/destruction is not host-verified. | Normal stop/seek/replacement tested; stopped ownership alone cannot deliver teardown releases. | T12/T13/E06 |
 | ERR-011 | Medium | Process boundary | Open | POSIX cancellation does not certify deliberately session-escaping descendants. | Prior CLI review excludes setsid escape; ordinary group/tree cases have evidence. | T13 |
 
+| ERR-059 | Medium | Musical control | Open | Blues tension0/100 can emit identical notes while numerical chord tension changes; alternate-degree stacking cycles through only3of6pitch classes. | Exact event comparison in all5styles plus real prompt-adapter reproduction; audit docs/audits/2026-11-15-musical-logic.md. | E02/E03 |
+| ERR-060 | Medium | Metre coverage | Open | Rhythm profiles use total bar length without simple/compound beat grouping;6/8 and3/4 always share note patterns in the tested matrix. |320/320exact note-event pairs identical across5styles×64seeds;6/8 boom-bap hats use180tick steps instead of an eighth-note240tick division. Unusual tuplets are legal; metre-aware profiles are missing. | E02/E06 |
+| ERR-061 | Medium | Groove policy gap | Open | One global swing control applies different rhythmic levels to lead and drums, splitting originally aligned attacks without an explicit layer/subdivision policy. | Humanization0/boom-bap: lead720→840 while hat stays720; independent grooves can be valid, but the shared-control policy needs definition. | E02/E03 |
+| ERR-062 | Medium | Musical variety gap | Open | Native seed search mostly changes microtiming/velocity; with humanization0 it collapses to2full musical sequences per style in seeds0–255. | Exact vectors:2pitch/full sequences and1harmonic plan per style; default humanization20 gives256performance sequences but only2pitch sequences. Not a requirement that every seed be unique. | E02/E06 |
+
 ## Fixed findings and recorded regressions
 
 Native evidence below is local Linux unless a row explicitly cites earlier platform CI. Detailed commands, historical dates and review boundaries remain in task.md.

@@ -30,9 +30,35 @@ void workerCases(const juce::File& root){
  restore(p,legacy);p.request("{\"provider\":\"offline\"}");waitIdle(p);check(p.ideaCount()==8);
  std::cout<<"late-response restore/edit rejection, invalid restore preservation and worker recovery passed\n";
 }
+void lifecycleCases(){
+ for(int size:{32,64})for(bool composer:{false,true})for(bool preparing:{false,true})for(bool resumed:{false,true}){
+  auto owner=std::make_unique<Processor>();auto& p=*owner;HostClock clock;p.setPlayHead(&clock);p.prepareToPlay(48000,size);
+  ProjectState candidate;candidate.activeMode=ProjectMode::composer;candidate.composition=fixture();
+  candidate.composition->tracks[0].controls={Control{4,{0},64,127},Control{5,{0},66,127},Control{6,{0},69,127}};
+  const auto encoded=encodeProjectJson(candidate);check(encoded);restore(p,composer?encoded.json:legacy);
+  juce::AudioBuffer<float> audio(2,size),zero(2,0);juce::MidiBuffer midi;midi.ensureSize(32768);
+  process(p,audio,midi);check(count(midi,true)==1);
+  for(int cycle=0;cycle<2;++cycle){
+   for(int repeat=0;repeat<2;++repeat){if(preparing)p.prepareToPlay(44100,size);else p.releaseResources();}
+   clock.playing=resumed;clock.beat=0;process(p,zero,midi);check(midi.isEmpty());
+   process(p,audio,midi);check(count(midi,false)==1&&count(midi,true)==0);
+   int pedals=0;for(auto e:midi){check(e.samplePosition==0);auto m=e.getMessage();
+    if(m.isNoteOff())check(m.getChannel()==(composer?16:1)&&m.getNoteNumber()==(composer?60:38));
+    if(m.isController()){check(composer&&m.getChannel()==16&&m.getControllerValue()==0);check(m.getControllerNumber()==64||m.getControllerNumber()==66||m.getControllerNumber()==69);++pedals;}
+   }
+   check(pedals==(composer?3:0)&&midi.getNumEvents()==(composer?4:1));
+   process(p,audio,midi);check(count(midi,false)==0&&count(midi,true)==(resumed?1:0));
+   if(!resumed){check(midi.isEmpty());clock.playing=true;process(p,audio,midi);check(count(midi,true)==1&&count(midi,false)==0);}
+   clock.beat=size*120/(60*(preparing?44100.0:48000.0));process(p,audio,midi);check(midi.isEmpty());
+  }
+  clock.playing=false;process(p,audio,midi);check(count(midi,false)==1);process(p,audio,midi);check(midi.isEmpty());
+ }
+ std::cout<<"release/reprepare retains notes and pedals until one allocation-free valid-block drain, then restarts at32/64samples\n";
+}
 int main(int argc,char** argv){
  juce::ScopedJuceInitialiser_GUI init;
  if(argc>1){check(argc==2);workerCases(juce::File(argv[1]));return 0;}
+ lifecycleCases();
  for(int size:{32,64}){
   auto owner=std::make_unique<Processor>();auto& p=*owner;HostClock clock;p.setPlayHead(&clock);p.prepareToPlay(48000,size);restore(p,legacy);
   juce::AudioBuffer<float> audio(2,size),zero(2,0);juce::MidiBuffer midi;midi.ensureSize(32768);

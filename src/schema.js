@@ -47,7 +47,7 @@ function extractJSON(text){
  try{return JSON.parse(s);}catch{}
  const first=s.indexOf('{'),last=s.lastIndexOf('}');
  if(first<0||last<=first)throw new Error('No JSON object in model response');
- return JSON.parse(s.slice(first,last+1));
+ try{return JSON.parse(s.slice(first,last+1));}catch{throw new Error('Model returned invalid JSON')}
 }
 function normalizeResponse(value,opts,count=8){
  const data=typeof value==='string'?extractJSON(value):value;

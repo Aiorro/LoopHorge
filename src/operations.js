@@ -26,8 +26,21 @@ function exportIdea(raw,basename){
  const filename= typeof basename==='string' && /^[a-zA-Z0-9_-]{1,45}$/.test(basename) ? basename : `loopforge-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
  const directory=exportsDir();fs.mkdirSync(directory,{recursive:true});
  const output=path.join(directory,filename+'.mid');
- fs.writeFileSync(output,createMidi(idea));
- return {path:output,filename:path.basename(output),bytes:fs.statSync(output).size};
+ const bytes=Buffer.from(createMidi(idea));
+ const staging=path.join(directory,`.${filename}-${crypto.randomBytes(12).toString('hex')}.tmp`);
+ let fd,owned=false;
+ try{
+   fd=fs.openSync(staging,'wx',0o600);owned=true;
+   fs.writeFileSync(fd,bytes);
+   if(fs.fstatSync(fd).size!==bytes.length)throw new Error('Incomplete MIDI write');
+   fs.fsyncSync(fd);
+   const closing=fd;fd=undefined;fs.closeSync(closing);
+   fs.renameSync(staging,output);owned=false;
+ }finally{
+   if(fd!==undefined)try{fs.closeSync(fd)}catch{}
+   if(owned)try{fs.unlinkSync(staging)}catch{}
+ }
+ return {path:output,filename:filename+'.mid',bytes:bytes.length};
 }
 function configuration(){return {...apiConfiguration(),'codex-cli':{ready:available('codex-cli'),defaultModel:'ChatGPT signed-in CLI'},'claude-cli':{ready:available('claude-cli'),defaultModel:'Claude signed-in CLI'}}}
 module.exports={generate,exportIdea,configuration,exportsDir};

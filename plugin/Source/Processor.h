@@ -25,11 +25,13 @@ public:
  double getTailLengthSeconds()const override{return 0;} int getNumPrograms()override{return 1;} int getCurrentProgram()override{return 0;}
  void setCurrentProgram(int)override{} const juce::String getProgramName(int)override{return "Default";} void changeProgramName(int,const juce::String&)override{}
  bool isBusesLayoutSupported(const BusesLayout& l)const override{return l.getMainOutputChannelSet()==juce::AudioChannelSet::stereo();}
- void prepareToPlay(double sr,int)override {rate=std::isfinite(sr)&&sr>=1&&sr<=768000?sr:44100;midiLimitReached=false;for(int p=0;p<128;++p)increments[p]=juce::MathConstants<double>::twoPi*juce::MidiMessage::getMidiNoteInHertz(p)/rate;resetNotes();internalBeat=0;internalSeconds=0;composerPlayback=composer::Playback{};lastEnd=-1;lastStep=0;haveLastBlock=false;}
- void releaseResources()override{resetNotes();composerPlayback=composer::Playback{};internalSeconds=0;haveLastBlock=false;}
+ void prepareToPlay(double sr,int)override {rate=std::isfinite(sr)&&sr>=1&&sr<=768000?sr:44100;midiLimitReached=false;for(int p=0;p<128;++p)increments[p]=juce::MathConstants<double>::twoPi*juce::MidiMessage::getMidiNoteInHertz(p)/rate;lifecycleDrain=true;internalBeat=0;internalSeconds=0;lastEnd=-1;lastStep=0;haveLastBlock=false;}
+ void releaseResources()override{lifecycleDrain=true;internalSeconds=0;haveLastBlock=false;}
  void processBlock(juce::AudioBuffer<float>& audio,juce::MidiBuffer& midi)override {
   juce::ScopedNoDenormals noDenormals;audio.clear();midi.clear();eventsWritten=0;
   if(audio.getNumSamples()==0)return;
+  // Lifecycle methods have no MIDI sink; retain ownership until a callback can release it.
+  if(lifecycleDrain){lifecycleDrain=false;if(renderComposer){composer::PreparedMidiSink sink(midi);composerPlayback.stop(sink);}else flush(midi,0);if(!midi.isEmpty())return;}
   bool changed=false;int next=pending.exchange(-1);
   if(next>=0){slots[next].state=3;int old=active;active=next;slots[old].state=0;changed=true;}
   const auto& runtime=slots[active];
@@ -160,7 +162,7 @@ private:
  void emit(juce::MidiBuffer& midi,const juce::MidiMessage& message,int offset){midi.addEvent(message,offset);++eventsWritten;}
  const int requestTimeoutMs;
  struct Slot{Schedule data;std::optional<composer::PreparedSong> song;bool composer=false;double origin=0;std::atomic<int> state{0};};std::array<Slot,3> slots;
- bool haveLastBlock=false;std::atomic<bool> cancelled{false};std::atomic<int> pending{-1};int active=0;double rate=44100,internalBeat=0,lastEnd=-1,lastStep=0;
+ bool haveLastBlock=false,lifecycleDrain=false;std::atomic<bool> cancelled{false};std::atomic<int> pending{-1};int active=0;double rate=44100,internalBeat=0,lastEnd=-1,lastStep=0;
  unsigned short noteCounts[16][128]{};float voices[16][128]{};double phases[16][128]{},increments[128]{};
  composer::Playback composerPlayback;bool renderComposer=false,composerMode=false,projectV2=false,hasComposerDocument=false;double internalSeconds=0,composerOrigin=0;std::string stateJson;
  uint64_t jobGeneration=0,requestRevision=0,revision=0,replacement=0;std::deque<juce::var> undo,redo;

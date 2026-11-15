@@ -1,6 +1,6 @@
 # LoopForge error register
 
-Updated: 2026-11-15. Imported from recorded reviews/regressions in [task.md](task.md); this is not a new whole-repository audit. task.md remains the sole execution checklist and priority source. This register has stable finding IDs, statuses and evidence, not competing task checkboxes.
+Updated: 2026-11-15. Historical reviews/regressions are imported from [task.md](task.md); the focused whole-project triage atb257237 is recorded in docs/audits/2026-11-15-remediation-triage.md. Historical Fixed scope is not broadened by that audit. task.md remains the sole execution checklist and priority source. This register has stable finding IDs, statuses and evidence, not competing task checkboxes.
 
 **Open:** unresolved finding/risk. **Investigating:** observed failure, cause unproven. **Blocked:** unavailable infrastructure/host/tools prevent verification. **Fixed:** regression passes only in the stated scope, not a release/DAW claim. Missing staged Composer features remain in task.md; missing-API TDD steps and fixture typos are not product defects.
 
@@ -8,16 +8,23 @@ Updated: 2026-11-15. Imported from recorded reviews/regressions in [task.md](tas
 
 | ID | Severity | Kind | Status | Finding | Evidence / verification scope | Task |
 | --- | --- | --- | --- | --- | --- | --- |
-| ERR-003 | Low | Coverage gap | Open | Meter regression uses equal-length6/8→3/4; different-length/nonzero-origin coverage remains missing. | Foundation review; current arithmetic assessed correct. | E02/E06 |
+| ERR-003 | Low | Coverage gap | Open | Dedicated validation regression lacks a third change relative to a nonzero previous-metre origin; unequal-length coverage already exists elsewhere. | Audit probe0:4/4→1920:3/4→3360:5/8 accepts,4320 rejects; add3361 rejection too. Existing JSON/MIDI fixtures already cover unequal metres. | E02/E06 |
 | ERR-004 | Medium | CI failure | Investigating | Windows Node22 CLI availability returned unavailable after2222ms against a2000ms deadline. | Workflow43400295998; not reproduced on Windows here. Do not weaken tests without a proven cause. | T13/E06 |
-| ERR-005 | High | Infrastructure | Blocked | GitHub jobs finish without runner assignment or executed steps. | At325d70f: Native43736828671/Prototype43736828619 have runner_id0/steps0 across8jobs; cause unknown. No compilation/test step executed. | T07/T13/E06 |
+| ERR-005 | High | Infrastructure | Blocked | GitHub jobs finish without runner assignment or executed steps. | Atb257237: Native43749007011/Prototype43749007198 have runner_id0/steps0 across8jobs; cause unknown. No compilation/test step executed; annotations endpoint unavailable through connector. | T07/T13/E06 |
 | ERR-006 | High | Acceptance gap | Blocked | Fresh Windows/real DAW/pluginval/OS drag and chooser acceptance is unverified. | Linux/component screenshots do not establish platform execution; see NATIVE-DAW-ACCEPTANCE.md. | T12–T15/E06 |
 | ERR-007 | High | Resource gap | Open | Whole256MiB workspace and transient memory peak are not measured. | Retained64MiB accounting excludes other jobs, JSON/UI/history/scratch. | E04/E06 |
-| ERR-008 | Medium | Failure-handling risk | Open | Severe allocation failure during commit may leave partial control state. | Explicit review boundary; no unconditional transactional OOM guarantee. | T13/E06 |
+| ERR-008 | High | State integrity defect | Open | Single allocation failure after restore mutation can reject while changing saved state/revision/mode without publishing matching playback. | One-shot fail106: restore=false,revision1→2,Composer state but old pitch38 renders instead of60; root verified. P1 remediation before features. | T13/E06 |
 | ERR-009 | Medium | UI limitation | Open | Slow storage/large project IO can block the message thread. | Bounded synchronous chooser IO stays outside audio; responsiveness not certified. | E04/E06 |
-| ERR-010 | High | Lifecycle gap | Open | Final MIDI delivery at releaseResources/reprepare/destruction is not host-verified. | Normal stop/seek/replacement tested; stopped ownership alone cannot deliver teardown releases. | T12/T13/E06 |
-| ERR-011 | Medium | Process boundary | Open | POSIX cancellation does not certify deliberately session-escaping descendants. | Prior CLI review excludes setsid escape; ordinary group/tree cases have evidence. | T13 |
+| ERR-010 | High | Lifecycle defect | Open | Release/reprepare erase active-note ownership before later callbacks can send releases. Final destruction/no-callback delivery remains a separate host gap. | Reproduced4cases: Legacy/Composer ×release/prepare emit1on then0offs in stopped callback; root independently verified. | T12/T13/E06 |
+| ERR-011 | Medium | Process boundary | Open | POSIX process-group cancellation does not contain deliberately session-escaping descendants. | Fresh isolated setsid fixture survives cancellation; fixture explicitly killed. Separate from ordinary child/MCP defects; containment/threat policy required. | T13 |
 
+| ERR-067 | High | Diagnostic disclosure | Open | Malformed generated JSON can leak raw model/private content through native parser error text to MCP/legacy HTTP. | Mock content {"x":SECRET_KEY} returns the marker in MCP error; v1 sanitizes. Assign provider/schema boundary, P1. | T03/T11/T13 |
+| ERR-068 | High | Export/data loss | Open | Node export writes existing MIDI directly and can destroy it on partial-write failure. | Isolated EFBIG fixture: old517bytes replaced with64bytes. Assign Node export staging, P1; historical ERR053 fixed native path only. | T03/T13/E04 |
+| ERR-069 | Medium | MCP lifecycle | Open | Cancellation notification/EOF/graceful shutdown do not abort active generation; detached CLI survives. | Fake CLI remains alive after cancel,EOF,MCP SIGTERM; root rerun and fixture cleanup. Assign MCP session owner, P2. | T03/T11/T13 |
+| ERR-070 | Medium | CLI lifecycle | Open | Successful CLI root exit can hang until timeout when ordinary descendants inherit stdout/stderr. | Root prints completed/exits0; inherited-pipe child causes512ms timeout under500ms deadline (default120s). Assign CLI owner, P2. | T11/T13 |
+| ERR-071 | Medium | Musical control | Open | Single-numerator metres merge enabled ghost into strong snare, making ghostNotes ineffective. | Accepted1/4prompt; on/off exact32event vectors equal across all styles/feels/denominators at h0. Assign E02 drums, P2. | E02/E03/E06 |
+| ERR-072 | Medium | Groove phase | Open | Half-time swing resets its source phase at odd-length bar boundaries. |3/4boom-bap half h0: snare960/1920 becomes960/2160 at swing100. Assign E02 groove, P2. | E02/E06 |
+| ERR-073 | Medium | Event-loop latency | Open | Synchronous CLI readiness probes block status processing and cancellation timers. | Two350ms fake locators block configuration747ms;10ms timer fires749ms. Assign async readiness, P2; does not prove ERR004 cause. | T11/T13 |
 
 ## Fixed findings and recorded regressions
 
@@ -92,6 +99,8 @@ Native Composer controls: implementation33326e9/1859a19 and final review fixes32
 Musical-logic audit at598ca27: actual source/probe comparisons reproduced ERR-059/060/061/062; were Open at audit time; corrected by the subsequent algorithm4 pass below. Native CTest34/34 and Node42/42 passed despite these uncovered cases. See docs/audits/2026-11-15-musical-logic.md for pinned historical/theory sources, exact-event evidence, priorities versus style-policy boundaries and executable probe. That audit snapshot had62entries:49Fixed/10Open/1Investigating/2Blocked. No production algorithm changed.
 
 Musical correction pass: ERR059–062 and implementation/review regressions ERR063–066 are Fixed in the documented scope. All four original audit branches failed before implementation; final review found2Important, fixed once through additional RED→GREEN cases. Post-fix Linux build/CTest35/35, Node42/42/sample equality, music audit/rhythm/mood ASan/UBSan passed. Independent reviewer exercised50000valid configurations. Current66entries:57Fixed/6Open/1Investigating/2Blocked; no full listening/host/resource certification.
+
+Focused current audit atb257237:7new confirmed defects ERR067–073, and existing ERR008/010 promoted from risks/gaps to reproduced local defects. Root reran all three investigators' probes. Baseline CTest35/35 and Node42/42 stay green; missing regressions are not fixes. Current73records:57Fixed/13Open/1Investigating/2Blocked. No P0 established;4P1 blockers (ERR068/067/010/008). Exact order, owners and closure contracts in task.md; no feature work until confirmed P1/P2 defects are fixed/verified.
 
 ## Updating the register
 

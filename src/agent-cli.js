@@ -1,5 +1,5 @@
 'use strict';
-const {spawn,spawnSync}=require('node:child_process');
+const {spawn}=require('node:child_process');
 const fs=require('node:fs');
 const path=require('node:path');
 const os=require('node:os');
@@ -10,14 +10,43 @@ const SPECS={
  'codex-cli': {bin:'codex',args:['exec','--ephemeral','--sandbox','read-only','--skip-git-repo-check','-']},
  'claude-cli': {bin:'claude',args:['-p','--output-format','json','--max-turns','1','--permission-mode','plan']}
 };
-function available(name){const spec=SPECS[name];if(!spec)return false;
- const test=spawnSync(process.platform==='win32'?'where':'which',[spec.bin],{encoding:'utf8',timeout:2000,windowsHide:true});return test.status===0;
+const READINESS_TTL_MS=5000;
+const readiness=new Map();
+function probeLocator(bin){
+ return new Promise(resolve=>{
+  const windows=process.platform==='win32';
+  const child=spawn(windows?'where':'which',[bin],{stdio:['ignore','ignore','ignore'],windowsHide:true,detached:!windows});
+  let timedOut=false;
+  const timer=setTimeout(()=>{
+   timedOut=true;
+   // Locators are owned work too; reap ordinary POSIX descendants as one group.
+   try{if(windows)child.kill('SIGKILL');else if(child.pid)process.kill(-child.pid,'SIGKILL')}catch{}
+  },2000);
+  child.once('error',()=>{clearTimeout(timer);resolve(false)});
+  child.once('close',code=>{clearTimeout(timer);resolve(!timedOut&&code===0)});
+ });
+}
+function available(name){
+ const spec=SPECS[name];if(!spec)return Promise.resolve(false);
+ const searchPath=process.env.PATH||'';
+ const cached=readiness.get(name);
+ if(cached&&cached.searchPath===searchPath){
+  if(cached.promise)return cached.promise;
+  if(Date.now()-cached.at<READINESS_TTL_MS)return Promise.resolve(cached.value);
+ }
+ const entry={searchPath};
+ entry.promise=probeLocator(spec.bin).then(value=>{
+  if(readiness.get(name)===entry){entry.value=value;entry.at=Date.now();delete entry.promise;}
+  return value;
+ });
+ readiness.set(name,entry);
+ return entry.promise;
 }
 async function execPrompt(name,input,{signal,model,timeoutMs=120000,maxOutputBytes=5_000_000}={}){
  if(signal?.aborted)throw new Error('Generation cancelled');
  const spec=SPECS[name];if(!spec)throw new Error('Unknown account CLI');
  if(model!==undefined&&(typeof model!=='string'||model.length>100||!/^[-\w.\/:]+$/.test(model)))throw new Error('Invalid model name');
- if(!available(name))throw new Error(`${spec.bin} CLI not found. Install it and sign in on this computer.`);
+ if(!await available(name))throw new Error(`${spec.bin} CLI not found. Install it and sign in on this computer.`);
  const cwd=fs.mkdtempSync(path.join(os.tmpdir(),'loopforge-ai-agent-'));
  try{return await new Promise((resolve,reject)=>{
   const args=model?[...spec.args.filter(a=>a!=='-'),'--model',model,...(name==='codex-cli'?['-']:[])]:spec.args;

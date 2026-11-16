@@ -26,7 +26,7 @@ async function dispatch(message,{signal}={}){
    let result;
    if(params.name==='loopforge_generate')result=await generate(params.arguments||{},{signal});
    else if(params.name==='loopforge_export_midi')result=exportIdea(params.arguments?.idea,params.arguments?.basename);
-   else if(params.name==='loopforge_providers')result=configuration();
+   else if(params.name==='loopforge_providers')result=await configuration();
    else return error(id,-32602,'Unknown tool');
    return success(id,{content:[{type:'text',text:JSON.stringify(result)}],isError:false});
   }catch(e){return success(id,{content:[{type:'text',text:e.message}],isError:true});}

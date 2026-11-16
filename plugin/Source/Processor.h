@@ -137,7 +137,7 @@ public:
  juce::String getStatus(){
   std::lock_guard lock(mutex);juce::String detail;
   if(composerMode){char number[64];auto end=std::to_chars(number,number+sizeof(number),composerOrigin,std::chars_format::general,std::numeric_limits<double>::max_digits10);
-   detail=" Composer: MIDI output only; audition, editing and MIDI export unavailable. Origin PPQ "+juce::String::fromUTF8(number,int(end.ptr-number))+".";
+   detail=" Composer: MIDI output and export; audition and editing unavailable. Origin PPQ "+juce::String::fromUTF8(number,int(end.ptr-number))+".";
   }
   if(projectV2)detail+=" Old plugin versions cannot open v2 projects.";
   return status+detail+(midiLimitReached?(composerMode?" MIDI block limit reached; stop/start transport or seek to resume.":" MIDI block limit reached; playback paused for this block."):"");

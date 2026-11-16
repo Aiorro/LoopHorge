@@ -110,3 +110,5 @@ ERR070 correction2026-11-16: Fixed for ordinary POSIX group descendants retainin
 ## Updating the register
 
 Add reproduced defects and observed failures here during the same work. Retain IDs, severity, evidence and owning task when updating statuses. Mark Fixed only after a meaningful regression passes; state platform/tool boundaries. New actionable work belongs in task.md. A local green suite does not turn an external Investigating/Blocked item into Fixed.
+
+Qwen handoff review2026-11-16: remote2f24731 passes Linux Node77/77, but ERR069 remains open here: duplicate active IDs overwrite cancellation ownership and tools/call notifications launch unowned jobs; both reproduce stalled shutdown. ERR073 async direction is verified but a SIGTERM-resistant locator survives its3006ms timeout return. See [review](docs/superpowers/reviews/2026-11-16-qwen-handoff.md). Preserve remote IDs074–077 when reconciling; no new IDs allocated by this review.

@@ -4,6 +4,7 @@
 #include "MidiDragSource.h"
 #include "ComposerOverview.h"
 #include "ProjectFiles.h"
+#include "ComposerMidiExport.h"
 class Editor final: public juce::AudioProcessorEditor,private juce::Timer {
 public:
  Editor(Processor& p):AudioProcessorEditor(p),processor(p),roll(p),dragMidi([&p]{return p.snapshot().idea;},DragMidiCache(DragMidiCache::defaultRoot()),MidiDragSource::nativeDispatch,[safe=juce::Component::SafePointer<Editor>(this)](juce::String message){if(safe)safe->showDragStatus(std::move(message));}){
@@ -32,7 +33,7 @@ public:
   sound.setButtonText("Audition synth");sound.setToggleState(true,juce::dontSendNotification);addAndMakeVisible(sound);sound.onClick=[this]{processor.audition=sound.getToggleState();};
   addAndMakeVisible(variation);variation.onChange=[this]{processor.choose(variation.getSelectedItemIndex());repaint();};
   addAndMakeVisible(dragMidi);
-  exportButton.setButtonText("EXPORT MIDI");addAndMakeVisible(exportButton);exportButton.onClick=[this]{exportMidi();};
+  exportButton.setButtonText("EXPORT MIDI");exportButton.setTooltip("Export the composition captured when clicked. Composer MIDI is prepared in the background with its tempo, meter, tracks and controllers.");addAndMakeVisible(exportButton);exportButton.onClick=[this]{exportMidi();};
   setup(layer,{"bass","chords","melody"});layer.onChange=[this]{roll.selectLayer(layer.getText());viewport.setViewPosition(0,roll.preferredScrollY());};
   quantize.setButtonText("QUANTIZE 1/4 BEAT");undo.setButtonText("UNDO");redo.setButtonText("REDO");
   for(auto* button:{&quantize,&undo,&redo})addAndMakeVisible(*button);
@@ -45,6 +46,7 @@ public:
   layer.setTooltip("Double-click to add; drag to move; drag right edge to resize; right-click to delete. Scroll for pitch.");
   addAndMakeVisible(status);status.setColour(juce::Label::textColourId,juce::Colours::lightgrey);timerCallback();startTimerHz(5);
  }
+ ~Editor()override{stopTimer();}
  void resized()override{
   const int width=getWidth(),height=getHeight(),content=width-48;
   composerNotice.setBounds(24,196,content,44);title.setBounds(24,16,width-650,40);seedLabel.setBounds(width-614,10,90,14);seed.setBounds(width-614,26,90,26);mode.setBounds(width-510,22,160,30);openProject.setBounds(width-336,22,148,30);saveProject.setBounds(width-176,22,150,30);promptLabel.setBounds(24,58,content,16);prompt.setBounds(24,76,content,70);
@@ -54,7 +56,7 @@ public:
   cancel.setBounds(width-256,274,230,32);testConnection.setBounds(width-500,274,220,32);model.setBounds(24,274,width-538,32);modelLabel.setBounds(24,258,model.getWidth(),15);
   layer.setBounds(24,320,160,30);quantize.setBounds(200,320,190,30);undo.setBounds(406,320,140,30);redo.setBounds(560,320,140,30);addNote.setBounds(width-284,320,120,30);deleteNote.setBounds(width-146,320,120,30);
   const bool composer=viewport.getViewedComponent()==&overview;const int top=composer?246:360;
-  if(composer){compose.setBounds(24,154,220,36);play.setBounds(260,154,140,36);cancel.setBounds(width-176,154,150,32);}
+  if(composer){compose.setBounds(24,154,220,36);play.setBounds(260,154,140,36);exportButton.setBounds(416,154,150,36);cancel.setBounds(width-176,154,150,32);}
   viewport.setBounds(24,top,content,height-top-72);roll.setSize(viewport.getMaximumVisibleWidth(),128*12);overview.setSize(overview.getWidth(),overview.requiredHeight());overview.setSize(viewport.getMaximumVisibleWidth(),overview.requiredHeight());status.setBounds(24,height-60,content,32);help.setBounds(24,height-25,content,20);
  }
  void paint(juce::Graphics& g)override{
@@ -62,7 +64,7 @@ public:
 
  }
 private:
- Processor& processor;PianoRoll roll;ComposerOverview overview;uint64_t viewRevision=UINT64_MAX;MidiDragSource dragMidi;juce::String dragStatus;juce::uint32 dragStatusUntil=0;juce::Viewport viewport;juce::ComboBox layer;juce::TextButton quantize,undo,redo,addNote,deleteNote;juce::Label seedLabel,title,status,help,promptLabel,providerLabel,keyLabel,scaleLabel,styleLabel,barsLabel,tempoLabel,modelLabel;juce::TextEditor prompt,model,seed,composerNotice;juce::ComboBox provider,key,scale,style,bars,variation;juce::Slider bpm;juce::TextButton mode,compose,generate,play,exportButton,testConnection,cancel,openProject,saveProject;juce::ToggleButton sound;std::unique_ptr<juce::FileChooser> chooser;
+ Processor& processor;ComposerMidiExport composerMidiExport;bool fileChoosing=false;PianoRoll roll;ComposerOverview overview;uint64_t viewRevision=UINT64_MAX;MidiDragSource dragMidi;juce::String dragStatus;juce::uint32 dragStatusUntil=0;juce::Viewport viewport;juce::ComboBox layer;juce::TextButton quantize,undo,redo,addNote,deleteNote;juce::Label seedLabel,title,status,help,promptLabel,providerLabel,keyLabel,scaleLabel,styleLabel,barsLabel,tempoLabel,modelLabel;juce::TextEditor prompt,model,seed,composerNotice;juce::ComboBox provider,key,scale,style,bars,variation;juce::Slider bpm;juce::TextButton mode,compose,generate,play,exportButton,testConnection,cancel,openProject,saveProject;juce::ToggleButton sound;std::unique_ptr<juce::FileChooser> chooser;
  void composeLoop(){
   const auto text=seed.getText().toStdString();uint32_t value=0;auto read=std::from_chars(text.data(),text.data()+text.size(),value);
   if(text.empty()||read.ec!=std::errc{}||read.ptr!=text.data()+text.size()){showDragStatus("Composer seed must be an integer0-4294967295");seed.grabKeyboardFocus();return;}
@@ -83,26 +85,51 @@ private:
   }
  }
  void chooseProject(bool saving){
+  if(fileChoosing)return;
+  try{
   auto captured=std::make_shared<juce::MemoryBlock>();if(saving)processor.getStateInformation(*captured);
   chooser=std::make_unique<juce::FileChooser>(saving?"Save LoopForge project":"Open LoopForge project",juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("loopforge-project.json"),"*.json");
   const int flags=saving?(juce::FileBrowserComponent::saveMode|juce::FileBrowserComponent::canSelectFiles|juce::FileBrowserComponent::warnAboutOverwriting):(juce::FileBrowserComponent::openMode|juce::FileBrowserComponent::canSelectFiles);
-  chooser->launchAsync(flags,[safe=juce::Component::SafePointer<Editor>(this),saving,captured](const juce::FileChooser& fc){
-   if(!safe||fc.getResult()==juce::File{})return;
+  fileChoosing=true;chooser->launchAsync(flags,[safe=juce::Component::SafePointer<Editor>(this),saving,captured](const juce::FileChooser& fc){
+   if(!safe)return;safe->fileChoosing=false;if(fc.getResult()==juce::File{})return;
    if(saving){auto error=projectFiles::write(fc.getResult(),{static_cast<const char*>(captured->getData()),captured->getSize()});safe->showDragStatus(error.isEmpty()?"Project saved":error);}
    else{auto file=projectFiles::read(fc.getResult());if(file.error.isNotEmpty()){safe->showDragStatus(file.error);return;}const bool restored=safe->processor.restoreStateInformation(file.text.data(),int(file.text.size()));if(restored)safe->processor.updateHostDisplay(juce::AudioProcessorListener::ChangeDetails{}.withNonParameterStateChanged(true));safe->showDragStatus(restored?"Project opened":safe->processor.getStatus());safe->refreshPresentation();}
   });
+  }catch(const std::bad_alloc&){fileChoosing=false;showDragStatus("Insufficient memory to choose a project file");}
  }
- void timerCallback()override{refreshPresentation();status.setText(dragStatus.isNotEmpty()&&int(juce::Time::getMillisecondCounter()-dragStatusUntil)<0?dragStatus:processor.getStatus(),juce::dontSendNotification);const bool legacy=viewport.getViewedComponent()!=&overview;
-  for(auto* component:std::initializer_list<juce::Component*>{&provider,&providerLabel,&key,&keyLabel,&scale,&scaleLabel,&style,&styleLabel,&bars,&barsLabel,&bpm,&tempoLabel,&generate,&variation,&sound,&exportButton,&dragMidi,&model,&modelLabel,&testConnection,&layer,&quantize,&undo,&redo,&addNote,&deleteNote})component->setVisible(legacy);
+ void timerCallback()override{pollComposerMidi();refreshPresentation();status.setText(dragStatus.isNotEmpty()&&int(juce::Time::getMillisecondCounter()-dragStatusUntil)<0?dragStatus:processor.getStatus(),juce::dontSendNotification);const bool legacy=viewport.getViewedComponent()!=&overview;
+  for(auto* component:std::initializer_list<juce::Component*>{&provider,&providerLabel,&key,&keyLabel,&scale,&scaleLabel,&style,&styleLabel,&bars,&barsLabel,&bpm,&tempoLabel,&generate,&variation,&sound,&dragMidi,&model,&modelLabel,&testConnection,&layer,&quantize,&undo,&redo,&addNote,&deleteNote})component->setVisible(legacy);
   prompt.setVisible(true);promptLabel.setVisible(true);compose.setVisible(!legacy);compose.setEnabled(!processor.busy);
   mode.setButtonText(legacy?(processor.canSwitchMode()?"VIEW COMPOSER":"COMPOSE LOOP"):"BACK TO LEGACY");mode.setEnabled(processor.canSwitchMode()||(legacy&&!processor.busy));
-  auto summary=processor.composerSummary();composerNotice.setText(summary.isEmpty()?"MIDI output only; read-only notes. Direction/seed describe the next loop, not the loaded project.":"Committed loop - "+summary,juce::dontSendNotification);composerNotice.setTooltip(summary.isEmpty()?"Native loops:4/8/16/32bars; unsupported song/sections/roles reject. Editing, MIDI export and audition remain unavailable.":summary+". MIDI output only; read-only notes. Direction/seed apply to the next request.");
-  composerNotice.setVisible(!legacy);cancel.setVisible(legacy||processor.busy);generate.setEnabled(legacy&&!processor.busy);testConnection.setEnabled(legacy&&!processor.busy);sound.setEnabled(legacy);exportButton.setEnabled(legacy);quantize.setEnabled(legacy);layer.setEnabled(legacy);roll.setEnabled(legacy);prompt.setEnabled(true);provider.setEnabled(legacy);key.setEnabled(legacy);scale.setEnabled(legacy);style.setEnabled(legacy);bars.setEnabled(legacy);bpm.setEnabled(legacy);model.setEnabled(legacy&&provider.getText()!="offline");title.setText(legacy?"LOOPFORGE  /  AI MIDI":"COMPOSER  /  MIDI ONLY",juce::dontSendNotification);status.setTooltip(processor.getStatus());help.setText(legacy?"Brackets select notes | Arrows move | Shift + Left/Right resize | Delete removes | Double-click adds":"Home/End and Page Up/Down scroll | Read-only MIDI overview | v2 requires a current plugin version",juce::dontSendNotification);cancel.setEnabled(processor.busy);int count=processor.ideaCount();dragMidi.setEnabled(count>0);addNote.setEnabled(count>0);if(count!=variation.getNumItems()){variation.clear();for(int i=0;i<count;++i)variation.addItem("IDEA "+juce::String(i+1),i+1);variation.setSelectedId(1,juce::dontSendNotification);}if(count>0)variation.setSelectedItemIndex(processor.selectedIdeaIndex(),juce::dontSendNotification);if(roll.refresh()&&legacy)viewport.setViewPosition(0,roll.preferredScrollY());deleteNote.setEnabled(roll.hasSelection());undo.setEnabled(processor.canUndo());redo.setEnabled(processor.canRedo());repaint();}
- void exportMidi(){auto idea=processor.getIdea();if(!idea.isObject()){status.setText("Generate an idea before export",juce::dontSendNotification);return;}
+  auto summary=processor.composerSummary();composerNotice.setText(summary.isEmpty()?"MIDI output and export; read-only notes. Direction/seed describe the next loop, not the loaded project.":"Committed loop - "+summary,juce::dontSendNotification);composerNotice.setTooltip(summary.isEmpty()?"Native loops:4/8/16/32bars; unsupported song/sections/roles reject. MIDI export is available; editing and audition remain unavailable.":summary+". MIDI output and export; read-only notes. Direction/seed apply to the next request.");
+  composerNotice.setVisible(!legacy);cancel.setVisible(legacy||processor.busy);generate.setEnabled(legacy&&!processor.busy);testConnection.setEnabled(legacy&&!processor.busy);sound.setEnabled(legacy);exportButton.setVisible(true);exportButton.setEnabled(!composerMidiExport.busy()&&!fileChoosing);quantize.setEnabled(legacy);layer.setEnabled(legacy);roll.setEnabled(legacy);prompt.setEnabled(true);provider.setEnabled(legacy);key.setEnabled(legacy);scale.setEnabled(legacy);style.setEnabled(legacy);bars.setEnabled(legacy);bpm.setEnabled(legacy);model.setEnabled(legacy&&provider.getText()!="offline");title.setText(legacy?"LOOPFORGE  /  AI MIDI":"COMPOSER  /  MIDI ONLY",juce::dontSendNotification);status.setTooltip(processor.getStatus());help.setText(legacy?"Brackets select notes | Arrows move | Shift + Left/Right resize | Delete removes | Double-click adds":"Home/End and Page Up/Down scroll | Read-only MIDI overview | v2 requires a current plugin version",juce::dontSendNotification);cancel.setEnabled(processor.busy);int count=processor.ideaCount();dragMidi.setEnabled(count>0);addNote.setEnabled(count>0);if(count!=variation.getNumItems()){variation.clear();for(int i=0;i<count;++i)variation.addItem("IDEA "+juce::String(i+1),i+1);variation.setSelectedId(1,juce::dontSendNotification);}if(count>0)variation.setSelectedItemIndex(processor.selectedIdeaIndex(),juce::dontSendNotification);if(roll.refresh()&&legacy)viewport.setViewPosition(0,roll.preferredScrollY());deleteNote.setEnabled(roll.hasSelection());undo.setEnabled(processor.canUndo());redo.setEnabled(processor.canRedo());repaint();}
+ void pollComposerMidi(){
+  if(fileChoosing)return;auto result=composerMidiExport.takeResult();if(!result)return;
+  if(!*result){showDragStatus(juce::String(result->error));return;}
+  try{
+   auto bytes=std::make_shared<const std::vector<uint8_t>>(std::move(result->bytes));
+   chooser=std::make_unique<juce::FileChooser>("Export Composer MIDI",juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("loopforge.mid"),"*.mid");
+   fileChoosing=true;chooser->launchAsync(juce::FileBrowserComponent::saveMode|juce::FileBrowserComponent::canSelectFiles|juce::FileBrowserComponent::warnAboutOverwriting,[safe=juce::Component::SafePointer<Editor>(this),bytes](const juce::FileChooser& fc){
+    if(!safe)return;safe->fileChoosing=false;if(fc.getResult()==juce::File{})return;
+    try{const auto error=projectFiles::replaceChecked(fc.getResult(),{reinterpret_cast<const char*>(bytes->data()),bytes->size()});safe->showDragStatus(error.isEmpty()?"MIDI exported":error);}
+    catch(const std::bad_alloc&){safe->showDragStatus("Insufficient memory to save MIDI");}
+   });
+  }catch(const std::bad_alloc&){fileChoosing=false;showDragStatus("Insufficient memory for MIDI export");}
+ }
+ void exportMidi(){
+  if(fileChoosing||composerMidiExport.busy())return;
+  try{auto captured=processor.presentation(UINT64_MAX);if(captured&&captured->composer){
+    if(composerMidiExport.request(std::move(captured->json))){exportButton.setEnabled(false);showDragStatus("Preparing Composer MIDI...");}
+    else showDragStatus("Cannot start MIDI export");return;
+   }
+  }catch(const std::bad_alloc&){showDragStatus("Insufficient memory for MIDI export");return;}
+  try{auto idea=processor.getIdea();if(!idea.isObject()){status.setText("Generate an idea before export",juce::dontSendNotification);return;}
   chooser=std::make_unique<juce::FileChooser>("Export MIDI",juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("loopforge.mid"),"*.mid");
-  chooser->launchAsync(juce::FileBrowserComponent::saveMode|juce::FileBrowserComponent::canSelectFiles|juce::FileBrowserComponent::warnAboutOverwriting,[safe=juce::Component::SafePointer<Editor>(this),idea](const juce::FileChooser& fc){if(!safe||fc.getResult()==juce::File{})return;
-   auto bytes=encodeMidi(idea);bool ok=bytes.getSize()>0&&projectFiles::replaceChecked(fc.getResult(),{static_cast<const char*>(bytes.getData()),bytes.getSize()}).isEmpty();safe->status.setText(ok?"MIDI exported":"MIDI export failed",juce::dontSendNotification);
+  fileChoosing=true;chooser->launchAsync(juce::FileBrowserComponent::saveMode|juce::FileBrowserComponent::canSelectFiles|juce::FileBrowserComponent::warnAboutOverwriting,[safe=juce::Component::SafePointer<Editor>(this),idea](const juce::FileChooser& fc){if(!safe)return;safe->fileChoosing=false;if(fc.getResult()==juce::File{})return;
+   try{auto bytes=encodeMidi(idea);bool ok=bytes.getSize()>0&&projectFiles::replaceChecked(fc.getResult(),{static_cast<const char*>(bytes.getData()),bytes.getSize()}).isEmpty();safe->status.setText(ok?"MIDI exported":"MIDI export failed",juce::dontSendNotification);}
+   catch(const std::bad_alloc&){safe->showDragStatus("Insufficient memory to save MIDI");}
   });
+  }catch(const std::bad_alloc&){fileChoosing=false;showDragStatus("Insufficient memory for MIDI export");}
  }
 };
 juce::AudioProcessorEditor* Processor::createEditor(){return new Editor(*this);}

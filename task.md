@@ -62,6 +62,10 @@ Requirements: [task-engine.md](task-engine.md), preserving the user-supplied spe
 
 ## Current execution pointer
 
+**Qwen handoff review2026-11-16:** remote `2f24731` verified separately: Linux Node77/77. Preserve its changes and IDs074–077 during reconciliation. ERR069 duplicate-ID/unowned-notification cleanup and ERR073 resistant-locator cleanup still require correction; do not import their Fixed statuses wholesale. Evidence: [handoff review](docs/superpowers/reviews/2026-11-16-qwen-handoff.md). Existing local Composer-export/MCP work is preserved.
+
+**Latest user direction2026-11-16:** continue work and move to new features/tasks. This explicitly supersedes the earlier feature-freeze instruction for scoped incremental work. Four P1 correction rows are already verified locally; continue ERR069 MCP cancellation while implementing E04 native Composer MIDI export independently. Other queued P2/resource/platform work stays open; no merge/release readiness follows. Current plan: docs/superpowers/plans/2026-11-16-mcp-and-composer-export.md. Earlier freeze statements below record historical instructions/evidence and do not override this latest direction.
+
 **2026-11-15 user-directed audit gate:** pause new feature implementation. Execute the assigned remediation queue below first; earlier feature pointers are historical context until this gate is satisfied. ERR008/010 are now locally reproduced defects; platform/resource limitations remain distinct. No blocker is closed by a local green suite.
 
 ### Assigned remediation queue (audit atb257237)

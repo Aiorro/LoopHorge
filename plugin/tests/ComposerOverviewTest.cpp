@@ -63,7 +63,10 @@ int main(int argc,char** argv){
  check(vp->getViewedComponent()->keyPressed(juce::KeyPress(juce::KeyPress::endKey)));check(vp->getViewPositionY()>0);check(vp->getViewedComponent()->keyPressed(juce::KeyPress(juce::KeyPress::homeKey)));check(vp->getViewPositionY()==0&&saved(p)==json);
  auto text=details(*vp->getViewedComponent());check(text.contains("Трек 16")&&text.contains("channel 16")&&text.contains("drums")&&text.contains("3/4")&&text.contains("natural minor")&&text.contains("Финал"));
  check(vp->getViewedComponent()->getDescription().contains("4294967295")&&vp->getViewedComponent()->getDescription().contains("7.125"));
- check(button(*editor,"OPEN PROJECT")&&button(*editor,"OPEN PROJECT")->isEnabled());check(button(*editor,"SAVE PROJECT")&&button(*editor,"SAVE PROJECT")->isEnabled());check(!button(*editor,"EXPORT MIDI")->isEnabled());check(!button(*editor,"GENERATE 8 IDEAS")->isVisible()&&vp->getHeight()>editor->getHeight()/2);
+ check(button(*editor,"OPEN PROJECT")&&button(*editor,"OPEN PROJECT")->isEnabled());check(button(*editor,"SAVE PROJECT")&&button(*editor,"SAVE PROJECT")->isEnabled());
+ auto* exportButton=button(*editor,"EXPORT MIDI");check(exportButton&&exportButton->isEnabled()&&exportButton->isVisible());
+ check(exportButton->getBounds()==juce::Rectangle<int>(416,154,150,36)&&!exportButton->getBounds().intersects(button(*editor,"PLAY / STOP")->getBounds())&&!exportButton->getBounds().intersects(button(*editor,"COMPOSE OFFLINE LOOP")->getBounds()));
+ check(!button(*editor,"GENERATE 8 IDEAS")->isVisible()&&vp->getHeight()>editor->getHeight()/2);
  if(argc>1){auto image=editor->createComponentSnapshot(editor->getLocalBounds());juce::FileOutputStream out{juce::File(argv[1])};check(out.openedOk());juce::PNGImageFormat png;check(png.writeImageToStream(image,out));}
  editor->setSize(1600,1100);check(vp->getViewedComponent()->getWidth()==vp->getMaximumVisibleWidth());
  if(argc>2){auto image=editor->createComponentSnapshot(editor->getLocalBounds());juce::FileOutputStream out{juce::File(argv[2])};juce::PNGImageFormat png;check(out.openedOk()&&png.writeImageToStream(image,out));}
@@ -88,5 +91,6 @@ int main(int argc,char** argv){
  struct Host:juce::AudioPlayHead{double beat=7.125;bool playing=true;juce::Optional<PositionInfo> getPosition()const override{PositionInfo p;p.setPpqPosition(beat);p.setBpm(1000);p.setIsPlaying(playing);return p;}}host;
  p.setPlayHead(&host);p.prepareToPlay(48000,64);juce::AudioBuffer<float> audio(2,64);juce::MidiBuffer midi;midi.ensureSize(32768);p.processBlock(audio,midi);p.processBlock(audio,midi);
  check(p.getStatus().contains("stop/start")&&p.getStatus().contains("seek"));host.beat+=64*1000/(60*48000.0);p.processBlock(audio,midi);check(midi.isEmpty());host.playing=false;p.processBlock(audio,midi);check(!p.getStatus().contains("limit reached"));p.setPlayHead(nullptr);
- editor.reset();root.deleteRecursively();std::cout<<"Composer overview, bounded files, mode refresh and overflow guidance passed\n";
+ exportButton->onClick();check(!exportButton->isEnabled());exportButton->onClick();check(!exportButton->isEnabled());
+ editor.reset();root.deleteRecursively();std::cout<<"Composer overview, bounded files, mode refresh, export controls/close during preparation and overflow guidance passed\n";
 }

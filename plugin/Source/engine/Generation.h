@@ -6,7 +6,7 @@ namespace composer {
 struct GenerationResult {std::optional<Composition> composition;std::string error;};
 namespace musicDetail {
 inline std::string configId(const Config& c){
-    std::string id="loop-v4-";
+    std::string id="loop-v5-";
     // Injective byte encoding of validated bounded fields; no hash or host-endian dependency.
     auto byte=[&](unsigned value){constexpr char hex[]="0123456789abcdef";id+=hex[(value>>4)&15];id+=hex[value&15];};
     for(int value:{c.root,int(c.scale),int(c.style),c.bpm,c.bars,c.numerator,c.denominator,c.complexity,c.humanization,c.swing,c.harmonicBars,int(c.modalInterchange),int(c.drums),int(c.ghostNotes),int(c.drumFills),int(c.feel)})byte(unsigned(value));
@@ -36,7 +36,7 @@ inline GenerationResult generateLoop(const Config& config){
     try {
         auto harmony=planHarmony(config);if(!harmony.error.empty())return {{},harmony.error};
         const int64_t barTicks=480LL*4*config.numerator/config.denominator;
-        Composition c;c.id=musicDetail::configId(config);c.engineVersion=4;c.seed=config.seed;c.style=styleName(config.style);c.source="native-motif-rules-v4";
+        Composition c;c.id=musicDetail::configId(config);c.engineVersion=5;c.seed=config.seed;c.style=styleName(config.style);c.source="native-motif-rules-v5";
         c.endTick={config.bars*barTicks};c.tempos={{{0},int(std::llround(60000000.0/config.bpm))}};
         c.meters={{{0},config.numerator,config.denominator}};c.keys=harmony.keys;c.chords=harmony.chords;
         Id id=1;
@@ -68,7 +68,7 @@ inline GenerationResult generateLoop(const Config& config){
             for(size_t i=0;i<bassGrid.pulses.size();++i){
                 const auto& pulse=bassGrid.pulses[i];int original=units[pulse.sourceIndex];
                 if(pulse.sourceIndex%size_t(config.performance.bassStride)!=0&&pulse.sourceIndex+1!=units.size())continue;
-                int64_t tick=musicDetail::onset(pulse.unit,bassGrid.divisions,barTicks,config,bassRandom,original,bassGrid.stepMultiplier);
+                int64_t tick=musicDetail::onset(pulse.unit,bassGrid.divisions,barTicks,config,bassRandom,start,bassGrid.stepMultiplier);
                 int64_t next=i+1<bassGrid.pulses.size()?int64_t(bassGrid.pulses[i+1].unit)*barTicks/bassGrid.divisions:barTicks;
                 int64_t duration=std::max<int64_t>(1,(next-tick)*(config.style==Style::ambient?95:78)/100);
                 duration=std::clamp(duration*config.performance.gatePercent/100,int64_t(1),barTicks-tick);
@@ -97,7 +97,7 @@ inline GenerationResult generateLoop(const Config& config){
                 int target=*pitch;
                 if(target<lead.lowPitch||target>lead.highPitch||std::abs(target-previous)>12)target=musicDetail::registerPitch(target,previous,lead.lowPitch,lead.highPitch);
                 previous=target;
-                int64_t tick=musicDetail::onset(pulse.unit,leadGrid.divisions,barTicks,config,leadRandom,onsets[pulse.sourceIndex],leadGrid.stepMultiplier);
+                int64_t tick=musicDetail::onset(pulse.unit,leadGrid.divisions,barTicks,config,leadRandom,start,leadGrid.stepMultiplier);
                 int64_t next=i+1<leadGrid.pulses.size()?int64_t(leadGrid.pulses[i+1].unit)*barTicks/leadGrid.divisions:barTicks;
                 int64_t duration=std::clamp((next-tick)*80*config.performance.gatePercent/10000,int64_t(1),barTicks-tick);
                 int velocity=std::clamp((pulse.sourceIndex==0?94:78)+leadRandom.offset(config.humanization/8)+config.performance.velocityOffset,1,127);

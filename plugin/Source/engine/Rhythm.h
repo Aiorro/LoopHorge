@@ -31,21 +31,22 @@ inline Profile meterProfile(const std::vector<int>& original,int divisions,const
     }
     if(role==102){for(int i=0;i<count;++i)units.push_back(i*2);}
     else if(role==101){for(size_t i=0;i<groups.size();++i){if(i)units.push_back(position*2);position+=groups[i];}if(units.empty())units.push_back(count);}
-    else if(role==103){for(size_t i=0;i<groups.size();++i){if(i)units.push_back(position*2-1);position+=groups[i];}if(units.empty())units.push_back(count*2-1);}
+    // A one-denominator-beat bar has its strong snare at the midpoint; ghost leads it.
+    else if(role==103){for(size_t i=0;i<groups.size();++i){if(i)units.push_back(position*2-1);position+=groups[i];}if(units.empty())units.push_back(count==1?0:count*2-1);}
     else {for(size_t i=0;i<groups.size();++i){units.push_back(position*2);if(role==3&&groups[i]>1)units.push_back(position*2+2);position+=groups[i];}}
     return {std::move(units),count*2};
 }
-inline int64_t onset(int unit,int divisions,int64_t length,const Config& config,Random& random,int originalUnit=-1,int stepMultiplier=1){
+inline int64_t onset(int unit,int divisions,int64_t length,const Config& config,Random& random,int64_t barStart=0,int stepMultiplier=1){
     const int64_t base=int64_t(unit)*length/divisions;
-    if(originalUnit<0)originalUnit=unit;
-    if(unit==0)return base;
     const int64_t step=std::max<int64_t>(1,length*stepMultiplier/divisions);
     const bool compound=config.numerator>=6&&config.numerator%3==0;
     int64_t swingStep=compound?1920/config.denominator/2:240;
     if(config.feel==Feel::half)swingStep*=2;
     if(config.feel==Feel::doubleTime)swingStep=std::max<int64_t>(1,swingStep/2);
-    const int64_t phase=base%(swingStep*2);
+    // Swing follows absolute musical time, including half-time patterns spanning bars.
+    const int64_t phase=(barStart+base)%(swingStep*2);
     const int64_t swing=std::min(std::min(phase,swingStep*2-phase)*config.swing/200,(length-1-base)/2);
+    if(unit==0)return base+swing; // Keep the warped bar anchor free of random jitter.
     const int jitter=int(std::min<int64_t>((step-1)/8,24)*config.humanization/100);
     return std::clamp(base+swing+random.offset(jitter),int64_t(0),length-1);
 }
@@ -76,7 +77,7 @@ inline DrumResult generateDrums(const Config& config){
                 for(const auto& pulse:grid.pulses){
                     if(role==102&&pulse.sourceIndex%size_t(config.performance.bassStride)!=0&&pulse.sourceIndex+1!=profile.units.size())continue;
                     int original=profile.units[pulse.sourceIndex];
-                    int64_t tick=musicDetail::onset(pulse.unit,grid.divisions,barTicks,config,random,original,grid.stepMultiplier);
+                    int64_t tick=musicDetail::onset(pulse.unit,grid.divisions,barTicks,config,random,bar*barTicks,grid.stepMultiplier);
                     int strength=velocity+(accented&&original%4==0?12:0)+random.offset(config.humanization/10);
                     strength+=role==103?config.performance.velocityOffset/3:config.performance.velocityOffset;
                     if(role==103)strength=std::clamp(strength,1,42);

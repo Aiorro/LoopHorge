@@ -85,6 +85,10 @@ int main() {
     c.tempos[0].microsPerQuarter=0;check(!secondsAt(c,{1}));check(!tickAt(c,{.1}));
     c=fixture();c.meters={{{0},6,8},{{1440},3,4}};check(validate(c));
     c.meters[1].tick={1439};check(!validate(c));
+    // Third change is aligned relative to the preceding meter origin, not absolute tick0.
+    c=fixture();c.endTick={6240};c.meters={{{0},4,4},{{1920},3,4},{{3360},5,8}};check(validate(c));
+    c.meters[2].tick={4320};check(validate(c).code==ValidationCode::maps);
+    c.meters[2].tick={3361};check(validate(c).code==ValidationCode::maps);
     c=fixture();c.endTick={480*3601LL};check(!validate(c));
 
     // Lifetime count, not NoteOn count, controls the distinct active-key limit.

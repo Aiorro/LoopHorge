@@ -50,11 +50,46 @@ function readMidi(bytes){
  }
  assert.equal(offset,bytes.length);return notes;
 }
+test('overlapping same-pitch notes retrigger with counted lifetimes',()=>{
+ const idea={metadata:{key:'C',mode:'minor',style:'trap',bpm:100,bars:4},layers:{bass:[{pitch:36,start:0,duration:2,velocity:100},{pitch:36,start:1,duration:2,velocity:90}],chords:[],melody:[]}};
+ const notes=readMidi(Buffer.from(createMidi(idea))).filter(n=>n[1]===0);
+ assert.deepEqual(notes.map(n=>n.join(',')).sort(),['0,0,36,100','480,0,36,0','480,0,36,90','1440,0,36,0'].sort());
+});
+test('simultaneous same-pitch unisons share one onset with the last velocity',()=>{
+ const idea={metadata:{key:'C',mode:'minor',style:'trap',bpm:100,bars:4},layers:{bass:[{pitch:36,start:0,duration:2,velocity:100},{pitch:36,start:0,duration:2,velocity:90}],chords:[],melody:[]}};
+ const notes=readMidi(Buffer.from(createMidi(idea))).filter(n=>n[1]===0);
+ assert.deepEqual(notes.map(n=>n.join(',')).sort(),['0,0,36,90','960,0,36,0'].sort());
+});
+// Independent reference of the counted-lifetime note semantics (mirrors native engine):
+// overlapping same-pitch notes retrigger, simultaneous unisons share one onset.
+function referenceNotes(idea){
+ const PPQ=480,duration=idea.metadata.bars*4*PPQ,out=[];
+ ['bass','chords','melody'].forEach((name,ch)=>{
+  const edges=[];
+  for(const n of idea.layers[name]){
+   const start=Math.max(0,Math.min(duration-1,Math.round(n.start*PPQ)));
+   const end=Math.max(start+1,Math.min(duration,Math.round((n.start+n.duration)*PPQ)));
+   const pitch=Math.max(0,Math.min(127,Math.round(n.pitch)));
+   const vel=Math.max(1,Math.min(127,Math.round(n.velocity)));
+   edges.push({tick:start,pitch,vel,on:true});edges.push({tick:end,pitch,vel:0,on:false});
+  }
+  edges.sort((a,b)=>a.tick-b.tick||(a.on===b.on?0:a.on?1:-1));
+  const held=new Array(128).fill(0),onsetTick=new Array(128).fill(-1),onsetIdx=new Array(128).fill(-1);
+  for(const e of edges){
+   const p=e.pitch;
+   if(e.on){
+    if(onsetTick[p]===e.tick)out[onsetIdx[p]][3]=e.vel;
+    else{if(held[p])out.push([e.tick,ch,p,0]);onsetTick[p]=e.tick;onsetIdx[p]=out.length;out.push([e.tick,ch,p,e.vel]);}
+    ++held[p];
+   }else if(--held[p]===0)out.push([e.tick,ch,p,0]);
+  }
+ });
+ return out;
+}
 test('independent MIDI decoder preserves notes, channels and timing for 200 compositions',()=>{
  for(let seed=0;seed<200;seed++){
-  const idea=generateOne({key:'D',mode:'minor',style:'nu-metal',bpm:100,bars:seed%2?4:8},seed);const expected=[];
-  for(const [channel,name] of ['bass','chords','melody'].entries())for(const n of idea.layers[name]){expected.push([Math.round(n.start*480),channel,n.pitch,n.velocity]);expected.push([Math.round((n.start+n.duration)*480),channel,n.pitch,0]);}
-  const canonical=list=>list.map(n=>n.join(',')).sort();assert.deepEqual(canonical(readMidi(Buffer.from(createMidi(idea)))),canonical(expected));
+  const idea=generateOne({key:'D',mode:'minor',style:'nu-metal',bpm:100,bars:seed%2?4:8},seed);
+  const canonical=list=>list.map(n=>n.join(',')).sort();assert.deepEqual(canonical(readMidi(Buffer.from(createMidi(idea)))),canonical(referenceNotes(idea)));
  }
 });
 test('malformed provider envelopes return actionable errors without crashing',async()=>{

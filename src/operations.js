@@ -42,5 +42,8 @@ function exportIdea(raw,basename){
  }
  return {path:output,filename:filename+'.mid',bytes:bytes.length};
 }
-function configuration(){return {...apiConfiguration(),'codex-cli':{ready:available('codex-cli'),defaultModel:'ChatGPT signed-in CLI'},'claude-cli':{ready:available('claude-cli'),defaultModel:'Claude signed-in CLI'}}}
+async function configuration(){
+ const [codex,claude]=await Promise.all([available('codex-cli'),available('claude-cli')]);
+ return {...apiConfiguration(),'codex-cli':{ready:codex,defaultModel:'ChatGPT signed-in CLI'},'claude-cli':{ready:claude,defaultModel:'Claude signed-in CLI'}};
+}
 module.exports={generate,exportIdea,configuration,exportsDir};

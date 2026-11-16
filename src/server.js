@@ -36,7 +36,7 @@ async function listener(req,res){
    const result=await generateV1(args,{probe:req.url==='/api/v1/probe',signal:controller.signal});
    if(!res.destroyed)return json(res,200,result);return;
   }
-  if(req.method==='GET'&&req.url==='/api/status')return json(res,200,{ok:true,providers:configuration(),mcp:'node src/mcp-server.js'});
+  if(req.method==='GET'&&req.url==='/api/status')return json(res,200,{ok:true,providers:await configuration(),mcp:'node src/mcp-server.js'});
   if(req.method==='POST'&&(req.url==='/api/generate'||req.url==='/api/probe')){
     const args=await readJSON(req);const controller=new AbortController();res.on('close',()=>controller.abort());
     const probe=req.url==='/api/probe';const result=await generate(probe?{...args,count:1}:args,{signal:controller.signal});
@@ -57,8 +57,14 @@ async function listener(req,res){
   const allowed=new Set([path.join(ROOT,'index.html'),path.join(ROOT,'style.css'),path.join(ROOT,'app.js'),path.resolve(__dirname,'core.js')]);
   if(!allowed.has(final)||!fs.existsSync(final))return json(res,404,{error:'Not found'});
   res.writeHead(200,{'Content-Type':MIME[path.extname(final)]||'application/octet-stream','X-Content-Type-Options':'nosniff'});
-  fs.createReadStream(final).pipe(res);
+  const stream=fs.createReadStream(final);
+  stream.on('error',()=>res.destroy());
+  res.on('close',()=>stream.destroy());
+  stream.pipe(res);
  }catch(err){if(!res.headersSent&&!res.destroyed){if(versioned){const error=failure(err);return fail(error.status,error.code,error.message)}json(res,err.status|| (err.message?.includes('API_KEY')?400:422),{error:err.message||'Request failed'});}}
 }
-if(require.main===module){http.createServer(listener).listen(PORT,HOST,()=>console.log(`LoopForge → http://${HOST}:${PORT}`));}
+if(require.main===module){
+ if(!Number.isInteger(PORT)||PORT<1||PORT>65535){console.error('LOOPFORGE_PORT must be an integer between 1 and 65535');process.exit(1);}
+ http.createServer(listener).listen(PORT,HOST,()=>console.log(`LoopForge → http://${HOST}:${PORT}`));
+}
 module.exports={listener};

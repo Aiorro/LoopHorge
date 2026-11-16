@@ -105,7 +105,7 @@ async function download(){const idea=current();if(!idea)return;try{
  const res=await fetch('/api/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idea})});
  if(!res.ok)throw Error((await res.json()).error||'Export failed');
  const blob=await res.blob();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`LoopForge_${idea.metadata.key}_${idea.metadata.mode}_${idea.metadata.bpm}bpm_${selected+1}.mid`;
- a.click();URL.revokeObjectURL(url);message('Exported standard multi-track MIDI. Drag into your DAW.');
+ a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);message('Exported standard multi-track MIDI. Drag into your DAW.');
  }catch(e){message('Export failed: '+e.message,true)}
 }
 async function statuses(){try{

@@ -130,11 +130,28 @@
       const events=[];
       for(const name of selected){
         const ch=names.indexOf(name);
+        const edges=[];
         for(const n of pattern.layers[name]||[]){
           const start=clip(Math.round(n.start*PPQ),0,duration-1), end=clip(Math.round((n.start+n.duration)*PPQ),start+1,duration);
           const pitch=clip(Math.round(n.pitch+transpose),0,127);
-          events.push({tick:start,priority:2,bytes:[0x90|ch,pitch,clip(Math.round(n.velocity),1,127)]});
-          events.push({tick:end,priority:0,bytes:[0x80|ch,pitch,0]});
+          edges.push({tick:start,pitch,velocity:clip(Math.round(n.velocity),1,127),on:true});
+          edges.push({tick:end,pitch,velocity:0,on:false});
+        }
+        // Off before on at equal ticks; stable order keeps simultaneous-unison velocity last-wins.
+        edges.sort((a,b)=>a.tick-b.tick||(a.on===b.on?0:a.on?1:-1));
+        const held=new Array(128).fill(0),onsetTick=new Array(128).fill(-1),onsetIndex=new Array(128).fill(0);
+        for(const edge of edges){
+          const p=edge.pitch;
+          if(edge.on){
+            // Simultaneous unisons share one audible onset; retain every lifetime.
+            if(onsetTick[p]===edge.tick)events[onsetIndex[p]].bytes[2]=edge.velocity;
+            else{
+              if(held[p])events.push({tick:edge.tick,priority:2,bytes:[0x80|ch,p,0]});
+              onsetTick[p]=edge.tick;onsetIndex[p]=events.length;
+              events.push({tick:edge.tick,priority:3,bytes:[0x90|ch,p,edge.velocity]});
+            }
+            ++held[p];
+          }else if(--held[p]===0)events.push({tick:edge.tick,priority:1,bytes:[0x80|ch,p,0]});
         }
       }
       return track(events);

@@ -48,6 +48,8 @@ async function execPrompt(name,input,{signal,model,timeoutMs=120000,maxOutputByt
   child.stdout.on('data',b=>{if(done)return;size+=b.length;if(size>maxOutputBytes)finish(new Error('AI agent output exceeded safety limit'));else chunks.push(b)});
   child.stderr.resume();
   child.on('error',()=>finish(new Error(`${name} could not start; check CLI installation`)));
+  // Root exit precedes pipe close; reap ordinary descendants so inherited pipes can drain.
+  child.on('exit',()=>{if(!done&&!windows)void terminate()});
   child.on('close',code=>{
    if(done)return;
    if(windows&&code===125)return finish(new Error('Windows CLI containment failed; check PowerShell policy and Job Object support'));

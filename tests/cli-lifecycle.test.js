@@ -61,3 +61,16 @@ test('CLI success reaps descendants after their parent has exited',async t=>{
  assert.match(await execPrompt('codex-cli','hello'),/completed/);const pid=Number(fs.readFileSync(path.join(dir,'pid'),'utf8'));t.after(()=>{try{process.kill(pid,'SIGKILL')}catch{}});
  let alive=true;for(let i=0;i<100;i++){try{process.kill(pid,0);alive=process.platform==='linux'?!/\) Z /.test(fs.readFileSync(`/proc/${pid}/stat`,'utf8')):true}catch{alive=false}if(!alive)break;await new Promise(r=>setTimeout(r,10))}assert.equal(alive,false,'orphan still running after success');
 });
+
+for(const pipe of ['stdout','stderr','both'])for(const code of [0,7])test(`root exit ${code} completes despite inherited ${pipe}`,async t=>{
+ const dir=fixture(t,'');const pidfile=path.join(dir,'pid');
+ const script=`const fs=require('node:fs'),{spawn}=require('node:child_process');
+ const c=spawn(process.execPath,['-e',"process.on('SIGTERM',()=>{});setInterval(()=>{},1000)"],{stdio:['ignore',${pipe==='stderr'?"'ignore'":'1'},${pipe==='stdout'?"'ignore'":'2'}]});
+ fs.writeFileSync(${JSON.stringify(pidfile)},String(c.pid));
+ process.stdout.write('Привет '+ 'x'.repeat(65536),()=>process.exit(${code}));`;
+ fs.writeFileSync(path.join(dir,process.platform==='win32'?'fake.cjs':'codex'),(process.platform==='win32'?'':`#!${process.execPath}\n`)+script,{mode:0o755});
+ let result,error;try{result=await execPrompt('codex-cli','hello',{timeoutMs:process.platform==='win32'?10000:2000})}catch(e){error=e}
+ assert.ok(fs.existsSync(pidfile));const pid=Number(fs.readFileSync(pidfile,'utf8'));t.after(()=>{try{process.kill(pid,'SIGKILL')}catch{}});
+ if(code===0){assert.ifError(error);assert.equal(result,'Привет '+'x'.repeat(65536));}else{assert.match(error?.message||'',/exited with code 7/);assert.doesNotMatch(error.message,/timed out/);}
+ let alive=true;for(let i=0;i<100;i++){try{process.kill(pid,0);alive=process.platform==='linux'?!/\) Z /.test(fs.readFileSync(`/proc/${pid}/stat`,'utf8')):true}catch{alive=false}if(!alive)break;await new Promise(r=>setTimeout(r,10));}assert.equal(alive,false,'ordinary descendant survived root exit');
+});

@@ -1,6 +1,6 @@
 # LoopForge error register
 
-Updated: 2026-11-15. Historical reviews/regressions are imported from [task.md](task.md); the focused whole-project triage atb257237 is recorded in docs/audits/2026-11-15-remediation-triage.md. Historical Fixed scope is not broadened by that audit. task.md remains the sole execution checklist and priority source. This register has stable finding IDs, statuses and evidence, not competing task checkboxes.
+Updated: 2026-11-16. Historical reviews/regressions are imported from [task.md](task.md); the focused whole-project triage atb257237 is recorded in docs/audits/2026-11-15-remediation-triage.md. Historical Fixed scope is not broadened by that audit. task.md remains the sole execution checklist and priority source. This register has stable finding IDs, statuses and evidence, not competing task checkboxes.
 
 **Open:** unresolved finding/risk. **Investigating:** observed failure, cause unproven. **Blocked:** unavailable infrastructure/host/tools prevent verification. **Fixed:** regression passes only in the stated scope, not a release/DAW claim. Missing staged Composer features remain in task.md; missing-API TDD steps and fixture typos are not product defects.
 
@@ -13,7 +13,6 @@ Updated: 2026-11-15. Historical reviews/regressions are imported from [task.md](
 | ERR-005 | High | Infrastructure | Blocked | GitHub jobs finish without runner assignment or executed steps. | Atb257237: Native43749007011/Prototype43749007198 have runner_id0/steps0 across8jobs; cause unknown. No compilation/test step executed; annotations endpoint unavailable through connector. | T07/T13/E06 |
 | ERR-006 | High | Acceptance gap | Blocked | Fresh Windows/real DAW/pluginval/OS drag and chooser acceptance is unverified. | Linux/component screenshots do not establish platform execution; see NATIVE-DAW-ACCEPTANCE.md. | T12–T15/E06 |
 | ERR-007 | High | Resource gap | Open | Whole256MiB workspace and transient memory peak are not measured. | Retained64MiB accounting excludes other jobs, JSON/UI/history/scratch. | E04/E06 |
-| ERR-008 | High | State integrity defect | Open | Single allocation failure after restore mutation can reject while changing saved state/revision/mode without publishing matching playback. | One-shot fail106: restore=false,revision1→2,Composer state but old pitch38 renders instead of60; root verified. P1 remediation before features. | T13/E06 |
 | ERR-009 | Medium | UI limitation | Open | Slow storage/large project IO can block the message thread. | Bounded synchronous chooser IO stays outside audio; responsiveness not certified. | E04/E06 |
 | ERR-011 | Medium | Process boundary | Open | POSIX process-group cancellation does not contain deliberately session-escaping descendants. | Fresh isolated setsid fixture survives cancellation; fixture explicitly killed. Separate from ordinary child/MCP defects; containment/threat policy required. | T13 |
 | ERR-069 | Medium | MCP lifecycle | Open | Cancellation notification/EOF/graceful shutdown do not abort active generation; detached CLI survives. | Fake CLI remains alive after cancel,EOF,MCP SIGTERM; root rerun and fixture cleanup. Assign MCP session owner, P2. | T03/T11/T13 |
@@ -88,6 +87,7 @@ Native evidence below is local Linux unless a row explicitly cites earlier platf
 | ERR-010 | High | Lifecycle defect | Fixed | Release/reprepare erase active-note ownership before later callbacks can send releases. Final destruction/no-callback delivery remains a separate host gap. | RED→GREEN; batch Node55/55/native35/35, processor ASan/UBSan; fresh independent review no findings. See docs/superpowers/reviews/2026-11-15-priority-remediation.md. Destruction without later callback remains host acceptance. | T12/T13/E06 |
 | ERR-067 | High | Diagnostic disclosure | Fixed | Malformed generated JSON can leak raw model/private content through native parser error text to MCP/legacy HTTP. | RED→GREEN; batch Node55/55/native35/35, processor ASan/UBSan; fresh independent review no findings. See docs/superpowers/reviews/2026-11-15-priority-remediation.md. | T03/T11/T13 |
 | ERR-068 | High | Export/data loss | Fixed | Node export writes existing MIDI directly and can destroy it on partial-write failure. | RED→GREEN; batch Node55/55/native35/35, processor ASan/UBSan; fresh independent review no findings. See docs/superpowers/reviews/2026-11-15-priority-remediation.md. | T03/T13/E04 |
+| ERR-008 | High | State integrity defect | Fixed | Single allocation failure after restore mutation can reject while changing saved state/revision/mode without publishing matching playback. | Host/mode596position allocation sweep RED→GREEN with preserved state/history/render and slot recovery; generated/mode notification boundary recovery. Full Linux36/36,Node55/55,sample equality, actual-Plugin ASan/UBSan and fresh independent review. Finite C++fault scope; see2026-11-16transactional-restore review. | T13/E06 |
 
 ## Latest verification
 
@@ -101,7 +101,9 @@ Musical correction pass: ERR059–062 and implementation/review regressions ERR0
 
 Focused current audit atb257237:7new confirmed defects ERR067–073, and existing ERR008/010 promoted from risks/gaps to reproduced local defects. Root reran all three investigators' probes. Baseline CTest35/35 and Node42/42 stay green; missing regressions are not fixes. That audit snapshot had73records:57Fixed/13Open/1Investigating/2Blocked. No P0 established;4P1 blockers (ERR068/067/010/008). Exact order, owners and closure contracts in task.md; no feature work until confirmed P1/P2 defects are fixed/verified.
 
-First assigned P1 batch: ERR068/067/010 Fixed in the verified scope; current73records:60Fixed/10Open/1Investigating/2Blocked. Node55/55, native35/35/build/sample equality, processor ASan/UBSan/held-worker fixture and fresh independent13/13 focused review passed. Next P1 is ERR008; feature freeze remains.
+First assigned P1 batch: ERR068/067/010 Fixed in the verified scope; that batch snapshot had73records:60Fixed/10Open/1Investigating/2Blocked. Node55/55, native35/35/build/sample equality, processor ASan/UBSan/held-worker fixture and fresh independent13/13 focused review passed. Next P1 is ERR008; feature freeze remains.
+
+ERR008 correction2026-11-16: Fixed for recoverable host/mode C++allocation failures;596positions plus generated/mode notification boundary cases passed. Full Linux build/CTest36/36,Node55/55/sample equality and actual-Plugin ASan/UBSan passed; fresh review no findings. Current73records:61Fixed/9Open/1Investigating/2Blocked. All currently assigned P1 defect rows verified locally; P2/resource/coverage/external acceptance remain open. No unconditional global-OOM/notification-delivery guarantee.
 
 ## Updating the register
 

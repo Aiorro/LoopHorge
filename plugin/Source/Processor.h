@@ -100,10 +100,10 @@ public:
    if(decoded.project)return restoreV2(std::move(*decoded.project),std::string(text));
    auto value=wire::document(text);Schedule checked;
    if(!wire::integer(value["version"],1,1)||!wire::schedule(value["idea"],checked)){std::lock_guard lock(mutex);status="Restore rejected: invalid or unsupported project";return false;}
-   std::string original(text);juce::var list=juce::Array<juce::var>{value["idea"]};
+   std::string original(text);juce::var list=juce::Array<juce::var>{value["idea"]};juce::String restoredStatus="Restored composition";
    std::lock_guard lock(mutex);
    if(!install(value["idea"],false,&original)){status="Restore rejected: playback storage unavailable";return false;}
-   saved=std::move(value);ideas=std::move(list);selectedIndex=0;cancelRestoredWork();status="Restored composition";return true;
+   saved=std::move(value);ideas=std::move(list);selectedIndex=0;cancelRestoredWork();status=std::move(restoredStatus);return true;
   }catch(const std::bad_alloc&){std::lock_guard lock(mutex);status="Restore rejected: insufficient memory";return false;}
  }
  struct Presentation {uint64_t revision=0;bool composer=false,hasState=false;std::string json;};
@@ -123,12 +123,13 @@ public:
  bool canSwitchMode(){std::lock_guard lock(mutex);return composerMode?saved["idea"].isObject():hasComposerDocument;}
  bool selectMode(composer::ProjectMode mode){
   std::string base;CommitGuard guard;
+  try{
   {std::lock_guard lock(mutex);const bool next=mode==composer::ProjectMode::composer;
    if(next==composerMode||!(next?hasComposerDocument:saved["idea"].isObject()))return false;
    base=stateJson;cancelRestoredWork();guard={revision,jobGeneration,composerMode,false};}
-  try{auto decoded=composer::decodeProjectJson(base);if(!decoded.project)return false;decoded.project->activeMode=mode;
+   auto decoded=composer::decodeProjectJson(base);if(!decoded.project)return false;decoded.project->activeMode=mode;
    auto encoded=composer::encodeProjectJson(*decoded.project);if(!encoded)return false;
-   const bool changed=restoreV2(std::move(*decoded.project),std::move(encoded.json),guard);if(changed)triggerAsyncUpdate();return changed;
+   const bool changed=restoreV2(std::move(*decoded.project),std::move(encoded.json),guard);if(changed)notifyCommittedState();return changed;
   }catch(const std::bad_alloc&){std::lock_guard lock(mutex);status="Mode change rejected: insufficient memory";return false;}
  }
 
@@ -169,6 +170,7 @@ private:
  struct CommitGuard{uint64_t revision=0,job=0;bool mode=false,generated=false;};
  bool composerRequest=false,requestMode=false;uint32_t requestSeed=0;std::string requestDirection,requestBase;juce::String resolvedSummary;
  void handleAsyncUpdate()override{updateHostDisplay(ChangeDetails{}.withNonParameterStateChanged(true));}
+ void notifyCommittedState()noexcept{try{triggerAsyncUpdate();}catch(const std::bad_alloc&){cancelPendingUpdate();}}
  static juce::var builtInIdea(){
   auto* metadata=new juce::DynamicObject;metadata->setProperty("bars",4);metadata->setProperty("bpm",100);
   auto* layers=new juce::DynamicObject;juce::Array<juce::var> bass,chords,melody;
@@ -212,6 +214,7 @@ private:
   if(mode){auto ready=composer::prepareComposition(*candidate.composition,guard&&guard->generated?&cancelled:nullptr);if(!ready.song){std::lock_guard lock(mutex);status="Restore rejected: invalid prepared composition";return false;}prepared=std::move(ready.song);}
   juce::var legacyState,list;Schedule schedule;
   if(candidate.legacyStateJson){legacyState=wire::document(*candidate.legacyStateJson);list=juce::Array<juce::var>{legacyState["idea"]};if(!mode&&!wire::schedule(legacyState["idea"],schedule))return false;}
+  const bool generated=guard&&guard->generated;juce::String restoredStatus=generated?"Native Composer ready":"Restored project v2";
   std::lock_guard lock(mutex);
   if(guard&&(revision!=guard->revision||jobGeneration!=guard->job||composerMode!=guard->mode||(guard->generated&&(cancelled||threadShouldExit()))))return false;
   const int index=reserveSlot(prepared?prepared->storageBytes():0);
@@ -219,14 +222,15 @@ private:
   auto& slot=slots[index];slot.data=schedule;slot.composer=mode;slot.origin=candidate.hostStartQuarterBeat;slot.song=std::move(prepared);
   saved=std::move(legacyState);ideas=std::move(list);selectedIndex=0;stateJson.swap(original);projectV2=true;composerMode=mode;hasComposerDocument=candidate.composition.has_value();composerOrigin=candidate.hostStartQuarterBeat;
   ++revision;++replacement;undo.clear();redo.clear();
-  if(guard&&guard->generated){resolvedSummary=std::move(summary);status="Native Composer ready";busy=false;triggerAsyncUpdate();}
-  else{if(!guard)resolvedSummary.clear();cancelRestoredWork();status="Restored project v2";}
-  publishSlot(index);return true;
+  if(generated){resolvedSummary=std::move(summary);busy=false;}
+  else{if(!guard)resolvedSummary.clear();cancelRestoredWork();}
+  status=std::move(restoredStatus);publishSlot(index);
+  if(generated)notifyCommittedState();return true;
  }
  bool install(const juce::var& idea,bool preserveHistory=false,const std::string* restored=nullptr){
   if(composerMode&&!restored)return false;
   Schedule schedule;if(!wire::schedule(idea,schedule))return false;
-  auto* object=new juce::DynamicObject;object->setProperty("version",1);object->setProperty("idea",idea);juce::var nextSaved(object);
+  juce::var nextSaved(new juce::DynamicObject);auto* object=nextSaved.getDynamicObject();object->setProperty("version",1);object->setProperty("idea",idea);
   std::string nextJson=restored?*restored:juce::JSON::toString(nextSaved).toStdString();
   const bool keepV2=projectV2&&!restored;
   if(keepV2){auto decoded=composer::decodeProjectJson(stateJson);if(!decoded.project)return false;decoded.project->activeMode=composer::ProjectMode::legacy;decoded.project->legacyStateJson=nextJson;auto encoded=composer::encodeProjectJson(*decoded.project);if(!encoded)return false;nextJson=std::move(encoded.json);}

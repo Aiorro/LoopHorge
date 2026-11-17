@@ -10,6 +10,7 @@
 #include "engine/LoopEditing.h"
 #include "PreparedMidi.h"
 #include "ComposerEditView.h"
+#include "PreviewSynth.h"
 #include <deque>
 #include <atomic>
 #include <mutex>
@@ -27,17 +28,17 @@ public:
  double getTailLengthSeconds()const override{return 0;} int getNumPrograms()override{return 1;} int getCurrentProgram()override{return 0;}
  void setCurrentProgram(int)override{} const juce::String getProgramName(int)override{return "Default";} void changeProgramName(int,const juce::String&)override{}
  bool isBusesLayoutSupported(const BusesLayout& l)const override{return l.getMainOutputChannelSet()==juce::AudioChannelSet::stereo();}
- void prepareToPlay(double sr,int)override {rate=std::isfinite(sr)&&sr>=1&&sr<=768000?sr:44100;midiLimitReached=false;for(int p=0;p<128;++p)increments[p]=juce::MathConstants<double>::twoPi*juce::MidiMessage::getMidiNoteInHertz(p)/rate;lifecycleDrain=true;internalBeat=0;internalSeconds=0;lastEnd=-1;lastStep=0;haveLastBlock=false;}
+ void prepareToPlay(double sr,int)override {rate=std::isfinite(sr)&&sr>=1&&sr<=768000?sr:44100;midiLimitReached=false;preview.prepare(rate);for(int p=0;p<128;++p)increments[p]=juce::MathConstants<double>::twoPi*juce::MidiMessage::getMidiNoteInHertz(p)/rate;lifecycleDrain=true;internalBeat=0;internalSeconds=0;lastEnd=-1;lastStep=0;haveLastBlock=false;}
  void releaseResources()override{lifecycleDrain=true;internalSeconds=0;haveLastBlock=false;}
  void processBlock(juce::AudioBuffer<float>& audio,juce::MidiBuffer& midi)override {
   juce::ScopedNoDenormals noDenormals;audio.clear();midi.clear();eventsWritten=0;
   if(audio.getNumSamples()==0)return;
   // Lifecycle methods have no MIDI sink; retain ownership until a callback can release it.
-  if(lifecycleDrain){lifecycleDrain=false;if(renderComposer){composer::PreparedMidiSink sink(midi);composerPlayback.stop(sink);}else flush(midi,0);if(!midi.isEmpty())return;}
+  if(lifecycleDrain){lifecycleDrain=false;preview.clear();if(renderComposer){composer::PreparedMidiSink sink(midi);composerPlayback.stop(sink);}else flush(midi,0);if(!midi.isEmpty())return;}
   bool changed=false;int next=pending.exchange(-1);
   if(next>=0){slots[next].state=3;int old=active;active=next;slots[old].state=0;changed=true;}
   const auto& runtime=slots[active];
-  if(runtime.composer!=renderComposer){
+  if(runtime.composer!=renderComposer){preview.clear();
    if(renderComposer){composer::PreparedMidiSink sink(midi);composerPlayback.stop(sink);}else flush(midi,0);
    renderComposer=runtime.composer;internalBeat=internalSeconds=0;haveLastBlock=false;
    // An empty old ledger needs no drain block; preserve short notes at a cold host origin.
@@ -48,8 +49,12 @@ public:
    if(auto* ph=getPlayHead())if(auto pos=ph->getPosition())if(auto ppq=pos->getPpqPosition()){
     block.clock=composer::Clock::hostQuarterBeats;block.position=*ppq;block.playing=pos->getIsPlaying();if(auto bpm=pos->getBpm())block.bpm=*bpm;
    }
+   if(changed)preview.clear();
    composer::PreparedMidiSink sink(midi);auto result=composerPlayback.render(*runtime.song,block,sink);
    midiLimitReached=result.overflow||sink.rejected();
+   if(!block.playing||midiLimitReached)preview.clear();
+   auto event=midi.cbegin();const auto end=midi.cend();const bool sound=audition.load();
+   for(int sample=0;sample<audio.getNumSamples();++sample){while(event!=end&&(*event).samplePosition<=sample){const auto e=*event;if(e.numBytes>=3)preview.message(e.data[0],e.data[1],e.data[2]);++event;}const float rendered=preview.sample();const float value=sound?rendered:0;for(int ch=0;ch<audio.getNumChannels();++ch)audio.setSample(ch,sample,value);}
    if(block.clock==composer::Clock::compositionSeconds)internalSeconds=block.playing?result.nextPosition:0;
    return;
   }
@@ -162,7 +167,7 @@ public:
  juce::String getStatus(){
   std::lock_guard lock(mutex);juce::String detail;
   if(composerMode){char number[64];auto end=std::to_chars(number,number+sizeof(number),composerOrigin,std::chars_format::general,std::numeric_limits<double>::max_digits10);
-   detail=" Composer: MIDI output and export; audition unavailable. Origin PPQ "+juce::String::fromUTF8(number,int(end.ptr-number))+".";
+   detail=" Composer: MIDI output, export and basic preview. Standalone plays once. Origin PPQ "+juce::String::fromUTF8(number,int(end.ptr-number))+".";
   }
   if(projectV2)detail+=" Old plugin versions cannot open v2 projects.";
   return status+detail+(midiLimitReached?(composerMode?" MIDI block limit reached; stop/start transport or seek to resume.":" MIDI block limit reached; playback paused for this block."):"");
@@ -203,7 +208,7 @@ private:
  struct Slot{Schedule data;std::optional<composer::PreparedSong> song;bool composer=false;double origin=0;std::atomic<int> state{0};};std::array<Slot,3> slots;
  bool haveLastBlock=false,lifecycleDrain=false;std::atomic<bool> cancelled{false};std::atomic<int> pending{-1};int active=0;double rate=44100,internalBeat=0,lastEnd=-1,lastStep=0;
  unsigned short noteCounts[16][128]{};float voices[16][128]{};double phases[16][128]{},increments[128]{};
- composer::Playback composerPlayback;bool renderComposer=false,composerMode=false,projectV2=false,hasComposerDocument=false;double internalSeconds=0,composerOrigin=0;std::string stateJson;
+ PreviewSynth preview;composer::Playback composerPlayback;bool renderComposer=false,composerMode=false,projectV2=false,hasComposerDocument=false;double internalSeconds=0,composerOrigin=0;std::string stateJson;
  uint64_t jobGeneration=0,requestRevision=0,revision=0,replacement=0;std::deque<juce::var> undo,redo;
  juce::var composerEditView;
  struct ComposerHistory{std::deque<std::string> undo,redo;composer::Id selected=0;};ComposerHistory composerHistory;

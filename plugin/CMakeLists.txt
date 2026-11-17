@@ -221,3 +221,9 @@ target_include_directories(composer_piano_roll_test PRIVATE $<TARGET_PROPERTY:Lo
 target_compile_definitions(composer_piano_roll_test PRIVATE $<TARGET_PROPERTY:LoopForge,COMPILE_DEFINITIONS>)
 target_link_libraries(composer_piano_roll_test PRIVATE LoopForge)
 add_test(NAME composer_piano_roll COMMAND composer_piano_roll_test)
+
+add_executable(composer_audition_test tests/ComposerAuditionTest.cpp)
+target_include_directories(composer_audition_test PRIVATE $<TARGET_PROPERTY:LoopForge,INCLUDE_DIRECTORIES>)
+target_compile_definitions(composer_audition_test PRIVATE $<TARGET_PROPERTY:LoopForge,COMPILE_DEFINITIONS>)
+target_link_libraries(composer_audition_test PRIVATE LoopForge)
+add_test(NAME composer_audition COMMAND composer_audition_test)

@@ -28,5 +28,8 @@ int main(){juce::ScopedJuceInitialiser_GUI init;Processor p;Clock clock;p.setPla
    clock.beat+=size*clock.bpm/(60*48000.0);
   }
  }
+ for(int size:{32,64,2048}){composer::Composition c;c.id="preview-RT";c.endTick={7680};c.tempos={{{0},500000}};c.meters={{{0},4,4}};c.keys={{{0},0,composer::Scale::naturalMinor}};composer::Track t;t.id=1;t.name="Dense preview";t.channel=16;for(int i=0;i<128;++i)t.notes.push_back({uint64_t(i+2),i,100,{0},{240}});c.tracks={t};composer::ProjectState project;project.activeMode=composer::ProjectMode::composer;project.composition=c;auto encoded=composer::encodeProjectJson(project);check(bool(encoded));p.prepareToPlay(48000,size);check(p.restoreStateInformation(encoded.json.data(),int(encoded.json.size())));clock.beat=0;juce::AudioBuffer<float> audio(2,size);
+  for(int block=0;block<8;++block){juce::MidiBuffer midi;midi.ensureSize(32768);clock.bpm=block%2?90:180;clock.playing=block!=3;allocations=0;tracking=true;p.processBlock(audio,midi);tracking=false;if(allocations){std::cerr<<"Composer preview allocated "<<allocations<<" size="<<size<<'\n';return 1;}check(midi.data.size()<=32768);check(audio.getMagnitude(0,size)<=1);clock.beat+=size*clock.bpm/(60*48000.0);}
+ }
  std::cout<<"no callback allocations: cold/dense/tempo/stop at 32..192000 samples, fresh prepared host buffers\n";
 }

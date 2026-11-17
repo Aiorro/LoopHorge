@@ -49,7 +49,7 @@ int main(){
  ru.project->hostStartQuarterBeat=17.25;auto origin=encodeProjectJson(*ru.project);check(origin);check(p.restoreStateInformation(origin.json.data(),int(origin.json.size())));
  check(p.selectMode(ProjectMode::legacy));check(p.selectMode(ProjectMode::composer));check(decodeProjectJson(saved(p)).project->hostStartQuarterBeat==17.25);
  check(p.requestComposer(direction,44));idle(p);check(decodeProjectJson(saved(p)).project->hostStartQuarterBeat==17.25);
- p.prepareToPlay(48000,64);p.play=true;juce::AudioBuffer<float> audio(2,64);juce::MidiBuffer midi;midi.ensureSize(32768);p.processBlock(audio,midi);check(!midi.isEmpty()&&audio.getMagnitude(0,64)==0);
+ p.prepareToPlay(48000,64);p.play=true;juce::AudioBuffer<float> audio(2,64);juce::MidiBuffer midi;midi.ensureSize(32768);p.processBlock(audio,midi);check(!midi.isEmpty()&&audio.getMagnitude(0,64)>0);
  int cancelled=0;for(int i=0;i<40;++i){auto prior=saved(p);check(p.requestComposer("16 bars ambient bass chords lead drums",uint32_t(i)));if(p.cancel()){++cancelled;idle(p);check(saved(p)==prior);}else idle(p);}
  check(cancelled>0);
  for(int i=0;i<20;++i){check(p.requestComposer("16 bars ambient bass chords lead drums",uint32_t(i)));check(p.restoreStateInformation(legacy.data(),int(legacy.size())));idle(p);check(saved(p)==legacy);}

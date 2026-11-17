@@ -66,7 +66,7 @@ int main(int argc,char** argv){
   const auto v2=project();restore(p,v2);check(saved(p)==v2); // RED: current Processor ignores v2
   process(p,zero,midi);check(midi.isEmpty());clock.beat=8;
   process(p,audio,midi);check(count(midi,false,38)==1&&count(midi,true)==0); // drain old mode
-  process(p,audio,midi);check(count(midi,true,60)==1&&audio.getMagnitude(0,size)==0);
+  process(p,audio,midi);check(count(midi,true,60)==1&&audio.getMagnitude(0,size)>0);
   auto beforeInvalid=p.snapshot();restore(p,"{\"version\":99}");check(p.snapshot().revision==beforeInvalid.revision&&saved(p)==v2);
   bool program=false,bank=false,cc=false;for(auto e:midi){auto m=e.getMessage();check(m.getChannel()==16);program|=m.isProgramChange()&&m.getProgramChangeNumber()==33;bank|=m.isController()&&m.getControllerNumber()==0&&m.getControllerValue()==2;cc|=m.isController()&&m.getControllerNumber()==1&&m.getControllerValue()==70;}check(program&&bank&&cc);
   clock.beat+=size*120/(60*48000.0);process(p,audio,midi);check(count(midi,true)==0&&count(midi,false)==0);

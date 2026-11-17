@@ -96,8 +96,11 @@ function packageNative({ buildDir, juceDir, output, platform = process.platform 
  if (git(juceDir, 'status', '--porcelain')) throw new Error('JUCE source is dirty or modified; use a clean pinned checkout.');
  const copies = [[app, `Standalone/${appName}`], ...bundleFiles.map(file => [file, `VST3/LoopForge AI MIDI.vst3/${path.relative(bundle, file).split(path.sep).join('/')}`]),
   [path.join(rootDir, 'LICENSE'), 'licenses/LoopForge-LICENSE.txt'],
+  ...['AGPL-3.0.txt','GPL-3.0.txt','NATIVE-DISTRIBUTION.md'].map(file => [path.join(rootDir,'licenses',file), `licenses/${file}`]),
   [path.join(rootDir, 'docs/NATIVE-PACKAGING.md'), 'README.md'],
   [path.join(rootDir, 'docs/NATIVE-DAW-ACCEPTANCE.md'), 'DAW-ACCEPTANCE.md'],
+  [path.join(rootDir, 'docs/FL-STUDIO-TEST.md'), 'FL-STUDIO-TEST.md'],
+  [path.join(rootDir, 'docs/releases/0.2.0-alpha.1.md'), 'RELEASE-NOTES.md'],
   ...NOTICE_FILES.map(file => [path.join(juceDir, file), `licenses/JUCE/${file}`])];
  for (const [source] of copies) regular(source);
  if (fs.existsSync(output)) throw new Error(`Output already exists; refusing to overwrite: ${output}`);
@@ -115,6 +118,13 @@ function packageNative({ buildDir, juceDir, output, platform = process.platform 
    fs.chmodSync(destination, platform === 'linux' && relative === `Standalone/${appName}` ? 0o755 : 0o644);
    fs.utimesSync(destination, epoch, epoch);
    files.push({ path: relative, bytes: bytes.length, sha256: hash(bytes) });
+  }
+  fs.mkdirSync(path.join(packageDir,'Sources'), {recursive:true});
+  for (const [dir, label, commit] of [[rootDir,'LoopForge',buildSha],[juceDir,'JUCE',jucePin]]) {
+   if (git(dir,'submodule','status')) throw new Error('Source archives require no unbundled Git submodules.');
+   const relative=`Sources/${label}.tar`, destination=path.join(packageDir,relative);
+   execFileSync('git',['-C',dir,'-c','tar.umask=0022','archive','--format=tar','--output',destination,commit]);
+   const bytes=fs.readFileSync(destination);files.push({path:relative,bytes:bytes.length,sha256:hash(bytes)});
   }
   const manifest = {
    formatVersion: 1, product: 'LoopForge AI MIDI', version, stage: 'release-candidate', platform, architecture: 'x64',

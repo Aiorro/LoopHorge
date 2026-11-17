@@ -1,0 +1,5 @@
+# Native distribution terms
+
+The combined LoopForge native VST3/Standalone work is distributed under GNU AGPL version3. The user selected open distribution on2026-11-17. JUCE8 uses its AGPLv3 option; the bundled VST3 SDK uses its GPLv3 option, combined under GPLv3/AGPLv3 section13. Original LoopForge MIT notices/permissions remain in LICENSE; dependency notices remain applicable. No commercial JUCE or proprietary VST3 license entitlement is claimed.
+
+Every binary candidate includes complete committed LoopForge and pinned JUCE source archives (including embedded SDK sources), build scripts, this notice, and full AGPLv3/GPLv3 texts. Use the included plugin CMake project with LOOPFORGE_JUCE_PATH pointing to the extracted JUCE source; see plugin/README.md. Required compiler, CMake, platform development packages and build commands are described there. Source archive SHA matches the package manifest; redistributed modified binaries require corresponding modified source and notices. Source checkout/build correspondence and dependency completeness still require release verification; a packager manifest is not a legal opinion or host certification.

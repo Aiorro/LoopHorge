@@ -126,3 +126,9 @@ This integration executes4/8/16bar loops with selected bass/chords/lead/drums an
 ## Current release target
 
 The product release is a native offline loop tool, capped at16new bars; full songs/section arrangements are outside this release. Composer generates4/8/16bars; existing Legacy/browser generation supports4/8. Old longer documents remain loadable/exportable. Project-v3 stores exposed next-request recipe controls while preserving old v1/v2 loading. Current acceptance and remaining Composer regeneration/loop/DAW/package gates are tracked only in [task.md](task.md). See [packaging](docs/NATIVE-PACKAGING.md) for building an engineering candidate; this does not claim a finished release.
+
+## First FL Studio test candidate
+
+See [FL Studio installation and test guide](docs/FL-STUDIO-TEST.md) and [alpha release notes](docs/releases/0.2.0-alpha.1.md). The Native plugin workflow packages tested Windows/Linux binaries with SHA256 and dependency notices. Current Windows/FL acceptance and public binary delivery remain blocked as recorded in [task.md](task.md); a Linux candidate is not a Windows release.
+
+The combined native binary distribution uses GNU AGPLv3 with preserved original MIT notices and the SDK GPLv3 option. Full terms: [native distribution](licenses/NATIVE-DISTRIBUTION.md). Candidate packages include corresponding committed LoopForge/JUCE sources and license texts.

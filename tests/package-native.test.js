@@ -47,8 +47,11 @@ function fixture(t) {
  for (const file of noticeFiles) write(path.join(juceDir, file), `Fixture notice: ${file}\n`);
  const juceSha = commit(juceDir);
  write(path.join(rootDir, 'plugin/CMakeLists.txt'), `project(LoopForge VERSION 0.2.0 LANGUAGES C CXX)\nFetchContent_Declare(JUCE GIT_TAG ${juceSha})\n`);
+ for (const name of ['AGPL-3.0.txt','GPL-3.0.txt','NATIVE-DISTRIBUTION.md']) write(path.join(rootDir,'licenses',name),'Fixture license '+name);
  write(path.join(rootDir, 'LICENSE'), 'Fixture repository MIT notice\n');
  write(path.join(rootDir, 'docs/NATIVE-PACKAGING.md'), 'Fixture portable instructions\n');
+ write(path.join(rootDir, 'docs/FL-STUDIO-TEST.md'), 'Fixture FL Studio instructions\n');
+ write(path.join(rootDir, 'docs/releases/0.2.0-alpha.1.md'), 'Fixture alpha release notes\n');
  write(path.join(rootDir, 'docs/NATIVE-DAW-ACCEPTANCE.md'), 'Fixture host acceptance procedure\n');
  const buildSha = commit(rootDir);
  const base = path.join(buildDir, 'LoopForge_artefacts/Release');
@@ -152,4 +155,12 @@ test('Linux package retains executable permission and failed archiving cleans on
   execFileSync(cmake, ['-E', 'tar', 'xf', result.archive], { cwd: extract });
   assert.equal(fs.statSync(path.join(extract, path.basename(result.packageDir), 'Standalone/LoopForge AI MIDI')).mode & 0o100, 0o100);
  }
+});
+
+test('candidate includes FL guide, release notes and corresponding source', { skip: !haveCmake }, t => {
+ const r=pack(fixture(t));
+ assert.match(fs.readFileSync(path.join(r.packageDir,'FL-STUDIO-TEST.md'),'utf8'), /FL Studio/);
+ assert.match(fs.readFileSync(path.join(r.packageDir,'RELEASE-NOTES.md'),'utf8'), /alpha/);
+ assert.ok(fs.statSync(path.join(r.packageDir,'Sources/LoopForge.tar')).size>0);
+ assert.ok(fs.statSync(path.join(r.packageDir,'Sources/JUCE.tar')).size>0);
 });

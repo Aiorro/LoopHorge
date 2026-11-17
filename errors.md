@@ -107,6 +107,8 @@ Native evidence below is local Linux unless a row explicitly cites earlier platf
 | ERR-086 | Medium | Preview pedal ownership | Fixed | Same-pitch retrigger discarded its existing sostenuto latch and silenced before pedal release. | CC66NoteOn/Off/retrigger regression RED→GREEN; preserve mapped latch. Damper/hold2/release tests retained; MIDI byte equality unchanged. | R02/E06 |
 | ERR-087 | Medium | Preview UI state | Fixed | Reopening a muted editor showed SOUND checked, and the first click could not enable audition. | Actual-editor reopen test RED→GREEN; initialize/synchronize the shared toggle from runtime audition state without changing recipe format. Review Minor regraded Important by user effect. | R02/T13 |
 
+| ERR-088 | Medium | Package determinism | Fixed | New corresponding-source tar archives inherited Git tar umask, changing candidate hashes between builder umasks. | Existing differing-umask packaging regression RED→GREEN after explicit tar.umask=0022;8/8packaging tests pass. Detected before publishing source-accompanied candidates. | R06/T14 |
+
 ## Latest verification
 
 ERR-001/ERR-002: implementation5c5eafa; Linux VST3/Standalone/CTest32/32, Node42/42/sample equality, native protocol scripts and scoped ASan/UBSan/TSan passed. Independent gpt-6-astra/high review found no Critical/Important/Minor, reran the two focused tests and verified the55entry counts. Other Fixed rows retain their historical scope rather than inheriting a new full audit.

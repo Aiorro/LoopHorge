@@ -17,6 +17,7 @@ uint64_t signature(const Composition& c){
 const Chord& chordAt(const Composition& c,int64_t tick){for(const auto& h:c.chords)if(tick>=h.start.value&&tick<h.start.value+h.duration.value)return h;std::abort();}
 bool chordTone(const Chord& h,int pitch){return std::find(h.pitchClasses.begin(),h.pitchClasses.end(),pitch%12)!=h.pitchClasses.end();}
 int main(){
+    {Config tooLong;tooLong.bars=32;check(!generateLoop(tooLong).composition&&!generateDrums(tooLong).track);}
     Config cfg;cfg.seed=42;cfg.humanization=0;
     auto generated=generateLoop(cfg);check(generated.composition&&generated.error.empty());auto c=*generated.composition;
     check(validate(c));check(c.tracks.size()==3&&c.chords.size()==8&&c.endTick.value==15360);
@@ -47,8 +48,8 @@ int main(){
     c=*generateLoop(cfg).composition;check(validate(c));check(c.endTick.value==23040);
     for(const auto& t:c.tracks)for(const auto& n:t.notes)check(n.start.value>=0&&n.start.value+n.duration.value<=c.endTick.value);
     for(size_t i=1;i<c.tracks[2].notes.size();++i)check(std::abs(c.tracks[2].notes[i].pitch-c.tracks[2].notes[i-1].pitch)<=12);
-    cfg=Config{};cfg.bars=32;cfg.numerator=3;cfg.denominator=2;cfg.bpm=64;
-    c=*generateLoop(cfg).composition;check(std::abs(secondsAt(c,c.endTick)->value-180.0)<1e-9);
+    cfg=Config{};cfg.bars=16;cfg.numerator=3;cfg.denominator=2;cfg.bpm=64;
+    c=*generateLoop(cfg).composition;check(std::abs(secondsAt(c,c.endTick)->value-90.0)<1e-9);
     for(int seed=0;seed<200;++seed){
         cfg=Config{};cfg.seed=uint32_t(seed);cfg.numerator=1;cfg.denominator=16;cfg.complexity=100;cfg.swing=100;cfg.humanization=100;
         auto edge=generateLoop(cfg);check(edge.composition);

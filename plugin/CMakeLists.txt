@@ -201,3 +201,9 @@ add_test(NAME musical_audit COMMAND musical_audit_test)
 
 add_executable(recipe_test tests/RecipeTest.cpp)
 add_test(NAME composer_recipe COMMAND recipe_test)
+
+add_executable(workspace_recipe_test tests/WorkspaceRecipeTest.cpp)
+target_include_directories(workspace_recipe_test PRIVATE $<TARGET_PROPERTY:LoopForge,INCLUDE_DIRECTORIES>)
+target_compile_definitions(workspace_recipe_test PRIVATE $<TARGET_PROPERTY:LoopForge,COMPILE_DEFINITIONS>)
+target_link_libraries(workspace_recipe_test PRIVATE LoopForge)
+add_test(NAME workspace_recipe COMMAND workspace_recipe_test)

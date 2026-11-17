@@ -10,7 +10,8 @@ function normalizeOptions(raw={}){
   const mode=Object.hasOwn(SCALES,String(raw.mode))?String(raw.mode):'minor';
   const style=Object.hasOwn(STYLES,String(raw.style))?String(raw.style):'trap';
   const bpm=clamp(Math.round(num(raw.bpm,100)),40,240);
-  const bars=Number(raw.bars)===8?8:4;
+  const bars=raw.bars===undefined?4:Number(raw.bars);
+  if(![4,8].includes(bars))throw new Error('Legacy loop bars must be 4 or 8; use native Composer for 16');
   return {key,mode,style,bpm,bars};
 }
 function validateIdea(raw, opts){

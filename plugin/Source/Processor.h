@@ -90,7 +90,17 @@ public:
   haveLastBlock=playing;lastStep=step;lastEnd=playing?beat+samples*step:-1;if(!host)internalBeat=playing?beat+samples*step:0;
  }
  bool hasEditor()const override{return true;} juce::AudioProcessorEditor* createEditor()override;
- void getStateInformation(juce::MemoryBlock& dest)override {std::lock_guard lock(mutex);if(!stateJson.empty())dest.replaceAll(stateJson.data(),stateJson.size());else{auto text=juce::JSON::toString(saved);dest.replaceAll(text.toRawUTF8(),text.getNumBytesAsUTF8());}}
+ void getStateInformation(juce::MemoryBlock& dest)override {
+  std::lock_guard lock(mutex);
+  if(draftRecipeJson){
+   composer::ProjectState project;auto decoded=composer::decodeProjectJson(stateJson);
+   if(decoded.project){if(decoded.project->generationRecipeJson==draftRecipeJson){dest.replaceAll(stateJson.data(),stateJson.size());return;}project=std::move(*decoded.project);}
+   else if(!stateJson.empty())project.legacyStateJson=stateJson;
+   else{auto* root=new juce::DynamicObject;root->setProperty("version",1);root->setProperty("idea",builtInIdea());project.legacyStateJson=juce::JSON::toString(juce::var(root)).toStdString();}
+   project.generationRecipeJson=draftRecipeJson;auto encoded=composer::encodeProjectJson(project);if(!encoded)throw std::bad_alloc();dest.replaceAll(encoded.json.data(),encoded.json.size());return;
+  }
+  if(!stateJson.empty())dest.replaceAll(stateJson.data(),stateJson.size());else{auto text=juce::JSON::toString(saved);dest.replaceAll(text.toRawUTF8(),text.getNumBytesAsUTF8());}
+ }
  void setStateInformation(const void* data,int size)override {restoreStateInformation(data,size);}
  bool restoreStateInformation(const void* data,int size){
   if(!data||size<=0||size>int(composer::jsonDetail::maximumBytes)){std::lock_guard lock(mutex);status="Restore rejected: invalid project size";return false;}
@@ -103,8 +113,21 @@ public:
    std::string original(text);juce::var list=juce::Array<juce::var>{value["idea"]};juce::String restoredStatus="Restored composition";
    std::lock_guard lock(mutex);
    if(!install(value["idea"],false,&original)){status="Restore rejected: playback storage unavailable";return false;}
-   saved=std::move(value);ideas=std::move(list);selectedIndex=0;cancelRestoredWork();status=std::move(restoredStatus);return true;
+   saved=std::move(value);ideas=std::move(list);selectedIndex=0;draftRecipeJson.reset();++draftEpoch;cancelRestoredWork();status=std::move(restoredStatus);return true;
   }catch(const std::bad_alloc&){std::lock_guard lock(mutex);status="Restore rejected: insufficient memory";return false;}
+ }
+ struct DraftPresentation{uint64_t epoch=0;std::optional<std::string> json;};
+ std::optional<DraftPresentation> composerDraft(uint64_t known){std::lock_guard lock(mutex);if(known==draftEpoch)return {};return DraftPresentation{draftEpoch,draftRecipeJson};}
+ bool hasSavableState(){std::lock_guard lock(mutex);return !stateJson.empty()||draftRecipeJson.has_value();}
+ bool setComposerDraft(const composer::GenerationRecipe& draft,uint64_t expectedEpoch=UINT64_MAX){
+  auto encoded=composer::encodeRecipeJson(draft);if(!encoded)return false;
+  {std::lock_guard lock(mutex);if(expectedEpoch!=UINT64_MAX&&expectedEpoch!=draftEpoch)return false;if(draftRecipeJson&&*draftRecipeJson==encoded.json)return true;
+   // Conservative JSON-escaping headroom; old large state is never truncated to fit metadata.
+   if(projectV2&&!canonicalStateBytes)return false;
+   const auto base=projectV2?*canonicalStateBytes:(stateJson.empty()?composer::limits::legacyBytes:stateJson.size());
+   if((!projectV2&&base>composer::limits::legacyBytes)||!recipeFits(base*(projectV2?1:6),encoded.json))return false;
+   draftRecipeJson=std::move(encoded.json);
+  }notifyCommittedState();return true;
  }
  struct Presentation {uint64_t revision=0;bool composer=false,hasState=false;std::string json;};
  std::optional<Presentation> presentation(uint64_t knownRevision){std::lock_guard lock(mutex);if(knownRevision==revision)return {};return Presentation{revision,composerMode,!stateJson.empty(),composerMode?stateJson:std::string{}};}
@@ -168,7 +191,7 @@ private:
  composer::Playback composerPlayback;bool renderComposer=false,composerMode=false,projectV2=false,hasComposerDocument=false;double internalSeconds=0,composerOrigin=0;std::string stateJson;
  uint64_t jobGeneration=0,requestRevision=0,revision=0,replacement=0;std::deque<juce::var> undo,redo;
  struct CommitGuard{uint64_t revision=0,job=0;bool mode=false,generated=false;};
- bool composerRequest=false,requestMode=false;uint32_t requestSeed=0;std::string requestDirection,requestBase;composer::ManualOverrides requestManual;juce::String resolvedSummary;
+ bool composerRequest=false,requestMode=false;uint32_t requestSeed=0;std::string requestDirection,requestBase;std::optional<std::string> draftRecipeJson;std::optional<size_t> canonicalStateBytes;uint64_t draftEpoch=0;composer::ManualOverrides requestManual;juce::String resolvedSummary;
  void handleAsyncUpdate()override{updateHostDisplay(ChangeDetails{}.withNonParameterStateChanged(true));}
  void notifyCommittedState()noexcept{try{triggerAsyncUpdate();}catch(const std::bad_alloc&){cancelPendingUpdate();}}
  static juce::var builtInIdea(){
@@ -206,6 +229,7 @@ private:
    slots[i].song.reset();return i;
   }}return -1;
  }
+ static bool recipeFits(size_t base,const std::string& recipe)noexcept{return base<=composer::jsonDetail::maximumBytes-128&&recipe.size()<=(composer::jsonDetail::maximumBytes-base-128)/6;}
  void publishSlot(int index){slots[index].state.store(2,std::memory_order_release);int old=pending.exchange(index,std::memory_order_acq_rel);if(old>=0)slots[old].state.store(0,std::memory_order_release);}
  void cancelRestoredWork(){++jobGeneration;if(busy){cancelled=true;notify();}}
  bool restoreV2(composer::ProjectState candidate,std::string original,std::optional<CommitGuard> guard=std::nullopt,juce::String summary={}){
@@ -214,13 +238,16 @@ private:
   if(mode){auto ready=composer::prepareComposition(*candidate.composition,guard&&guard->generated?&cancelled:nullptr);if(!ready.song){std::lock_guard lock(mutex);status="Restore rejected: invalid prepared composition";return false;}prepared=std::move(ready.song);}
   juce::var legacyState,list;Schedule schedule;
   if(candidate.legacyStateJson){legacyState=wire::document(*candidate.legacyStateJson);list=juce::Array<juce::var>{legacyState["idea"]};if(!mode&&!wire::schedule(legacyState["idea"],schedule))return false;}
-  const bool generated=guard&&guard->generated;juce::String restoredStatus=generated?"Native Composer ready":"Restored project v2";
+  std::optional<size_t> canonicalBytes=original.size();if(!guard){auto canonical=composer::encodeProjectJson(candidate);if(canonical)canonicalBytes=canonical.json.size();else canonicalBytes.reset();}
+  const bool generated=guard&&guard->generated;juce::String restoredStatus=generated?"Native Composer ready":"Restored project";
   std::lock_guard lock(mutex);
   if(guard&&(revision!=guard->revision||jobGeneration!=guard->job||composerMode!=guard->mode||(guard->generated&&(cancelled||threadShouldExit()))))return false;
+  if(guard&&draftRecipeJson&&draftRecipeJson!=candidate.generationRecipeJson&&(!canonicalBytes||!recipeFits(*canonicalBytes,*draftRecipeJson))){status="Restore rejected: recipe metadata budget exceeded";return false;}
   const int index=reserveSlot(prepared?prepared->storageBytes():0);
   if(index<0){status="Restore rejected: playback storage unavailable";return false;}
   auto& slot=slots[index];slot.data=schedule;slot.composer=mode;slot.origin=candidate.hostStartQuarterBeat;slot.song=std::move(prepared);
-  saved=std::move(legacyState);ideas=std::move(list);selectedIndex=0;stateJson.swap(original);projectV2=true;composerMode=mode;hasComposerDocument=candidate.composition.has_value();composerOrigin=candidate.hostStartQuarterBeat;
+  saved=std::move(legacyState);ideas=std::move(list);selectedIndex=0;stateJson.swap(original);canonicalStateBytes=canonicalBytes;projectV2=true;composerMode=mode;hasComposerDocument=candidate.composition.has_value();composerOrigin=candidate.hostStartQuarterBeat;
+  if(!guard){draftRecipeJson=std::move(candidate.generationRecipeJson);++draftEpoch;}else if(generated&&!draftRecipeJson)draftRecipeJson=std::move(candidate.generationRecipeJson);
   ++revision;++replacement;undo.clear();redo.clear();
   if(generated){resolvedSummary=std::move(summary);busy=false;}
   else{if(!guard)resolvedSummary.clear();cancelRestoredWork();}
@@ -233,10 +260,10 @@ private:
   juce::var nextSaved(new juce::DynamicObject);auto* object=nextSaved.getDynamicObject();object->setProperty("version",1);object->setProperty("idea",idea);
   std::string nextJson=restored?*restored:juce::JSON::toString(nextSaved).toStdString();
   const bool keepV2=projectV2&&!restored;
-  if(keepV2){auto decoded=composer::decodeProjectJson(stateJson);if(!decoded.project)return false;decoded.project->activeMode=composer::ProjectMode::legacy;decoded.project->legacyStateJson=nextJson;auto encoded=composer::encodeProjectJson(*decoded.project);if(!encoded)return false;nextJson=std::move(encoded.json);}
+  if(keepV2){auto decoded=composer::decodeProjectJson(stateJson);if(!decoded.project)return false;decoded.project->activeMode=composer::ProjectMode::legacy;decoded.project->legacyStateJson=nextJson;auto encoded=composer::encodeProjectJson(*decoded.project);if(!encoded)return false;nextJson=std::move(encoded.json);if(draftRecipeJson&&draftRecipeJson!=decoded.project->generationRecipeJson&&!recipeFits(nextJson.size(),*draftRecipeJson))return false;}
   const int index=reserveSlot();if(index<0)return false;
   auto& slot=slots[index];slot.data=schedule;slot.composer=false;slot.origin=0;
-  saved=std::move(nextSaved);stateJson.swap(nextJson);projectV2=keepV2;composerMode=false;if(!keepV2){hasComposerDocument=false;resolvedSummary.clear();}++revision;if(!preserveHistory){++replacement;undo.clear();redo.clear();}
+  saved=std::move(nextSaved);stateJson.swap(nextJson);canonicalStateBytes=keepV2?std::optional<size_t>{stateJson.size()}:std::nullopt;projectV2=keepV2;composerMode=false;if(!keepV2){hasComposerDocument=false;resolvedSummary.clear();}++revision;if(!preserveHistory){++replacement;undo.clear();redo.clear();}
   publishSlot(index);return true;
  }
  void run()override{
@@ -253,6 +280,7 @@ private:
      composer::ProjectState candidate;auto decoded=composer::decodeProjectJson(base);
      if(decoded.project)candidate=std::move(*decoded.project);else candidate.legacyStateJson=std::move(base);
      candidate.activeMode=composer::ProjectMode::composer;candidate.composition=std::move(generated.composition);
+     auto recipe=composer::encodeRecipeJson({direction,seed,manual});if(recipe)candidate.generationRecipeJson=std::move(recipe.json);else candidate.generationRecipeJson.reset(); // Preserve non-UI manual callers without promising a portable recipe.
      auto encoded=composer::encodeProjectJson(candidate);if(!encoded)throw std::runtime_error("Composer project encoding rejected");
      if(!restoreV2(std::move(candidate),std::move(encoded.json),CommitGuard{baseRevision,job,baseMode,true},std::move(summary)))throw std::runtime_error("Generation cancelled or Composer publication rejected");
      continue;

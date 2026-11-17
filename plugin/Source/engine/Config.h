@@ -24,8 +24,9 @@ inline const char* styleName(Style style){
 }
 inline ValidationResult validateConfig(const Config& c){
     auto invalid=[](){return ValidationResult{ValidationCode::identity,"Invalid native composer configuration"};};
+    if(c.bars>16)return {ValidationCode::identity,"Loop generation supports at most16 bars"};
     if(!validPerformance(c.performance)||c.root<0||c.root>11||c.scale<Scale::major||c.scale>Scale::blues||c.style<Style::trap||c.style>Style::nuMetal||c.feel<Feel::half||c.feel>Feel::doubleTime
-       ||c.bpm<40||c.bpm>240||(c.bars!=4&&c.bars!=8&&c.bars!=16&&c.bars!=32)
+       ||c.bpm<40||c.bpm>240||(c.bars!=4&&c.bars!=8&&c.bars!=16)
        ||c.numerator<1||c.numerator>12||(c.denominator!=2&&c.denominator!=4&&c.denominator!=8&&c.denominator!=16)
        ||c.complexity<0||c.complexity>100||c.humanization<0||c.humanization>100||c.swing<0||c.swing>100
        ||(c.harmonicBars!=0&&c.harmonicBars!=1&&c.harmonicBars!=2&&c.harmonicBars!=4))return invalid();

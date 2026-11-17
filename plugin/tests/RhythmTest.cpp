@@ -98,9 +98,9 @@ int main(){
         for(const auto& n:disabled.track->notes){if(n.pitch==snare)check(n.velocity>42);}
         check(enabled.track->notes.size()>disabled.track->notes.size());
     }
-    cfg=Config{};cfg.seed=std::numeric_limits<uint32_t>::max();cfg.root=11;cfg.scale=Scale::blues;cfg.style=Style::ambient;cfg.bpm=40;cfg.bars=32;
+    cfg=Config{};cfg.seed=std::numeric_limits<uint32_t>::max();cfg.root=11;cfg.scale=Scale::blues;cfg.style=Style::ambient;cfg.bpm=40;cfg.bars=16;
     cfg.numerator=12;cfg.denominator=2;cfg.complexity=100;cfg.humanization=100;cfg.swing=100;cfg.harmonicBars=4;cfg.modalInterchange=true;
-    cfg.drums=true;cfg.feel=Feel::doubleTime;cfg.modulation=Modulation{28,5,Scale::harmonicMinor};
+    cfg.drums=true;cfg.feel=Feel::doubleTime;cfg.modulation=Modulation{12,5,Scale::harmonicMinor};
     check(generateLoop(cfg).composition);
     cfg.feel=static_cast<Feel>(999);check(!generateLoop(cfg).composition&&!generateDrums(cfg).track);cfg.feel=Feel::normal;
     cfg.numerator=0;r=generateDrums(cfg);check(!r.track&&!r.error.empty());

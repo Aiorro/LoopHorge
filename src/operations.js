@@ -7,6 +7,8 @@ const {normalizeOptions,validateIdea}=require('./schema');
 const {requestAI,configuration:apiConfiguration}=require('./ai');
 const {generateUsingAccountCLI,available}=require('./agent-cli');
 async function generate(params={}, {signal}={}){
+ const allowed=new Set(['provider','key','mode','style','bpm','bars','model','count','seed','description','action','timeSignature']);
+ if(params&&typeof params==='object'&&Object.keys(params).some(name=>!allowed.has(name)))throw new Error('Unsupported generation fields; specify loop bars explicitly');
  const opts=normalizeOptions(params);
  const model=params.model===''?undefined:params.model;
  if(model!==undefined&&(typeof model!=='string'||model.length>100||!/^[-\w.\/:]+$/.test(model)))throw new Error('Invalid model name');

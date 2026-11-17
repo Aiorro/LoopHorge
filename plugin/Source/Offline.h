@@ -1,8 +1,12 @@
 #pragma once
 #include <juce_core/juce_core.h>
 #include <cmath>
+#include <stdexcept>
 namespace offline {
 inline juce::var generate(const juce::var& params){
+ const juce::StringArray allowed{"provider","key","mode","style","bpm","bars","model","count","seed","description","action","timeSignature"};
+ if(auto* object=params.getDynamicObject()){for(const auto& name:object->getProperties())if(!allowed.contains(name.name.toString()))throw std::runtime_error("Unsupported generation fields; specify loop bars explicitly");}
+ else throw std::runtime_error("Invalid generation request");
  const juce::StringArray keys{"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"},modes{"minor","major","dorian","phrygian"},styles{"trap","boom-bap","r&b","ambient","nu-metal"};
  int root=keys.indexOf(params["key"].toString());if(root<0)root=0;
  int mode=modes.indexOf(params["mode"].toString());if(mode<0)mode=0;
@@ -10,7 +14,9 @@ inline juce::var generate(const juce::var& params){
  const int scales[][7]={{0,2,3,5,7,8,10},{0,2,4,5,7,9,11},{0,2,3,5,7,9,10},{0,1,3,5,7,8,10}};
  const int progressions[][4]={{0,5,2,6},{0,3,4,0},{0,5,3,4},{0,3,5,4},{0,6,5,4}};
  const double densities[]={.66,.48,.60,.30,.60},syncs[]={.62,.35,.55,.18,.70};
- const int bars=double(params["bars"])==8?8:4;
+ const double requestedBars=params.hasProperty("bars")?double(params["bars"]):4;
+ if(requestedBars!=4&&requestedBars!=8)throw std::runtime_error("Legacy loop bars must be4or8; use Composer for16");
+ const int bars=int(requestedBars);
  double requestedBpm=double(params["bpm"]);int bpm=std::isfinite(requestedBpm)&&requestedBpm!=0?juce::jlimit(40,240,int(std::round(juce::jlimit(40.0,240.0,requestedBpm)))):100;
  double requestedSeed=double(params["seed"]);
  auto base=params.hasProperty("seed")&&std::isfinite(requestedSeed)&&std::floor(requestedSeed)==requestedSeed?uint32_t(juce::int64(std::fmod(requestedSeed,4294967296.0))):uint32_t(juce::Random::getSystemRandom().nextInt());

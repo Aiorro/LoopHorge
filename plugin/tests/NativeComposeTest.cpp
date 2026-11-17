@@ -1,4 +1,5 @@
 #include "../Source/Processor.h"
+#include "../Source/engine/Midi.h"
 #include <iostream>
 #include <thread>
 using namespace composer;
@@ -19,6 +20,16 @@ int main(){
   check(pinned.requestComposer("4 bars energy100",42));idle(pinned);check(pinned.composerSummary().contains("energy=100 [text]"));
  }
 
+
+ {Processor cap;Config config;config.bars=16;auto loop=generateLoop(config);check(loop.composition);
+  ProjectState old;old.activeMode=ProjectMode::composer;old.composition=std::move(loop.composition);old.composition->endTick={61440};old.composition->tracks[0].notes.push_back({999999,36,90,{60000},{480}});
+  auto encoded=encodeProjectJson(old);check(encoded&&cap.restoreStateInformation(encoded.json.data(),int(encoded.json.size())));const auto original=saved(cap);
+  auto midi=encodeCompositionMidi(*decodeProjectJson(original).project->composition);check(midi);juce::MemoryInputStream input(midi.bytes.data(),midi.bytes.size(),false);juce::MidiFile file;check(file.readFrom(input));for(int i=0;i<file.getNumTracks();++i)check(file.getTrack(i)->getEndTime()==61440);
+  for(const auto text:{"32 bars","17 bars","100 bars"}){check(cap.requestComposer(text,42));idle(cap);check(saved(cap)==original);check(cap.getStatus().contains("16"));}
+  ManualOverrides manual;manual.pinned.set(size_t(Field::duration));manual.values.duration={DurationUnit::bars,32};check(cap.requestComposer("4 bars",42,manual));idle(cap);check(saved(cap)==original);
+  auto restored=decodeProjectJson(saved(cap));check(restored.project->composition->endTick.value==61440&&restored.project->composition->tracks[0].notes.back().start.value==60000);
+  check(cap.requestComposer("16 bars",42));idle(cap);check(decodeProjectJson(saved(cap)).project->composition->endTick.value==30720);
+ }
  check(p.requestComposer(direction,42));idle(p);check(p.isComposerMode());
  auto first=decodeProjectJson(saved(p));check(first.project&&first.project->composition->tracks.size()==4&&first.project->legacyStateJson);
  auto demo=*first.project->legacyStateJson;auto raw=wire::document(demo);Schedule checked;check(wire::schedule(raw["idea"],checked));
@@ -39,11 +50,11 @@ int main(){
  check(p.selectMode(ProjectMode::legacy));check(p.selectMode(ProjectMode::composer));check(decodeProjectJson(saved(p)).project->hostStartQuarterBeat==17.25);
  check(p.requestComposer(direction,44));idle(p);check(decodeProjectJson(saved(p)).project->hostStartQuarterBeat==17.25);
  p.prepareToPlay(48000,64);p.play=true;juce::AudioBuffer<float> audio(2,64);juce::MidiBuffer midi;midi.ensureSize(32768);p.processBlock(audio,midi);check(!midi.isEmpty()&&audio.getMagnitude(0,64)==0);
- int cancelled=0;for(int i=0;i<40;++i){auto prior=saved(p);check(p.requestComposer("32 bars ambient bass chords lead drums",uint32_t(i)));if(p.cancel()){++cancelled;idle(p);check(saved(p)==prior);}else idle(p);}
+ int cancelled=0;for(int i=0;i<40;++i){auto prior=saved(p);check(p.requestComposer("16 bars ambient bass chords lead drums",uint32_t(i)));if(p.cancel()){++cancelled;idle(p);check(saved(p)==prior);}else idle(p);}
  check(cancelled>0);
- for(int i=0;i<20;++i){check(p.requestComposer("32 bars ambient bass chords lead drums",uint32_t(i)));check(p.restoreStateInformation(legacy.data(),int(legacy.size())));idle(p);check(saved(p)==legacy);}
+ for(int i=0;i<20;++i){check(p.requestComposer("16 bars ambient bass chords lead drums",uint32_t(i)));check(p.restoreStateInformation(legacy.data(),int(legacy.size())));idle(p);check(saved(p)==legacy);}
  check(p.requestComposer(direction,42));idle(p);check(p.selectMode(ProjectMode::legacy));
- for(int i=0;i<20;++i){check(p.requestComposer("32 bars ambient bass chords lead drums",uint32_t(i)));auto snapshot=p.snapshot();check(p.edit(snapshot.revision,"bass",0,39+i%2,0,4));auto edited=saved(p);idle(p);check(saved(p)==edited);}
- check(p.requestComposer(direction,42));idle(p);for(int i=0;i<20;++i){check(p.requestComposer("32 bars ambient bass chords lead drums",uint32_t(i)));check(p.selectMode(ProjectMode::legacy));auto selected=saved(p);idle(p);check(saved(p)==selected);check(p.selectMode(ProjectMode::composer));}
+ for(int i=0;i<20;++i){check(p.requestComposer("16 bars ambient bass chords lead drums",uint32_t(i)));auto snapshot=p.snapshot();check(p.edit(snapshot.revision,"bass",0,39+i%2,0,4));auto edited=saved(p);idle(p);check(saved(p)==edited);}
+ check(p.requestComposer(direction,42));idle(p);for(int i=0;i<20;++i){check(p.requestComposer("16 bars ambient bass chords lead drums",uint32_t(i)));check(p.selectMode(ProjectMode::legacy));auto selected=saved(p);idle(p);check(saved(p)==selected);check(p.selectMode(ProjectMode::composer));}
  std::cout<<"Native direction/seed, preservation, mode, MIDI, cancellation and stale-result checks passed\n";
 }

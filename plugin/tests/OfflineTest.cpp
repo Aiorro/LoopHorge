@@ -5,6 +5,8 @@ void wait(Processor& p){for(int i=0;i<100&&p.busy;++i)juce::Thread::sleep(10);ch
 int main(int argc,char** argv){juce::ScopedJuceInitialiser_GUI init;Processor p;p.prepareToPlay(48000,64);
  const juce::String body="{\"provider\":\"offline\",\"seed\":42,\"key\":\"D\",\"mode\":\"minor\",\"style\":\"ambient\",\"bars\":8,\"bpm\":87}";
  p.request(body);wait(p);std::cerr<<p.getStatus()<<'\n';check(p.ideaCount()==8);
+ for(int bars:{16,17,32,100}){auto old=p.snapshot();p.request("{\"provider\":\"offline\",\"bars\":"+juce::String(bars)+"}");wait(p);check(p.snapshot().revision==old.revision&&p.getStatus().contains("bars"));}
+ {auto old=p.snapshot();p.request("{\"provider\":\"offline\",\"duration\":32}");wait(p);check(p.snapshot().revision==old.revision&&p.getStatus().contains("Unsupported generation fields"));}
  juce::StringArray originals;const int scale[]={0,2,3,5,7,8,10};
  for(int i=0;i<8;++i){p.choose(i);auto idea=p.getIdea();check(int(idea["metadata"]["bars"])==8&&int(idea["metadata"]["bpm"])==87);check(idea["metadata"]["key"].toString()=="D");
   auto json=juce::JSON::toString(idea);check(!originals.contains(json));originals.add(json);

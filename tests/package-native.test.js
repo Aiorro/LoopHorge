@@ -106,6 +106,8 @@ test('staging copies every bundle file and writes independent hashes and truthfu
  const extract = path.join(path.dirname(f.output), 'extracted'); fs.mkdirSync(extract);
  execFileSync(cmake, ['-E', 'tar', 'xf', result.archive], { cwd: extract });
  assert.deepEqual(fs.readFileSync(path.join(extract, path.basename(result.packageDir), nested)), Buffer.from([0, 1, 254, 255]));
+ // Cross a wall-clock second so ZIP local creation-time extras cannot hide a mismatch.
+ Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,1100);
  const oldMask = process.umask(0o077); let again;
  try { again = pack({ ...f, output: f.output + '-again' }); } finally { process.umask(oldMask); }
  if (process.platform !== 'win32') assert.equal(fs.statSync(path.join(again.packageDir, 'manifest.json')).mode & 0o777, 0o644);

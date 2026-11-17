@@ -40,3 +40,5 @@ Fresh Linux all-target build and CTest43/43 pass (/tmp/main-audit-build.log, /tm
 Verdict: suitable to consolidate the tested alpha source into main under the user's explicit authorization; not ready to claim a Windows release or FL compatibility. Remaining acceptance stays in task.md/errors.md.
 
 Not checked: actual Windows/DAW/pluginval/OS chooser/drag/audio devices, live paid providers, whole-process memory/slow storage, power-loss recovery, universal concurrent/allocation schedules, legal certification, every theoretical input to all engine algorithms. Historical reports were not rewritten as current proof. No generic lean refactor was justified by this integration audit.
+
+Post-integration repeat check: main was published at a0ac33a. A repeat full suite exposed intermittent ERR088ZIP local creation-time metadata; a strengthened wall-clock-crossing test failed before explicit timestamp-extra normalization. After correction Node95/95 and native43/43 pass. This supersedes any inference that the earlier single green run proved reproducibility across seconds. Windows CI/EXE/FL gates remain open.

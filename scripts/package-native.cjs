@@ -77,6 +77,22 @@ function executable(file, platform, plugin) {
  if (!load) invalid();
  return false;
 }
+// libarchive writes local UT creation times even with --mtime. Canonicalize
+// timestamp extras in both local and central records; payload bytes/CRC stay intact.
+function canonicalZipTimes(bytes) {
+ const end=bytes.length-22;if(end<0||bytes.readUInt32LE(end)!==0x06054b50)throw Error('Unsupported ZIP directory');
+ let at=bytes.readUInt32LE(end+16);const count=bytes.readUInt16LE(end+10);
+ const extras=(start,length)=>{const finish=start+length;if(finish>bytes.length)throw Error('Invalid ZIP extra');
+  for(let p=start;p<finish;){if(p+4>finish)throw Error('Invalid ZIP extra');const id=bytes.readUInt16LE(p),n=bytes.readUInt16LE(p+2);p+=4;if(p+n>finish)throw Error('Invalid ZIP extra');
+   if(id===0x5455&&n){const flags=bytes[p];let q=p+1;for(let bit=1;bit<=4;bit<<=1)if(flags&bit){if(q+4>p+n)break;bytes.writeUInt32LE(315532800,q);q+=4;}}
+   p+=n;
+  }
+ };
+ for(let i=0;i<count;++i){if(at+46>bytes.length||bytes.readUInt32LE(at)!==0x02014b50)throw Error('Invalid ZIP entry');const name=bytes.readUInt16LE(at+28),extra=bytes.readUInt16LE(at+30),comment=bytes.readUInt16LE(at+32),local=bytes.readUInt32LE(at+42);
+  if(local+30>bytes.length||bytes.readUInt32LE(local)!==0x04034b50)throw Error('Invalid ZIP local entry');
+  extras(local+30+bytes.readUInt16LE(local+26),bytes.readUInt16LE(local+28));extras(at+46+name,extra);at+=46+name+extra+comment;
+ }return bytes;
+}
 function packageNative({ buildDir, juceDir, output, platform = process.platform === 'win32' ? 'windows' : process.platform,
  rootDir = path.resolve(__dirname, '..'), cmake = process.env.CMAKE_COMMAND || 'cmake' }) {
  if (!['windows', 'linux'].includes(platform)) throw new Error('Only windows and linux x64 candidates are supported.');
@@ -143,6 +159,7 @@ function packageNative({ buildDir, juceDir, output, platform = process.platform 
   normalize(packageDir);
   const archiveName = `${name}.zip`;
   execFileSync(cmake, ['-E', 'tar', 'cf', path.join(scratch, archiveName), '--format=zip', '--mtime=1980-01-01 00:00:00 UTC', '--', name], { cwd: scratch, stdio: ['ignore', 'pipe', 'pipe'] });
+  const zipPath=path.join(scratch,archiveName);fs.writeFileSync(zipPath,canonicalZipTimes(fs.readFileSync(zipPath)));
   fs.writeFileSync(path.join(scratch, 'SHA256SUMS'), `${hash(fs.readFileSync(path.join(scratch, archiveName)))}  ${archiveName}\n`);
   fs.renameSync(scratch, output);
   return { packageDir: path.join(output, name), archive: path.join(output, archiveName) };

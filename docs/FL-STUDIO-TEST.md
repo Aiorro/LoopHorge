@@ -46,3 +46,21 @@ Standalone Composer currently plays one pass. Seamless standalone looping, scope
 Report: build SHA / ZIP SHA256 / FL version / Windows version / driver / rate / buffer / case / exact reproduction / expected / actual / frequency. Attach a minimal non-sensitive FLP, project JSON/MIDI and screenshot or scan log when useful. Never include provider keys or personal projects. Report crashes with available host log/Windows event details.
 
 To remove, close FL Studio and delete only the installed LoopForge VST3 bundle and extracted application folder. Rescan plugins. Keep user FLP/JSON/MIDI/recipes/samples. No background service is installed.
+
+## Reproduce the Windows candidate when CI is unavailable
+
+Open **Visual Studio 2022 → Developer PowerShell for VS2022** (x64), with the Desktop development with C++ workload, Git, Node20+ and CMake3.22+ already installed. The script does not install them or change execution policy. Run from a clean committed main checkout:
+
+```powershell
+.\scripts\build-windows-test.ps1 -JucePath 'C:\src\JUCE'
+```
+
+JUCE must be the clean pinned8.0.8 revision. Alternatively, explicitly permit CMake to download the pinned JUCE source:
+
+```powershell
+.\scripts\build-windows-test.ps1 -FetchPinnedJuce
+```
+
+This runs Node tests, MSVC x64 build, CTest and native protocol checks, then creates a fresh Windows ZIP containing both `Standalone/LoopForge AI MIDI.exe` and the complete VST3 bundle, source archives/licenses, guides and SHA256SUMS. Existing output is never deleted; choose `-OutputDirectory` for another attempt. If Windows blocks script execution, follow your organization's normal script policy; do not disable security controls. This script still requires an actual Windows execution result before claiming success.
+
+Linux MinGW is not a supported fallback for the pinned JUCE8.0.8: juce_TargetPlatform.h explicitly errors with "MinGW is not supported. Please use an alternative compiler." A2026-11-17cross attempt configured but failed at that guard; no EXE was produced or relabeled.

@@ -240,3 +240,9 @@ Seed constructs bounded motif deviations before timing/velocity humanization, re
 ## Groove corrections (algorithm5)
 
 New Composer loops use engineVersion5, native-motif-rules-v5 and loop-v5 identity. Swing uses the absolute musical tick across bar boundaries, including half-time phrases in odd-length metres; bass, lead and drum onsets share the same phase and bounded bar-end headroom. Bar anchors remain free of random jitter but follow that phase. In1/x metre, the quiet snare ghost leads the strong midpoint hit instead of being merged into it. Half/double-time still transform the source pattern rather than change BPM. Persisted compositions retain their own engine metadata and committed events. The default straight4/4 seed42 musical golden remains5970328224193018206; these fixes do not certify stylistic authenticity or DAW behavior.
+
+## Composer mood controls
+
+In Composer mode, MOOD / AUTO opens seven next-request axes: Darkness, Energy, Melancholy, Tension, Aggression, Atmosphere and Complexity. Each starts in Auto, following direction text or interpreter defaults. Disable Auto to enable its0–100slider and pin that value above text. Re-enabling Auto ignores the retained slider value. SHOW OVERVIEW returns to the read-only composition. Compose captures all pins by value; changing a control while busy applies to the next request. Resolved settings identify manual/text/default origins.
+
+These are editor-local next-request settings. They do not edit existing notes, do not change Legacy provider settings and are not saved/restored as a generation recipe. Reopening the editor resets them to Auto. Committed composition notes/maps/seed still persist normally. Other manual field controls and full recipe persistence remain E03 work.

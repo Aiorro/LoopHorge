@@ -10,6 +10,15 @@ const std::string legacy=R"({"version":1,"extension":{"precise":1.234567890123e-
 int main(){
  juce::ScopedJuceInitialiser_GUI init;auto owner=std::make_unique<Processor>();auto& p=*owner;
  check(saved(p)=="null"&&p.ideaCount()==0&&!p.canSwitchMode());
+ {Processor pinned;ManualOverrides manual;manual.pinned.set(size_t(Field::energy));manual.values.mood.energy=0;
+  const auto expected=generateResolvedLoop(LocalPromptInterpreter{}.interpret("4 bars energy100",42,manual));check(expected.composition);
+  check(pinned.requestComposer("4 bars energy100",42,manual));manual.values.mood.energy=100;idle(pinned);
+  auto actual=decodeProjectJson(saved(pinned));check(actual.project&&encodeCompositionJson(*actual.project->composition).json==encodeCompositionJson(*expected.composition).json);
+  check(pinned.composerSummary().contains("energy=0 [manual]"));
+  auto prior=saved(pinned);manual.values.mood.energy=101;check(pinned.requestComposer("4 bars",42,manual));idle(pinned);check(saved(pinned)==prior);
+  check(pinned.requestComposer("4 bars energy100",42));idle(pinned);check(pinned.composerSummary().contains("energy=100 [text]"));
+ }
+
  check(p.requestComposer(direction,42));idle(p);check(p.isComposerMode());
  auto first=decodeProjectJson(saved(p));check(first.project&&first.project->composition->tracks.size()==4&&first.project->legacyStateJson);
  auto demo=*first.project->legacyStateJson;auto raw=wire::document(demo);Schedule checked;check(wire::schedule(raw["idea"],checked));

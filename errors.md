@@ -109,6 +109,8 @@ Native evidence below is local Linux unless a row explicitly cites earlier platf
 
 | ERR-088 | Medium | Package determinism | Fixed | New corresponding-source tar archives inherited Git tar umask, changing candidate hashes between builder umasks. | Existing differing-umask packaging regression RED→GREEN after explicit tar.umask=0022;8/8packaging tests pass. Detected before publishing source-accompanied candidates. | R06/T14 |
 
+| ERR-089 | High | Corresponding source integrity | Fixed | Tracked uncommitted code could produce binaries while bundled source archived older HEAD. | Staged/unstaged regression RED→GREEN; packager rejects tracked edits before output. Untracked user samples excluded from archives. | R06/T14 |
+
 ## Latest verification
 
 ERR-001/ERR-002: implementation5c5eafa; Linux VST3/Standalone/CTest32/32, Node42/42/sample equality, native protocol scripts and scoped ASan/UBSan/TSan passed. Independent gpt-6-astra/high review found no Critical/Important/Minor, reran the two focused tests and verified the55entry counts. Other Fixed rows retain their historical scope rather than inheriting a new full audit.

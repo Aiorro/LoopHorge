@@ -83,7 +83,7 @@ The one release scenario is: install → generate a loop<=16bars → audition �
 
 **Known review minors:** Mood/Auto can label its return SHOW OVERVIEW while returning to the prior piano roll; destination works, label remains misleading. Concurrent host restore during Compose can theoretically refresh prompt/mood after seed was parsed. No controlled reproduction; review did not classify it as blocking. Keep it visible for targeted integration acceptance rather than claiming universal concurrency coverage.
 
-**Unchanged external limits:** errors.md is the diagnostic register. Windows/DAW/pluginval, actual chooser/drag, licensing clearance, whole-workspace memory/slow-storage response, deliberate session-escaping CLI containment and browser download acceptance do not become verified from local green tests. No public release or main merge is authorized/implied by the candidate.
+**Unchanged external limits:** errors.md is the diagnostic register. Windows/DAW/pluginval, actual chooser/drag, licensing clearance, whole-workspace memory/slow-storage response, deliberate session-escaping CLI containment and browser download acceptance do not become verified from local green tests. User explicitly authorized public test-release preparation and main integration on2026-11-17; acceptance gates remain unchanged.
 
 ## Evidence archive
 
@@ -98,3 +98,5 @@ Earlier plans, reports, rulings, audit assignments and verification history are 
 **Explicit Windows Standalone request:** first test ZIP must include a real native Standalone/LoopForge AI MIDI.exe plus VST3; native CI already builds both and packager validates PE/x64. Add standalone audio-device/one-shot/export smoke results on Windows before calling it executed. Full local Node94/94,0skipped and Linux CTest43/43 passed for this preparation.
 
 **Current alpha delivery checkpoint:** cd07ed4pushed. Native workflow44042462736 has Windows and Ubuntu failure, no job step/log metadata and no artifacts; Windows EXE/VST3 therefore not delivered. Local Linux alpha with bundled sources/licenses created at/workspace/artifacts/loopforge-alpha1-cd07ed4; it cannot test Windows/FL. Node94/94/native43/43 passed. Public GitHub Release creation remains unavailable through current gh authentication; no binary release published.
+
+**Main consolidation authorized2026-11-17:** [whole-repo audit](docs/audits/2026-11-17-main-consolidation.md) records concrete remaining release gaps, source-archive guard RED→GREEN and corrected licensing instructions. All source history and distinct sample variants retained; old Qwen WIP code is already integrated byte-for-byte. Remote main28a4f91 is an ancestor; fast-forward publication prepared after fresh native43/43 and Node95/95,0skipped checks. This is alpha source consolidation, not T12–T15/R02/R04–R06 closure.

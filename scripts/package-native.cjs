@@ -106,6 +106,7 @@ function packageNative({ buildDir, juceDir, output, platform = process.platform 
  if (fs.existsSync(output)) throw new Error(`Output already exists; refusing to overwrite: ${output}`);
  // Output must be separate from all inputs; the packager only removes its own scratch directory.
  for (const source of [rootDir, buildDir, juceDir]) if (source === output || source.startsWith(output + path.sep)) throw new Error('Output cannot contain an input directory.');
+ if (git(rootDir,'diff','HEAD','--name-only')) throw new Error('Commit tracked source changes before packaging corresponding source.');
  const buildSha = git(rootDir, 'rev-parse', 'HEAD'), dirty = Boolean(git(rootDir, 'status', '--porcelain'));
  const name = `LoopForge-${version}-${platform}-x64-${buildSha.slice(0, 12)}${dirty ? '-dirty' : ''}-candidate`;
  fs.mkdirSync(path.dirname(output), { recursive: true });

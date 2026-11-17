@@ -1,0 +1,718 @@
+{
+  "metadata": {
+    "key": "D",
+    "mode": "minor",
+    "style": "nu-metal",
+    "bpm": 105,
+    "bars": 8,
+    "seed": 12648430
+  },
+  "layers": {
+    "bass": [
+      {
+        "pitch": 38,
+        "start": 0,
+        "duration": 0.42,
+        "velocity": 89,
+        "layer": "bass"
+      },
+      {
+        "pitch": 38,
+        "start": 0.5,
+        "duration": 0.42,
+        "velocity": 89,
+        "layer": "bass"
+      },
+      {
+        "pitch": 38,
+        "start": 1,
+        "duration": 0.84,
+        "velocity": 86,
+        "layer": "bass"
+      },
+      {
+        "pitch": 38,
+        "start": 2,
+        "duration": 0.42,
+        "velocity": 110,
+        "layer": "bass"
+      },
+      {
+        "pitch": 45,
+        "start": 3,
+        "duration": 0.84,
+        "velocity": 108,
+        "layer": "bass"
+      },
+      {
+        "pitch": 48,
+        "start": 4,
+        "duration": 0.42,
+        "velocity": 99,
+        "layer": "bass"
+      },
+      {
+        "pitch": 48,
+        "start": 4.5,
+        "duration": 0.42,
+        "velocity": 100,
+        "layer": "bass"
+      },
+      {
+        "pitch": 48,
+        "start": 5,
+        "duration": 0.84,
+        "velocity": 86,
+        "layer": "bass"
+      },
+      {
+        "pitch": 46,
+        "start": 8,
+        "duration": 0.42,
+        "velocity": 84,
+        "layer": "bass"
+      },
+      {
+        "pitch": 46,
+        "start": 8.5,
+        "duration": 0.42,
+        "velocity": 109,
+        "layer": "bass"
+      },
+      {
+        "pitch": 46,
+        "start": 9,
+        "duration": 0.84,
+        "velocity": 81,
+        "layer": "bass"
+      },
+      {
+        "pitch": 46,
+        "start": 10,
+        "duration": 0.42,
+        "velocity": 80,
+        "layer": "bass"
+      },
+      {
+        "pitch": 46,
+        "start": 10.5,
+        "duration": 0.42,
+        "velocity": 92,
+        "layer": "bass"
+      },
+      {
+        "pitch": 46,
+        "start": 11,
+        "duration": 0.84,
+        "velocity": 82,
+        "layer": "bass"
+      },
+      {
+        "pitch": 45,
+        "start": 12,
+        "duration": 0.42,
+        "velocity": 107,
+        "layer": "bass"
+      },
+      {
+        "pitch": 45,
+        "start": 13,
+        "duration": 0.84,
+        "velocity": 109,
+        "layer": "bass"
+      },
+      {
+        "pitch": 45,
+        "start": 14,
+        "duration": 0.42,
+        "velocity": 96,
+        "layer": "bass"
+      },
+      {
+        "pitch": 45,
+        "start": 14.5,
+        "duration": 0.42,
+        "velocity": 94,
+        "layer": "bass"
+      },
+      {
+        "pitch": 45,
+        "start": 15,
+        "duration": 0.84,
+        "velocity": 91,
+        "layer": "bass"
+      },
+      {
+        "pitch": 38,
+        "start": 16,
+        "duration": 0.42,
+        "velocity": 90,
+        "layer": "bass"
+      },
+      {
+        "pitch": 38,
+        "start": 16.5,
+        "duration": 0.42,
+        "velocity": 97,
+        "layer": "bass"
+      },
+      {
+        "pitch": 38,
+        "start": 17,
+        "duration": 0.84,
+        "velocity": 88,
+        "layer": "bass"
+      },
+      {
+        "pitch": 38,
+        "start": 18.5,
+        "duration": 0.42,
+        "velocity": 97,
+        "layer": "bass"
+      },
+      {
+        "pitch": 38,
+        "start": 19,
+        "duration": 0.84,
+        "velocity": 87,
+        "layer": "bass"
+      },
+      {
+        "pitch": 48,
+        "start": 20,
+        "duration": 0.42,
+        "velocity": 95,
+        "layer": "bass"
+      },
+      {
+        "pitch": 48,
+        "start": 20.5,
+        "duration": 0.42,
+        "velocity": 92,
+        "layer": "bass"
+      },
+      {
+        "pitch": 48,
+        "start": 21,
+        "duration": 0.84,
+        "velocity": 107,
+        "layer": "bass"
+      },
+      {
+        "pitch": 48,
+        "start": 22,
+        "duration": 0.42,
+        "velocity": 78,
+        "layer": "bass"
+      },
+      {
+        "pitch": 43,
+        "start": 23,
+        "duration": 0.84,
+        "velocity": 89,
+        "layer": "bass"
+      },
+      {
+        "pitch": 46,
+        "start": 24,
+        "duration": 0.42,
+        "velocity": 93,
+        "layer": "bass"
+      },
+      {
+        "pitch": 46,
+        "start": 24.5,
+        "duration": 0.42,
+        "velocity": 93,
+        "layer": "bass"
+      },
+      {
+        "pitch": 46,
+        "start": 25,
+        "duration": 0.84,
+        "velocity": 80,
+        "layer": "bass"
+      },
+      {
+        "pitch": 46,
+        "start": 26,
+        "duration": 0.42,
+        "velocity": 100,
+        "layer": "bass"
+      },
+      {
+        "pitch": 46,
+        "start": 27,
+        "duration": 0.84,
+        "velocity": 104,
+        "layer": "bass"
+      },
+      {
+        "pitch": 45,
+        "start": 28,
+        "duration": 0.42,
+        "velocity": 103,
+        "layer": "bass"
+      },
+      {
+        "pitch": 45,
+        "start": 29,
+        "duration": 0.84,
+        "velocity": 80,
+        "layer": "bass"
+      },
+      {
+        "pitch": 45,
+        "start": 30,
+        "duration": 0.42,
+        "velocity": 97,
+        "layer": "bass"
+      },
+      {
+        "pitch": 45,
+        "start": 30.5,
+        "duration": 0.42,
+        "velocity": 106,
+        "layer": "bass"
+      },
+      {
+        "pitch": 40,
+        "start": 31,
+        "duration": 0.84,
+        "velocity": 92,
+        "layer": "bass"
+      }
+    ],
+    "chords": [
+      {
+        "pitch": 50,
+        "start": 0,
+        "duration": 2,
+        "velocity": 67,
+        "layer": "chords"
+      },
+      {
+        "pitch": 53,
+        "start": 0,
+        "duration": 1.94,
+        "velocity": 66,
+        "layer": "chords"
+      },
+      {
+        "pitch": 57,
+        "start": 0.25,
+        "duration": 1.88,
+        "velocity": 76,
+        "layer": "chords"
+      },
+      {
+        "pitch": 60,
+        "start": 4,
+        "duration": 2,
+        "velocity": 75,
+        "layer": "chords"
+      },
+      {
+        "pitch": 64,
+        "start": 4.25,
+        "duration": 1.94,
+        "velocity": 89,
+        "layer": "chords"
+      },
+      {
+        "pitch": 67,
+        "start": 4,
+        "duration": 1.88,
+        "velocity": 66,
+        "layer": "chords"
+      },
+      {
+        "pitch": 58,
+        "start": 8.25,
+        "duration": 2,
+        "velocity": 68,
+        "layer": "chords"
+      },
+      {
+        "pitch": 62,
+        "start": 8,
+        "duration": 1.94,
+        "velocity": 86,
+        "layer": "chords"
+      },
+      {
+        "pitch": 65,
+        "start": 8,
+        "duration": 1.88,
+        "velocity": 85,
+        "layer": "chords"
+      },
+      {
+        "pitch": 57,
+        "start": 12,
+        "duration": 2,
+        "velocity": 66,
+        "layer": "chords"
+      },
+      {
+        "pitch": 60,
+        "start": 12,
+        "duration": 1.94,
+        "velocity": 68,
+        "layer": "chords"
+      },
+      {
+        "pitch": 64,
+        "start": 12,
+        "duration": 1.88,
+        "velocity": 82,
+        "layer": "chords"
+      },
+      {
+        "pitch": 50,
+        "start": 16,
+        "duration": 2,
+        "velocity": 79,
+        "layer": "chords"
+      },
+      {
+        "pitch": 53,
+        "start": 16,
+        "duration": 1.94,
+        "velocity": 89,
+        "layer": "chords"
+      },
+      {
+        "pitch": 57,
+        "start": 16,
+        "duration": 1.88,
+        "velocity": 72,
+        "layer": "chords"
+      },
+      {
+        "pitch": 60,
+        "start": 20.25,
+        "duration": 2,
+        "velocity": 81,
+        "layer": "chords"
+      },
+      {
+        "pitch": 64,
+        "start": 20.25,
+        "duration": 1.94,
+        "velocity": 74,
+        "layer": "chords"
+      },
+      {
+        "pitch": 67,
+        "start": 20,
+        "duration": 1.88,
+        "velocity": 66,
+        "layer": "chords"
+      },
+      {
+        "pitch": 58,
+        "start": 24,
+        "duration": 2,
+        "velocity": 75,
+        "layer": "chords"
+      },
+      {
+        "pitch": 62,
+        "start": 24,
+        "duration": 1.94,
+        "velocity": 86,
+        "layer": "chords"
+      },
+      {
+        "pitch": 65,
+        "start": 24,
+        "duration": 1.88,
+        "velocity": 82,
+        "layer": "chords"
+      },
+      {
+        "pitch": 57,
+        "start": 28.25,
+        "duration": 2,
+        "velocity": 85,
+        "layer": "chords"
+      },
+      {
+        "pitch": 60,
+        "start": 28.25,
+        "duration": 1.94,
+        "velocity": 70,
+        "layer": "chords"
+      },
+      {
+        "pitch": 64,
+        "start": 28,
+        "duration": 1.88,
+        "velocity": 72,
+        "layer": "chords"
+      }
+    ],
+    "melody": [
+      {
+        "pitch": 67,
+        "start": 0.125,
+        "duration": 0.5,
+        "velocity": 100,
+        "layer": "melody"
+      },
+      {
+        "pitch": 60,
+        "start": 0.625,
+        "duration": 0.25,
+        "velocity": 103,
+        "layer": "melody"
+      },
+      {
+        "pitch": 65,
+        "start": 2.125,
+        "duration": 0.25,
+        "velocity": 97,
+        "layer": "melody"
+      },
+      {
+        "pitch": 70,
+        "start": 2.5,
+        "duration": 1,
+        "velocity": 64,
+        "layer": "melody"
+      },
+      {
+        "pitch": 65,
+        "start": 3.625,
+        "duration": 0.25,
+        "velocity": 70,
+        "layer": "melody"
+      },
+      {
+        "pitch": 79,
+        "start": 6.125,
+        "duration": 0.25,
+        "velocity": 89,
+        "layer": "melody"
+      },
+      {
+        "pitch": 72,
+        "start": 6.625,
+        "duration": 0.25,
+        "velocity": 77,
+        "layer": "melody"
+      },
+      {
+        "pitch": 70,
+        "start": 7.625,
+        "duration": 0.375,
+        "velocity": 98,
+        "layer": "melody"
+      },
+      {
+        "pitch": 70,
+        "start": 8,
+        "duration": 1,
+        "velocity": 86,
+        "layer": "melody"
+      },
+      {
+        "pitch": 70,
+        "start": 8.625,
+        "duration": 0.5,
+        "velocity": 73,
+        "layer": "melody"
+      },
+      {
+        "pitch": 69,
+        "start": 9.125,
+        "duration": 0.5,
+        "velocity": 108,
+        "layer": "melody"
+      },
+      {
+        "pitch": 67,
+        "start": 10.125,
+        "duration": 0.25,
+        "velocity": 90,
+        "layer": "melody"
+      },
+      {
+        "pitch": 69,
+        "start": 10.625,
+        "duration": 0.25,
+        "velocity": 97,
+        "layer": "melody"
+      },
+      {
+        "pitch": 67,
+        "start": 11.125,
+        "duration": 0.25,
+        "velocity": 73,
+        "layer": "melody"
+      },
+      {
+        "pitch": 62,
+        "start": 13.625,
+        "duration": 0.25,
+        "velocity": 84,
+        "layer": "melody"
+      },
+      {
+        "pitch": 67,
+        "start": 14.125,
+        "duration": 0.25,
+        "velocity": 64,
+        "layer": "melody"
+      },
+      {
+        "pitch": 69,
+        "start": 15.5,
+        "duration": 0.5,
+        "velocity": 90,
+        "layer": "melody"
+      },
+      {
+        "pitch": 69,
+        "start": 16,
+        "duration": 0.25,
+        "velocity": 72,
+        "layer": "melody"
+      },
+      {
+        "pitch": 62,
+        "start": 16.625,
+        "duration": 0.25,
+        "velocity": 83,
+        "layer": "melody"
+      },
+      {
+        "pitch": 62,
+        "start": 17.125,
+        "duration": 1,
+        "velocity": 107,
+        "layer": "melody"
+      },
+      {
+        "pitch": 62,
+        "start": 17.625,
+        "duration": 1,
+        "velocity": 106,
+        "layer": "melody"
+      },
+      {
+        "pitch": 58,
+        "start": 18.125,
+        "duration": 1,
+        "velocity": 66,
+        "layer": "melody"
+      },
+      {
+        "pitch": 64,
+        "start": 18.625,
+        "duration": 0.5,
+        "velocity": 104,
+        "layer": "melody"
+      },
+      {
+        "pitch": 79,
+        "start": 20.625,
+        "duration": 0.5,
+        "velocity": 83,
+        "layer": "melody"
+      },
+      {
+        "pitch": 79,
+        "start": 21,
+        "duration": 0.5,
+        "velocity": 79,
+        "layer": "melody"
+      },
+      {
+        "pitch": 74,
+        "start": 22.125,
+        "duration": 1,
+        "velocity": 93,
+        "layer": "melody"
+      },
+      {
+        "pitch": 72,
+        "start": 23.125,
+        "duration": 0.875,
+        "velocity": 91,
+        "layer": "melody"
+      },
+      {
+        "pitch": 72,
+        "start": 23.625,
+        "duration": 0.25,
+        "velocity": 100,
+        "layer": "melody"
+      },
+      {
+        "pitch": 70,
+        "start": 24.125,
+        "duration": 0.25,
+        "velocity": 77,
+        "layer": "melody"
+      },
+      {
+        "pitch": 69,
+        "start": 25.625,
+        "duration": 0.5,
+        "velocity": 85,
+        "layer": "melody"
+      },
+      {
+        "pitch": 67,
+        "start": 26.125,
+        "duration": 1,
+        "velocity": 83,
+        "layer": "melody"
+      },
+      {
+        "pitch": 72,
+        "start": 27.125,
+        "duration": 0.25,
+        "velocity": 78,
+        "layer": "melody"
+      },
+      {
+        "pitch": 72,
+        "start": 27.625,
+        "duration": 0.375,
+        "velocity": 94,
+        "layer": "melody"
+      },
+      {
+        "pitch": 69,
+        "start": 28,
+        "duration": 1,
+        "velocity": 102,
+        "layer": "melody"
+      },
+      {
+        "pitch": 62,
+        "start": 28.5,
+        "duration": 0.5,
+        "velocity": 78,
+        "layer": "melody"
+      },
+      {
+        "pitch": 67,
+        "start": 29,
+        "duration": 0.5,
+        "velocity": 68,
+        "layer": "melody"
+      },
+      {
+        "pitch": 65,
+        "start": 31.625,
+        "duration": 0.25,
+        "velocity": 80,
+        "layer": "melody"
+      }
+    ]
+  }
+}

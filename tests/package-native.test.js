@@ -164,3 +164,9 @@ test('candidate includes FL guide, release notes and corresponding source', { sk
  assert.ok(fs.statSync(path.join(r.packageDir,'Sources/LoopForge.tar')).size>0);
  assert.ok(fs.statSync(path.join(r.packageDir,'Sources/JUCE.tar')).size>0);
 });
+
+test('tracked source changes cannot be packaged against a different HEAD archive', t => {
+ const f=fixture(t);fs.appendFileSync(path.join(f.rootDir,'LICENSE'),'uncommitted change');
+ assert.throws(()=>pack(f),/tracked|commit.*source/i);assert.equal(fs.existsSync(f.output),false);
+ git(f.rootDir,'add','LICENSE');assert.throws(()=>pack(f),/tracked|commit.*source/i);assert.equal(fs.existsSync(f.output),false);
+});

@@ -246,3 +246,11 @@ New Composer loops use engineVersion5, native-motif-rules-v5 and loop-v5 identit
 In Composer mode, MOOD / AUTO opens seven next-request axes: Darkness, Energy, Melancholy, Tension, Aggression, Atmosphere and Complexity. Each starts in Auto, following direction text or interpreter defaults. Disable Auto to enable its0–100slider and pin that value above text. Re-enabling Auto ignores the retained slider value. SHOW OVERVIEW returns to the read-only composition. Compose captures all pins by value; changing a control while busy applies to the next request. Resolved settings identify manual/text/default origins.
 
 These are editor-local next-request settings. They do not edit existing notes, do not change Legacy provider settings and are not saved/restored as a generation recipe. Reopening the editor resets them to Auto. Committed composition notes/maps/seed still persist normally. Other manual field controls and full recipe persistence remain E03 work.
+
+## Portable recipes
+
+MOOD / AUTO now offers SAVE RECIPE and OPEN RECIPE for separate `loopforge-recipe.json` files. Saving captures the direction text, fallback seed, seven retained mood slider values and Auto/manual pins when clicked. Opening validates the entire file before applying next-request controls; it never generates or replaces the current composition automatically. Press Compose to use the recipe. Invalid drafts can be saved as drafts, but the generator still validates them before publication.
+
+Recipes use strict version1 / kind `loopforge-recipe` / engineVersion5, limited to32KiB encoded and4096UTF8bytes of direction. They accept only the seven exposed mood pins; unknown/duplicate fields, invalid types/ranges and unsupported versions reject. Engine5 must be used for the documented deterministic replay; no older algorithm emulation is provided. Saved files use the same checked staging replacement as project/MIDI files. Recipe IO is bounded synchronous message-thread work, not audio-thread work.
+
+Recipe files are separate from project-v2 and host state. Automatic next-request restoration with a project, other manual fields and full recipe expansion remain E03 work. Existing project formats and committed notes remain unchanged. Native OS chooser/Windows/DAW validation stays separate.

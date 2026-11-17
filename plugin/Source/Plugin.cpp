@@ -6,6 +6,7 @@
 #include "ProjectFiles.h"
 #include "ComposerMidiExport.h"
 #include "ComposerMoodControls.h"
+#include "engine/RecipeJson.h"
 class Editor final: public juce::AudioProcessorEditor,private juce::Timer {
 public:
  Editor(Processor& p):AudioProcessorEditor(p),processor(p),roll(p),dragMidi([&p]{return p.snapshot().idea;},DragMidiCache(DragMidiCache::defaultRoot()),MidiDragSource::nativeDispatch,[safe=juce::Component::SafePointer<Editor>(this)](juce::String message){if(safe)safe->showDragStatus(std::move(message));}){
@@ -15,12 +16,13 @@ public:
   openProject.setButtonText("OPEN PROJECT");saveProject.setButtonText("SAVE PROJECT");addAndMakeVisible(openProject);addAndMakeVisible(saveProject);
   openProject.setTitle("Open project JSON");saveProject.setTitle("Save project JSON");openProject.setTooltip("Open a full LoopForge v1/v2 project JSON. This replaces the committed project only after validation.");saveProject.setTooltip("Save the committed project captured when clicked. Composer v2 requires a current plugin version.");openProject.onClick=[this]{chooseProject(false);};saveProject.onClick=[this]{chooseProject(true);};
   mode.setName("Composer mode");compose.setName("Compose offline loop");seed.setName("Composer fallback seed");prompt.setName("Musical direction");
-  moodSettings.setName("Composer mood settings");moodSettings.setButtonText("MOOD / AUTO");moodSettings.setTooltip("Seven next-request mood settings; Auto follows text/defaults. Not saved as a recipe.");addChildComponent(moodSettings);addChildComponent(moodControls);moodSettings.onClick=[this]{showMood=!showMood;timerCallback();};
+  openRecipe.setButtonText("OPEN RECIPE");saveRecipe.setButtonText("SAVE RECIPE");addChildComponent(openRecipe);addChildComponent(saveRecipe);openRecipe.onClick=[this]{chooseRecipe(false);};saveRecipe.onClick=[this]{chooseRecipe(true);};
+  moodSettings.setName("Composer mood settings");moodSettings.setButtonText("MOOD / AUTO");moodSettings.setTooltip("Seven next-request mood settings; Auto follows text/defaults. Save/load separately with recipe files.");addChildComponent(moodSettings);addChildComponent(moodControls);moodSettings.onClick=[this]{showMood=!showMood;timerCallback();};
   compose.setButtonText("COMPOSE OFFLINE LOOP");compose.setTooltip("Native deterministic4/8/16/32bar loop. Text/defaults choose Composer parameters; no service. MIDI output only.");addChildComponent(compose);compose.onClick=[this]{composeLoop();};
   addAndMakeVisible(mode);mode.onClick=[this]{if(processor.canSwitchMode()){processor.selectMode(processor.isComposerMode()?composer::ProjectMode::legacy:composer::ProjectMode::composer);timerCallback();}else composeLoop();};mode.setTooltip("Create a native Composer loop or switch between both preserved source documents. Switching cancels an active generation.");
   // Preserve complete insertions: filtering characters/length can change the requested seed.
-  seed.setText("42");seed.setTooltip("Fallback unsigned32bit seed (0-4294967295). An explicit seed in direction text wins. Next request only; not a persisted recipe.");addAndMakeVisible(seed);caption(seedLabel,"Composer seed",seed);
-  prompt.setTooltip("Composer rejects directions above4096UTF8bytes without truncation. Composer uses this text and fallback seed; other parameters come from text/defaults. Legacy uses the controls below. Next-request text is not saved as a full recipe.");
+  seed.setText("42");seed.setTooltip("Fallback unsigned32bit seed (0-4294967295). An explicit seed in direction text wins. Next request only; SAVE RECIPE stores this value separately.");addAndMakeVisible(seed);caption(seedLabel,"Composer seed",seed);
+  prompt.setTooltip("Composer rejects directions above4096UTF8bytes without truncation. Composer uses this text, fallback seed and manual mood pins; Auto follows text/defaults. Legacy uses the controls below. SAVE RECIPE stores next-request text, seed and mood pins separately.");
   prompt.setMultiLine(true);prompt.setText("Dark atmospheric nu-metal, coherent bass and melody");addAndMakeVisible(prompt);
   setup(provider,{"offline","openai","anthropic","openrouter","ollama","codex-cli","claude-cli"});
   setup(key,{"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"});key.setSelectedId(3);
@@ -58,7 +60,7 @@ public:
   cancel.setBounds(width-256,274,230,32);testConnection.setBounds(width-500,274,220,32);model.setBounds(24,274,width-538,32);modelLabel.setBounds(24,258,model.getWidth(),15);
   layer.setBounds(24,320,160,30);quantize.setBounds(200,320,190,30);undo.setBounds(406,320,140,30);redo.setBounds(560,320,140,30);addNote.setBounds(width-284,320,120,30);deleteNote.setBounds(width-146,320,120,30);
   const bool composer=viewport.getViewedComponent()==&overview;const int top=composer?246:360;
-  if(composer){compose.setBounds(24,154,220,36);play.setBounds(260,154,140,36);exportButton.setBounds(416,154,150,36);moodSettings.setBounds(582,154,150,36);moodControls.setBounds(24,246,content,308);cancel.setBounds(width-176,154,150,32);}
+  if(composer){compose.setBounds(24,154,220,36);play.setBounds(260,154,140,36);exportButton.setBounds(416,154,150,36);moodSettings.setBounds(582,154,150,36);moodControls.setBounds(24,246,content,308);openRecipe.setBounds(24,570,160,32);saveRecipe.setBounds(200,570,160,32);cancel.setBounds(width-176,154,150,32);}
   viewport.setBounds(24,top,content,height-top-72);roll.setSize(viewport.getMaximumVisibleWidth(),128*12);overview.setSize(overview.getWidth(),overview.requiredHeight());overview.setSize(viewport.getMaximumVisibleWidth(),overview.requiredHeight());status.setBounds(24,height-60,content,32);help.setBounds(24,height-25,content,20);
  }
  void paint(juce::Graphics& g)override{
@@ -66,7 +68,7 @@ public:
 
  }
 private:
- Processor& processor;ComposerMoodControls moodControls;juce::TextButton moodSettings;bool showMood=false;ComposerMidiExport composerMidiExport;bool fileChoosing=false;PianoRoll roll;ComposerOverview overview;uint64_t viewRevision=UINT64_MAX;MidiDragSource dragMidi;juce::String dragStatus;juce::uint32 dragStatusUntil=0;juce::Viewport viewport;juce::ComboBox layer;juce::TextButton quantize,undo,redo,addNote,deleteNote;juce::Label seedLabel,title,status,help,promptLabel,providerLabel,keyLabel,scaleLabel,styleLabel,barsLabel,tempoLabel,modelLabel;juce::TextEditor prompt,model,seed,composerNotice;juce::ComboBox provider,key,scale,style,bars,variation;juce::Slider bpm;juce::TextButton mode,compose,generate,play,exportButton,testConnection,cancel,openProject,saveProject;juce::ToggleButton sound;std::unique_ptr<juce::FileChooser> chooser;
+ Processor& processor;ComposerMoodControls moodControls;juce::TextButton moodSettings;juce::TextButton openRecipe,saveRecipe;bool showMood=false;ComposerMidiExport composerMidiExport;bool fileChoosing=false;PianoRoll roll;ComposerOverview overview;uint64_t viewRevision=UINT64_MAX;MidiDragSource dragMidi;juce::String dragStatus;juce::uint32 dragStatusUntil=0;juce::Viewport viewport;juce::ComboBox layer;juce::TextButton quantize,undo,redo,addNote,deleteNote;juce::Label seedLabel,title,status,help,promptLabel,providerLabel,keyLabel,scaleLabel,styleLabel,barsLabel,tempoLabel,modelLabel;juce::TextEditor prompt,model,seed,composerNotice;juce::ComboBox provider,key,scale,style,bars,variation;juce::Slider bpm;juce::TextButton mode,compose,generate,play,exportButton,testConnection,cancel,openProject,saveProject;juce::ToggleButton sound;std::unique_ptr<juce::FileChooser> chooser;
  void composeLoop(){
   const auto text=seed.getText().toStdString();uint32_t value=0;auto read=std::from_chars(text.data(),text.data()+text.size(),value);
   if(text.empty()||read.ec!=std::errc{}||read.ptr!=text.data()+text.size()){showDragStatus("Composer seed must be an integer0-4294967295");seed.grabKeyboardFocus();return;}
@@ -86,6 +88,23 @@ private:
    const bool changed=viewport.getViewedComponent()!=target;if(changed)viewport.setViewedComponent(target,false);resized();if(changed)viewport.setViewPosition(0,state->composer?0:roll.preferredScrollY());
   }
  }
+ void chooseRecipe(bool saving){
+  if(fileChoosing)return;
+  try{
+   auto bytes=std::make_shared<std::string>();
+   if(saving){const auto text=seed.getText().toStdString();uint32_t value=0;auto parsed=std::from_chars(text.data(),text.data()+text.size(),value);if(text.empty()||parsed.ec!=std::errc{}||parsed.ptr!=text.data()+text.size()){showDragStatus("Recipe seed must be an unsigned32bit integer");return;}
+    auto encoded=composer::encodeRecipeJson({prompt.getText().toStdString(),value,moodControls.overrides()});if(!encoded){showDragStatus(juce::String(encoded.error));return;}*bytes=std::move(encoded.json);
+   }
+   chooser=std::make_unique<juce::FileChooser>(saving?"Save Composer recipe":"Open Composer recipe",juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("loopforge-recipe.json"),"*.json");
+   fileChoosing=true;chooser->launchAsync((saving?juce::FileBrowserComponent::saveMode|juce::FileBrowserComponent::warnAboutOverwriting:juce::FileBrowserComponent::openMode)|juce::FileBrowserComponent::canSelectFiles,[safe=juce::Component::SafePointer<Editor>(this),saving,bytes](const juce::FileChooser& fc){
+    if(!safe)return;safe->fileChoosing=false;if(fc.getResult()==juce::File{})return;
+    try{if(saving){auto error=projectFiles::replaceChecked(fc.getResult(),*bytes);safe->showDragStatus(error.isEmpty()?"Recipe saved":error);return;}
+     auto file=projectFiles::read(fc.getResult(),32768);if(file.error.isNotEmpty()){safe->showDragStatus(file.error);return;}auto decoded=composer::decodeRecipeJson(file.text);if(!decoded.recipe){safe->showDragStatus(juce::String(decoded.error));return;}
+     safe->prompt.setText(juce::String::fromUTF8(decoded.recipe->direction.data(),int(decoded.recipe->direction.size())));safe->seed.setText(juce::String(decoded.recipe->seed));safe->moodControls.apply(decoded.recipe->manual);safe->showDragStatus("Recipe opened - Compose to generate; current notes unchanged");
+    }catch(const std::bad_alloc&){safe->showDragStatus("Insufficient memory for recipe");}
+   });
+  }catch(const std::bad_alloc&){fileChoosing=false;showDragStatus("Insufficient memory for recipe");}
+ }
  void chooseProject(bool saving){
   if(fileChoosing)return;
   try{
@@ -104,7 +123,7 @@ private:
   prompt.setVisible(true);promptLabel.setVisible(true);compose.setVisible(!legacy);compose.setEnabled(!processor.busy);
   mode.setButtonText(legacy?(processor.canSwitchMode()?"VIEW COMPOSER":"COMPOSE LOOP"):"BACK TO LEGACY");mode.setEnabled(processor.canSwitchMode()||(legacy&&!processor.busy));
   auto summary=processor.composerSummary();composerNotice.setText(summary.isEmpty()?"MIDI output and export; read-only notes. Direction/seed describe the next loop, not the loaded project.":"Committed loop - "+summary,juce::dontSendNotification);composerNotice.setTooltip(summary.isEmpty()?"Native loops:4/8/16/32bars; unsupported song/sections/roles reject. MIDI export is available; editing and audition remain unavailable.":summary+". MIDI output and export; read-only notes. Direction/seed apply to the next request.");
-  moodSettings.setVisible(!legacy);moodSettings.setButtonText(showMood?"SHOW OVERVIEW":"MOOD / AUTO");moodControls.setVisible(!legacy&&showMood);viewport.setVisible(legacy||!showMood);
+  moodSettings.setVisible(!legacy);moodSettings.setButtonText(showMood?"SHOW OVERVIEW":"MOOD / AUTO");moodControls.setVisible(!legacy&&showMood);openRecipe.setVisible(!legacy&&showMood);saveRecipe.setVisible(!legacy&&showMood);viewport.setVisible(legacy||!showMood);
   composerNotice.setVisible(!legacy);cancel.setVisible(legacy||processor.busy);generate.setEnabled(legacy&&!processor.busy);testConnection.setEnabled(legacy&&!processor.busy);sound.setEnabled(legacy);exportButton.setVisible(true);exportButton.setEnabled(!composerMidiExport.busy()&&!fileChoosing);quantize.setEnabled(legacy);layer.setEnabled(legacy);roll.setEnabled(legacy);prompt.setEnabled(true);provider.setEnabled(legacy);key.setEnabled(legacy);scale.setEnabled(legacy);style.setEnabled(legacy);bars.setEnabled(legacy);bpm.setEnabled(legacy);model.setEnabled(legacy&&provider.getText()!="offline");title.setText(legacy?"LOOPFORGE  /  AI MIDI":"COMPOSER  /  MIDI ONLY",juce::dontSendNotification);status.setTooltip(processor.getStatus());help.setText(legacy?"Brackets select notes | Arrows move | Shift + Left/Right resize | Delete removes | Double-click adds":"Home/End and Page Up/Down scroll | Read-only MIDI overview | v2 requires a current plugin version",juce::dontSendNotification);cancel.setEnabled(processor.busy);int count=processor.ideaCount();dragMidi.setEnabled(count>0);addNote.setEnabled(count>0);if(count!=variation.getNumItems()){variation.clear();for(int i=0;i<count;++i)variation.addItem("IDEA "+juce::String(i+1),i+1);variation.setSelectedId(1,juce::dontSendNotification);}if(count>0)variation.setSelectedItemIndex(processor.selectedIdeaIndex(),juce::dontSendNotification);if(roll.refresh()&&legacy)viewport.setViewPosition(0,roll.preferredScrollY());deleteNote.setEnabled(roll.hasSelection());undo.setEnabled(processor.canUndo());redo.setEnabled(processor.canRedo());repaint();}
  void pollComposerMidi(){
   if(fileChoosing)return;auto result=composerMidiExport.takeResult();if(!result)return;

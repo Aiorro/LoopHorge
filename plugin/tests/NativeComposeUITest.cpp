@@ -1,6 +1,7 @@
 #include "../Source/Processor.h"
 #include "../Source/ComposerOverview.h"
 #include "../Source/ComposerMoodControls.h"
+#include "../Source/ProjectFiles.h"
 #include <iostream>
 #define check(x) do{if(!(x)){std::cerr<<"line "<<__LINE__<<": " #x "\n";std::abort();}}while(false)
 struct HostListener:juce::AudioProcessorListener{
@@ -11,6 +12,8 @@ struct Flow:juce::Timer{
  std::unique_ptr<Processor> p=std::make_unique<Processor>();std::unique_ptr<juce::AudioProcessorEditor> editor{p->createEditor()};HostListener listener;
  int phase=0,ticks=0,dirtyBeforeClose=0;juce::TextButton *mode=nullptr,*compose=nullptr;juce::TextEditor *seed=nullptr,*direction=nullptr;std::string first;juce::Viewport* vp=nullptr;
  Flow(){
+  {auto file=juce::File::getSpecialLocation(juce::File::tempDirectory).getNonexistentChildFile("recipe-limit",".json");check(file.replaceWithText(juce::String::repeatedString("a",32769)));check(projectFiles::read(file,32768).text.empty()&&projectFiles::read(file,32768).error.isNotEmpty());check(file.deleteFile());}
+  {ComposerMoodControls restored;composer::ManualOverrides manual;manual.values.mood.energy=17;manual.pinned.set(size_t(composer::Field::energy));restored.apply(manual);check(restored.overrides().pinned==manual.pinned&&restored.overrides().values.mood.energy==17);}
   {ComposerMoodControls controls;controls.setSize(952,400);check(controls.overrides().pinned.none());
    const composer::Field fields[]{composer::Field::darkness,composer::Field::energy,composer::Field::melancholy,composer::Field::tension,composer::Field::aggression,composer::Field::atmosphere,composer::Field::complexity};
    for(size_t i=0;i<7;++i){auto* automatic=dynamic_cast<juce::ToggleButton*>(controls.getChildComponent(int(i*3+1)));auto* value=dynamic_cast<juce::Slider*>(controls.getChildComponent(int(i*3+2)));check(automatic&&value&&automatic->getToggleState()&&!value->isEnabled());
@@ -33,7 +36,7 @@ static_cast<juce::AudioProcessor&>(*p).addListener(&listener);for(int i=0;i<edit
  void timerCallback()override{
   check(++ticks<400);if(p->busy||ticks%8)return;
   if(phase==0){check(p->isComposerMode()&&dynamic_cast<ComposerOverview*>(vp->getViewedComponent()));check(compose->isVisible()&&compose->isEnabled()&&direction->isVisible()&&direction->isEnabled());check(mode->getButtonText()=="BACK TO LEGACY");check(listener.changes>0);
-   juce::TextButton* settings=nullptr;for(int i=0;i<editor->getNumChildComponents();++i)if(editor->getChildComponent(i)->getName()=="Composer mood settings")settings=dynamic_cast<juce::TextButton*>(editor->getChildComponent(i));check(settings&&settings->isVisible());settings->onClick();check(!vp->isVisible());snapshot("/tmp/loopforge-mood-panel-min.png");settings->onClick();check(vp->isVisible());
+   juce::TextButton* settings=nullptr;for(int i=0;i<editor->getNumChildComponents();++i)if(editor->getChildComponent(i)->getName()=="Composer mood settings")settings=dynamic_cast<juce::TextButton*>(editor->getChildComponent(i));check(settings&&settings->isVisible());settings->onClick();check(!vp->isVisible());int recipeButtons=0;for(int i=0;i<editor->getNumChildComponents();++i)if(auto* b=dynamic_cast<juce::TextButton*>(editor->getChildComponent(i)))if(b->getButtonText()=="OPEN RECIPE"||b->getButtonText()=="SAVE RECIPE"){check(b->isVisible()&&b->getBottom()<editor->getHeight()-60);++recipeButtons;}check(recipeButtons==2);snapshot("/tmp/loopforge-mood-panel-min.png");settings->onClick();check(vp->isVisible());
    bool readable=false;for(int i=0;i<editor->getNumChildComponents();++i)if(auto* text=dynamic_cast<juce::TextEditor*>(editor->getChildComponent(i)))if(text->getName()=="Resolved Composer settings")readable=text->isReadOnly()&&text->getText().contains("seed=42 [default]");check(readable);
    check(vp->getY()>=compose->getBottom()&&seed->getRight()<=mode->getX());snapshot("/tmp/loopforge-compose-ui-min.png");editor->setSize(1600,1100);snapshot("/tmp/loopforge-compose-ui-large.png");editor->setSize(1000,740);mode->onClick();phase=1;
   }else if(phase==1){check(!p->isComposerMode()&&mode->getButtonText()=="VIEW COMPOSER");check(!compose->isVisible());mode->onClick();phase=2;

@@ -3,10 +3,10 @@
 namespace projectFiles {
 struct ReadResult {std::string text;juce::String error;};
 // Message/control thread only. Read at most32MiB+1, even if a file grows after stat.
-inline ReadResult read(const juce::File& file){
+inline ReadResult read(const juce::File& file,size_t maximum=composer::jsonDetail::maximumBytes){
  try{
   juce::FileInputStream input(file);if(!input.openedOk())return {{},"Cannot open project file"};
-  const auto size=input.getTotalLength();if(size<=0||size>juce::int64(composer::jsonDetail::maximumBytes))return {{},"Project file must be between 1 byte and 32 MiB"};
+  maximum=std::min(maximum,composer::jsonDetail::maximumBytes);const auto size=input.getTotalLength();if(size<=0||size>juce::int64(maximum))return {{},"File exceeds requested size limit or is empty"};
   std::string text(size_t(size),'\0');size_t offset=0;
   while(offset<text.size()){const int n=input.read(text.data()+offset,int(text.size()-offset));if(n<=0)return {{},"Project file changed or could not be read"};offset+=size_t(n);}
   char extra;if(input.read(&extra,1)!=0)return {{},"Project file changed or exceeds its declared size"};

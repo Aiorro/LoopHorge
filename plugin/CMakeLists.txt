@@ -198,3 +198,6 @@ add_test(NAME native_compose_ui COMMAND native_compose_ui_test)
 
 add_executable(musical_audit_test tests/MusicalAuditTest.cpp)
 add_test(NAME musical_audit COMMAND musical_audit_test)
+
+add_executable(recipe_test tests/RecipeTest.cpp)
+add_test(NAME composer_recipe COMMAND recipe_test)

@@ -7,7 +7,9 @@
 #include "engine/ProjectJson.h"
 #include "engine/Prepared.h"
 #include "engine/PromptCompose.h"
+#include "engine/LoopEditing.h"
 #include "PreparedMidi.h"
+#include "ComposerEditView.h"
 #include <deque>
 #include <atomic>
 #include <mutex>
@@ -160,7 +162,7 @@ public:
  juce::String getStatus(){
   std::lock_guard lock(mutex);juce::String detail;
   if(composerMode){char number[64];auto end=std::to_chars(number,number+sizeof(number),composerOrigin,std::chars_format::general,std::numeric_limits<double>::max_digits10);
-   detail=" Composer: MIDI output and export; audition and editing unavailable. Origin PPQ "+juce::String::fromUTF8(number,int(end.ptr-number))+".";
+   detail=" Composer: MIDI output and export; audition unavailable. Origin PPQ "+juce::String::fromUTF8(number,int(end.ptr-number))+".";
   }
   if(projectV2)detail+=" Old plugin versions cannot open v2 projects.";
   return status+detail+(midiLimitReached?(composerMode?" MIDI block limit reached; stop/start transport or seek to resume.":" MIDI block limit reached; playback paused for this block."):"");
@@ -168,17 +170,30 @@ public:
  juce::var getIdea(){std::lock_guard lock(mutex);return composerMode?juce::var{}:saved["idea"];}
  int selectedIdeaIndex(){std::lock_guard lock(mutex);return composerMode?0:selectedIndex;}
  int ideaCount(){std::lock_guard lock(mutex);return !composerMode&&ideas.isArray()?ideas.size():0;}
- editing::Snapshot snapshot(){std::lock_guard lock(mutex);return {composerMode?juce::var{}:saved["idea"].clone(),revision,replacement};}
- bool canUndo(){std::lock_guard lock(mutex);return !composerMode&&!undo.empty();}
- bool canRedo(){std::lock_guard lock(mutex);return !composerMode&&!redo.empty();}
+ bool canEditComposer(){std::lock_guard lock(mutex);return composerMode&&bool(composerEditView["metadata"]["editable"]);}
+ uint64_t compositionRevision(){std::lock_guard lock(mutex);return revision;}
+ editing::Snapshot snapshot(){std::lock_guard lock(mutex);return {(composerMode?composerEditView:saved["idea"]).clone(),revision,replacement};}
+ bool canUndo(){std::lock_guard lock(mutex);return composerMode?!composerHistory.undo.empty():!undo.empty();}
+ bool canRedo(){std::lock_guard lock(mutex);return composerMode?!composerHistory.redo.empty():!redo.empty();}
  bool edit(uint64_t expected,const juce::String& layer,int index,int pitch,double start,double duration,bool remove=false){
+  if(isComposerMode())return editComposerView(expected,layer,index,pitch,start,duration,remove);
   bool changed=false;{std::lock_guard lock(mutex);if(composerMode||expected!=revision){status="Composition changed; edit cancelled";return false;}auto candidate=saved["idea"].clone();if(!editing::change(candidate,layer,index,pitch,start,duration,remove))return false;changed=commitEdit(candidate);}if(changed)updateHostDisplay(ChangeDetails{}.withNonParameterStateChanged(true));return changed;
  }
  bool quantize(uint64_t expected,const juce::String& layer){
+  if(isComposerMode())return changeComposer(expected,[&](const composer::Composition& c)->composer::LoopEditResult{
+   auto id=composerTrackId(layer);if(!id)return {{},"Track not found"};auto candidate=c;auto* t=const_cast<composer::Track*>(composer::loopEditDetail::track(candidate,*id));if(!t)return {{},"Track not found"};
+   for(auto& n:t->notes){auto start=std::clamp<int64_t>(((n.start.value+60)/120)*120,0,c.endTick.value-120);auto end=std::clamp<int64_t>(((n.start.value+n.duration.value+60)/120)*120,start+120,c.endTick.value);n.start={start};n.duration={end-start};}composer::loopEditDetail::sort(*t);return composer::loopEditDetail::finish(std::move(candidate));
+  });
   bool changed=false;{std::lock_guard lock(mutex);if(composerMode||expected!=revision)return false;auto candidate=saved["idea"].clone();if(!editing::quantize(candidate,layer))return false;changed=commitEdit(candidate);}if(changed)updateHostDisplay(ChangeDetails{}.withNonParameterStateChanged(true));return changed;
  }
- bool undoEdit(){return travelHistory(true);}
- bool redoEdit(){return travelHistory(false);}
+ bool editComposerNote(uint64_t expected,composer::Id track,composer::Id note,const std::optional<composer::Note>& value){
+  return changeComposer(expected,[&](const auto& c){return composer::editLoopNote(c,track,note,value);},note);
+ }
+ bool replaceComposerRange(uint64_t expected,composer::Id track,composer::Tick first,composer::Tick end,const std::vector<composer::Note>& notes){
+  return changeComposer(expected,[&](const auto& c){return composer::replaceLoopRange(c,track,first,end,notes);});
+ }
+ bool undoEdit(){return isComposerMode()?travelComposerHistory(true):travelHistory(true);}
+ bool redoEdit(){return isComposerMode()?travelComposerHistory(false):travelHistory(false);}
  std::atomic<bool> play{false},audition{true},busy{false};
 private:
  // Match the pinned VST3 converter; reserve up to 3*128 active note releases.
@@ -190,6 +205,46 @@ private:
  unsigned short noteCounts[16][128]{};float voices[16][128]{};double phases[16][128]{},increments[128]{};
  composer::Playback composerPlayback;bool renderComposer=false,composerMode=false,projectV2=false,hasComposerDocument=false;double internalSeconds=0,composerOrigin=0;std::string stateJson;
  uint64_t jobGeneration=0,requestRevision=0,revision=0,replacement=0;std::deque<juce::var> undo,redo;
+ juce::var composerEditView;
+ struct ComposerHistory{std::deque<std::string> undo,redo;composer::Id selected=0;};ComposerHistory composerHistory;
+ static void trimComposerHistory(ComposerHistory& h){
+  auto bytes=[&]{size_t n=0;for(const auto& s:h.undo)n+=s.size();for(const auto& s:h.redo)n+=s.size();return n;};
+  while(h.undo.size()+h.redo.size()>32||bytes()>16*1024*1024){if(h.undo.size()>=h.redo.size())h.undo.pop_front();else h.redo.pop_front();}
+ }
+ template<class Edit>bool changeComposer(uint64_t expected,Edit apply,composer::Id selected=0){
+  try{
+   std::string base;CommitGuard guard;ComposerHistory history;
+   {std::lock_guard lock(mutex);if(!composerMode||revision!=expected)return false;base=stateJson;guard={revision,jobGeneration,composerMode,false};history=composerHistory;}
+   // Interactive history is bounded independently of old-document loading/playback.
+   if(base.size()>8*1024*1024)return false;
+   auto decoded=composer::decodeProjectJson(base);if(!decoded.project||!decoded.project->composition)return false;
+   if(!composerView::editable(*decoded.project->composition,base.size()))return false;
+   auto edited=apply(*decoded.project->composition);if(!edited.composition)return false;
+   if(composer::encodeCompositionJson(*edited.composition).json==composer::encodeCompositionJson(*decoded.project->composition).json)return false;
+   if(!selected){composer::loopEditDetail::Ids old(*decoded.project->composition);for(const auto& t:edited.composition->tracks)for(const auto& n:t.notes)if(!old.used.contains(n.id)){selected=n.id;break;}}
+   decoded.project->composition=std::move(edited.composition);auto encoded=composer::encodeProjectJson(*decoded.project);if(!encoded||!composerView::editable(*decoded.project->composition,encoded.json.size()))return false;
+   history.redo.clear();history.undo.push_back(std::move(base));history.selected=selected;trimComposerHistory(history);
+   const bool changed=restoreV2(std::move(*decoded.project),std::move(encoded.json),guard,{},std::move(history));if(changed)notifyCommittedState();return changed;
+  }catch(const std::bad_alloc&){return false;}
+ }
+ static std::optional<composer::Id> composerTrackId(const juce::String& key){if(!key.startsWith("track-"))return {};auto text=key.substring(6).toStdString();composer::Id id=0;auto r=std::from_chars(text.data(),text.data()+text.size(),id);if(r.ec!=std::errc{}||r.ptr!=text.data()+text.size()||!id)return {};return id;}
+ bool editComposerView(uint64_t expected,const juce::String& key,int index,int pitch,double start,double duration,bool remove){
+  auto track=composerTrackId(key);if(!track||!std::isfinite(start)||!std::isfinite(duration)||index< -1)return false;
+  return changeComposer(expected,[&](const composer::Composition& c)->composer::LoopEditResult{
+   const auto* t=composer::loopEditDetail::track(c,*track);if(!t||index>=int(t->notes.size())||(remove&&index<0))return {{},"Note not found"};auto id=index<0?0:t->notes[size_t(index)].id;if(remove)return composer::editLoopNote(c,*track,id,{});
+   auto n=index<0?composer::Note{}:t->notes[size_t(index)];const double end=c.endTick.value/480.0;bool moving=index>=0&&double(n.duration.value)/480==duration;
+   duration=moving?duration:juce::jlimit(.25,end,editing::snap(duration));start=juce::jlimit(0.0,end-duration,editing::snap(start));n.pitch=pitch;n.start={int64_t(std::llround(start*480))};n.duration={int64_t(std::llround(duration*480))};return composer::editLoopNote(c,*track,id,n);
+  });
+ }
+ bool travelComposerHistory(bool backward){
+  try{
+   std::string base;CommitGuard guard;ComposerHistory history;
+   {std::lock_guard lock(mutex);if(!composerMode)return false;history=composerHistory;if((backward?history.undo:history.redo).empty())return false;base=stateJson;guard={revision,jobGeneration,composerMode,false};}
+   auto& from=backward?history.undo:history.redo;auto& to=backward?history.redo:history.undo;std::string target=std::move(from.back());from.pop_back();to.push_back(std::move(base));history.selected=0;trimComposerHistory(history);
+   auto decoded=composer::decodeProjectJson(target);if(!decoded.project)return false;
+   const bool changed=restoreV2(std::move(*decoded.project),std::move(target),guard,{},std::move(history));if(changed)notifyCommittedState();return changed;
+  }catch(const std::bad_alloc&){return false;}
+ }
  struct CommitGuard{uint64_t revision=0,job=0;bool mode=false,generated=false;};
  bool composerRequest=false,requestMode=false;uint32_t requestSeed=0;std::string requestDirection,requestBase;std::optional<std::string> draftRecipeJson;std::optional<size_t> canonicalStateBytes;uint64_t draftEpoch=0;composer::ManualOverrides requestManual;juce::String resolvedSummary;
  void handleAsyncUpdate()override{updateHostDisplay(ChangeDetails{}.withNonParameterStateChanged(true));}
@@ -232,13 +287,14 @@ private:
  static bool recipeFits(size_t base,const std::string& recipe)noexcept{return base<=composer::jsonDetail::maximumBytes-128&&recipe.size()<=(composer::jsonDetail::maximumBytes-base-128)/6;}
  void publishSlot(int index){slots[index].state.store(2,std::memory_order_release);int old=pending.exchange(index,std::memory_order_acq_rel);if(old>=0)slots[old].state.store(0,std::memory_order_release);}
  void cancelRestoredWork(){++jobGeneration;if(busy){cancelled=true;notify();}}
- bool restoreV2(composer::ProjectState candidate,std::string original,std::optional<CommitGuard> guard=std::nullopt,juce::String summary={}){
+ bool restoreV2(composer::ProjectState candidate,std::string original,std::optional<CommitGuard> guard=std::nullopt,juce::String summary={},std::optional<ComposerHistory> history=std::nullopt){
   const bool mode=candidate.activeMode==composer::ProjectMode::composer;
   std::optional<composer::PreparedSong> prepared;
   if(mode){auto ready=composer::prepareComposition(*candidate.composition,guard&&guard->generated?&cancelled:nullptr);if(!ready.song){std::lock_guard lock(mutex);status="Restore rejected: invalid prepared composition";return false;}prepared=std::move(ready.song);}
   juce::var legacyState,list;Schedule schedule;
   if(candidate.legacyStateJson){legacyState=wire::document(*candidate.legacyStateJson);list=juce::Array<juce::var>{legacyState["idea"]};if(!mode&&!wire::schedule(legacyState["idea"],schedule))return false;}
   std::optional<size_t> canonicalBytes=original.size();if(!guard){auto canonical=composer::encodeProjectJson(candidate);if(canonical)canonicalBytes=canonical.json.size();else canonicalBytes.reset();}
+  auto editView=mode?composerView::make(*candidate.composition,original.size(),history?history->selected:0):juce::var{};
   const bool generated=guard&&guard->generated;juce::String restoredStatus=generated?"Native Composer ready":"Restored project";
   std::lock_guard lock(mutex);
   if(guard&&(revision!=guard->revision||jobGeneration!=guard->job||composerMode!=guard->mode||(guard->generated&&(cancelled||threadShouldExit()))))return false;
@@ -246,9 +302,11 @@ private:
   const int index=reserveSlot(prepared?prepared->storageBytes():0);
   if(index<0){status="Restore rejected: playback storage unavailable";return false;}
   auto& slot=slots[index];slot.data=schedule;slot.composer=mode;slot.origin=candidate.hostStartQuarterBeat;slot.song=std::move(prepared);
-  saved=std::move(legacyState);ideas=std::move(list);selectedIndex=0;stateJson.swap(original);canonicalStateBytes=canonicalBytes;projectV2=true;composerMode=mode;hasComposerDocument=candidate.composition.has_value();composerOrigin=candidate.hostStartQuarterBeat;
+  composerEditView=std::move(editView);saved=std::move(legacyState);ideas=std::move(list);selectedIndex=0;stateJson.swap(original);canonicalStateBytes=canonicalBytes;projectV2=true;composerMode=mode;hasComposerDocument=candidate.composition.has_value();composerOrigin=candidate.hostStartQuarterBeat;
   if(!guard){draftRecipeJson=std::move(candidate.generationRecipeJson);++draftEpoch;}else if(generated&&!draftRecipeJson)draftRecipeJson=std::move(candidate.generationRecipeJson);
-  ++revision;++replacement;undo.clear();redo.clear();
+  ++revision;if(!history)++replacement;undo.clear();redo.clear();
+  if(history){composerHistory.undo.swap(history->undo);composerHistory.redo.swap(history->redo);composerHistory.selected=history->selected;}
+  else{composerHistory.undo.clear();composerHistory.redo.clear();composerHistory.selected=0;}
   if(generated){resolvedSummary=std::move(summary);busy=false;}
   else{if(!guard)resolvedSummary.clear();cancelRestoredWork();}
   status=std::move(restoredStatus);publishSlot(index);
@@ -263,7 +321,7 @@ private:
   if(keepV2){auto decoded=composer::decodeProjectJson(stateJson);if(!decoded.project)return false;decoded.project->activeMode=composer::ProjectMode::legacy;decoded.project->legacyStateJson=nextJson;auto encoded=composer::encodeProjectJson(*decoded.project);if(!encoded)return false;nextJson=std::move(encoded.json);if(draftRecipeJson&&draftRecipeJson!=decoded.project->generationRecipeJson&&!recipeFits(nextJson.size(),*draftRecipeJson))return false;}
   const int index=reserveSlot();if(index<0)return false;
   auto& slot=slots[index];slot.data=schedule;slot.composer=false;slot.origin=0;
-  saved=std::move(nextSaved);stateJson.swap(nextJson);canonicalStateBytes=keepV2?std::optional<size_t>{stateJson.size()}:std::nullopt;projectV2=keepV2;composerMode=false;if(!keepV2){hasComposerDocument=false;resolvedSummary.clear();}++revision;if(!preserveHistory){++replacement;undo.clear();redo.clear();}
+  saved=std::move(nextSaved);stateJson.swap(nextJson);canonicalStateBytes=keepV2?std::optional<size_t>{stateJson.size()}:std::nullopt;projectV2=keepV2;composerMode=false;if(!keepV2){hasComposerDocument=false;resolvedSummary.clear();}++revision;composerHistory.undo.clear();composerHistory.redo.clear();composerHistory.selected=0;if(!preserveHistory){++replacement;undo.clear();redo.clear();}
   publishSlot(index);return true;
  }
  void run()override{

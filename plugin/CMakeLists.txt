@@ -207,3 +207,17 @@ target_include_directories(workspace_recipe_test PRIVATE $<TARGET_PROPERTY:LoopF
 target_compile_definitions(workspace_recipe_test PRIVATE $<TARGET_PROPERTY:LoopForge,COMPILE_DEFINITIONS>)
 target_link_libraries(workspace_recipe_test PRIVATE LoopForge)
 add_test(NAME workspace_recipe COMMAND workspace_recipe_test)
+
+add_executable(loop_editing_test tests/LoopEditingTest.cpp)
+add_test(NAME loop_editing COMMAND loop_editing_test)
+add_executable(composer_editing_test tests/ComposerEditingTest.cpp)
+target_include_directories(composer_editing_test PRIVATE $<TARGET_PROPERTY:LoopForge,INCLUDE_DIRECTORIES>)
+target_compile_definitions(composer_editing_test PRIVATE $<TARGET_PROPERTY:LoopForge,COMPILE_DEFINITIONS>)
+target_link_libraries(composer_editing_test PRIVATE LoopForge)
+add_test(NAME composer_editing COMMAND composer_editing_test)
+
+add_executable(composer_piano_roll_test tests/ComposerPianoRollTest.cpp)
+target_include_directories(composer_piano_roll_test PRIVATE $<TARGET_PROPERTY:LoopForge,INCLUDE_DIRECTORIES>)
+target_compile_definitions(composer_piano_roll_test PRIVATE $<TARGET_PROPERTY:LoopForge,COMPILE_DEFINITIONS>)
+target_link_libraries(composer_piano_roll_test PRIVATE LoopForge)
+add_test(NAME composer_piano_roll COMMAND composer_piano_roll_test)

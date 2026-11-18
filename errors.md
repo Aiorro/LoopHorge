@@ -115,7 +115,9 @@ Native evidence below is local Linux unless a row explicitly cites earlier platf
 
 | ERR-091 | High | Windows native compile | Fixed | Musical audit and recipe tests compile Prompt.h as the default MSVC code page and fail C2015 on Cyrillic character literals. | Reproduced in job134640509664. Apply /utf-8 to all project C++ targets, including standalone test executables. Windows job134643713880 built all targets, including both affected tests. | T13/R06 |
 
-| ERR-092 | High | Native test stack | Investigating | Native Compose and Workspace Recipe tests overflow a 1 MiB stack with multiple large local Processor instances. | Windows134643713880 CTest38/40. Both reproduce exit139 with Linux stack limited to1MiB. After heap-allocating fixtures as the plugin factory does, both rebuilt Linux tests pass at1MiB. Windows result pending. | T13/R06 |
+| ERR-092 | High | Native test stack | Fixed | Native Compose and Workspace Recipe tests overflow a 1 MiB stack with multiple large local Processor instances. | Windows134643713880 CTest38/40. Both reproduce exit139 with Linux stack limited to1MiB. After heap-allocating fixtures as the plugin factory does, both rebuilt Linux tests pass at1MiB. Windows CTest40/40 passed in job134649173869. | T13/R06 |
+
+| ERR-093 | High | Release publication | Fixed | GitHub CLI prints the 404 response body for a missing alpha tag. The script treated any nonempty stdout as an existing tag. | Windows and Linux builds/tests succeeded atcdc2648 and the Windows checksum passed. Shell regression with JSON on 404 passes after checking API exit status. Pushed the verified release tag with Git and retried only publishing successfully. | R06/T14 |
 
 ## Latest verification
 

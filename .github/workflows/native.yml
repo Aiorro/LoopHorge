@@ -77,8 +77,7 @@ jobs:
             echo "Existing alpha preserved; choose a new version for another release." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          tag_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$release_tag" --jq '.object.sha' 2>/dev/null || true)
-          if [ -n "$tag_sha" ]; then
+          if tag_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$release_tag" --jq '.object.sha' 2>/dev/null); then
             test "$tag_sha" = "$GITHUB_SHA" || { echo 'Existing tag points elsewhere; refusing replacement.'; exit 1; }
           else
             gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$release_tag" -f "sha=$GITHUB_SHA" >/dev/null

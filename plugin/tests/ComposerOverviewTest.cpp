@@ -65,7 +65,7 @@ int main(int argc,char** argv){
  check(vp->getViewedComponent()->getDescription().contains("4294967295")&&vp->getViewedComponent()->getDescription().contains("7.125"));
  check(button(*editor,"OPEN PROJECT")&&button(*editor,"OPEN PROJECT")->isEnabled());check(button(*editor,"SAVE PROJECT")&&button(*editor,"SAVE PROJECT")->isEnabled());
  auto* exportButton=button(*editor,"EXPORT MIDI");check(exportButton&&exportButton->isEnabled()&&exportButton->isVisible());
- check(exportButton->getBounds()==juce::Rectangle<int>(416,154,150,36)&&!exportButton->getBounds().intersects(button(*editor,"PLAY / STOP")->getBounds())&&!exportButton->getBounds().intersects(button(*editor,"COMPOSE OFFLINE LOOP")->getBounds()));
+ check(!exportButton->getBounds().intersects(button(*editor,"PLAY / STOP")->getBounds())&&!exportButton->getBounds().intersects(button(*editor,"COMPOSE OFFLINE LOOP")->getBounds()));
  check(!button(*editor,"GENERATE 8 IDEAS")->isVisible()&&vp->getHeight()>editor->getHeight()/2);
  if(argc>1){auto image=editor->createComponentSnapshot(editor->getLocalBounds());juce::FileOutputStream out{juce::File(argv[1])};check(out.openedOk());juce::PNGImageFormat png;check(png.writeImageToStream(image,out));}
  editor->setSize(1600,1100);check(vp->getViewedComponent()->getWidth()==vp->getMaximumVisibleWidth());
@@ -76,8 +76,8 @@ int main(int argc,char** argv){
  juce::Timer::callAfterDelay(260,[&]{check(viewport(*editor)->getViewedComponent()->getName()=="Piano roll");check(button(*editor,"EXPORT MIDI")->isEnabled());juce::MessageManager::getInstance()->stopDispatchLoop();});juce::MessageManager::getInstance()->runDispatchLoop();
  // A note covering the whole short document reaches the final visible pixel column.
  {auto shortSong=fixture();shortSong.endTick={480};shortSong.tempos.resize(1);shortSong.meters.resize(1);shortSong.keys.resize(1);shortSong.sections.clear();shortSong.tracks.resize(1);shortSong.tracks[0].notes={{100,60,90,{0},{480}}};
-  ComposerOverview view;check(view.setDocument(shortSong,0));view.setSize(1200,view.requiredHeight());auto image=view.createComponentSnapshot(view.getLocalBounds());check(image.getPixelAt(400,170)==image.getPixelAt(1185,170));
-  shortSong.tracks[0].notes[0].duration={240};check(view.setDocument(shortSong,0));image=view.createComponentSnapshot(view.getLocalBounds());check(image.getPixelAt(400,170)!=image.getPixelAt(1000,170));check(image.getPixelAt(689,170)==image.getPixelAt(1000,170));
+  ComposerOverview view;check(view.setDocument(shortSong,0));view.setSize(1200,view.requiredHeight());auto image=view.createComponentSnapshot(view.getLocalBounds());check(image.getPixelAt(400,145)==image.getPixelAt(1185,145));
+  shortSong.tracks[0].notes[0].duration={240};check(view.setDocument(shortSong,0));image=view.createComponentSnapshot(view.getLocalBounds());check(image.getPixelAt(400,145)!=image.getPixelAt(1000,145));check(image.getPixelAt(689,145)==image.getPixelAt(1000,145));
  }
  // Maximum fully-overlapping source must aggregate without scanning every note on paint.
  c=fixture();c.tracks.resize(1);c.tracks[0].notes.clear();c.tracks[0].controls.clear();

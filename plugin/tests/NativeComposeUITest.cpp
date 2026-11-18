@@ -28,6 +28,8 @@ struct Flow:juce::Timer{
   }
 static_cast<juce::AudioProcessor&>(*p).addListener(&listener);for(int i=0;i<editor->getNumChildComponents();++i){auto* c=editor->getChildComponent(i);if(c->getName()=="Composer mode")mode=dynamic_cast<juce::TextButton*>(c);if(c->getName()=="Compose offline loop")compose=dynamic_cast<juce::TextButton*>(c);if(c->getName()=="Composer fallback seed")seed=dynamic_cast<juce::TextEditor*>(c);if(c->getName()=="Musical direction")direction=dynamic_cast<juce::TextEditor*>(c);if(auto* v=dynamic_cast<juce::Viewport*>(c))vp=v;}
   check(mode&&compose&&seed&&direction&&vp);check(mode->getButtonText()=="COMPOSE LOOP"&&mode->isEnabled()&&!compose->isVisible());
+  checkStudioLayout();
+  snapshot("loopforge-studio-start.png");
   direction->setText("4 bars ambient bass chords lead drums");
   // Real insertion exercises JUCE filters; setText alone bypasses them.
   for(const auto& invalid:juce::StringArray{"-1","1.5","10000000000","12x","4294967296"}){seed->selectAll();seed->insertTextAtCaret(invalid);mode->onClick();check(!p->busy&&!p->isComposerMode());check(seed->getText()==invalid);}
@@ -37,14 +39,35 @@ static_cast<juce::AudioProcessor&>(*p).addListener(&listener);for(int i=0;i<edit
   direction->setText(prefix);seed->setText("4294967296");mode->onClick();check(!p->busy&&!p->isComposerMode());seed->clear();mode->onClick();check(!p->busy);seed->setText("42");mode->onClick();startTimer(50);
  }
  ~Flow(){static_cast<juce::AudioProcessor&>(*p).removeListener(&listener);}
+ void checkStudioLayout(){
+  check(direction->getBottom() <= mode->getY());
+  check(direction->getRight() < vp->getX());
+  if(vp->isVisible())check(vp->getHeight() >= editor->getHeight() / 2);
+  std::vector<juce::Component*> controls;
+  for(auto* child:editor->getChildren()){
+   if(!child->isVisible())continue;
+   check(editor->getLocalBounds().contains(child->getBounds()));
+   for(auto* other:controls)if(child->getBounds().intersects(other->getBounds())){std::cerr<<child->getTitle()<<" overlaps "<<other->getTitle()<<"\n";check(false);}
+   controls.push_back(child);
+  }
+ }
  void snapshot(const char* path){auto image=editor->createComponentSnapshot(editor->getLocalBounds());juce::MemoryOutputStream out;juce::PNGImageFormat png;check(png.writeImageToStream(image,out)&&juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile(path).replaceWithData(out.getData(),out.getDataSize()));}
  void timerCallback()override{
   check(++ticks<400);if(p->busy||ticks%8)return;
-  if(phase==0){check(p->composerDraft(UINT64_MAX)->json);check(p->isComposerMode()&&dynamic_cast<ComposerOverview*>(vp->getViewedComponent()));check(compose->isVisible()&&compose->isEnabled()&&direction->isVisible()&&direction->isEnabled());check(mode->getButtonText()=="BACK TO LEGACY");check(listener.changes>0);
-   juce::TextButton* settings=nullptr;for(int i=0;i<editor->getNumChildComponents();++i)if(editor->getChildComponent(i)->getName()=="Composer mood settings")settings=dynamic_cast<juce::TextButton*>(editor->getChildComponent(i));check(settings&&settings->isVisible());settings->onClick();check(!vp->isVisible());int recipeButtons=0;for(int i=0;i<editor->getNumChildComponents();++i)if(auto* b=dynamic_cast<juce::TextButton*>(editor->getChildComponent(i)))if(b->getButtonText()=="OPEN RECIPE"||b->getButtonText()=="SAVE RECIPE"){check(b->isVisible()&&b->getBottom()<editor->getHeight()-60);++recipeButtons;}check(recipeButtons==2);snapshot("loopforge-mood-panel-min.png");settings->onClick();check(vp->isVisible());
-   bool readable=false;for(int i=0;i<editor->getNumChildComponents();++i)if(auto* text=dynamic_cast<juce::TextEditor*>(editor->getChildComponent(i)))if(text->getName()=="Resolved Composer settings")readable=text->isReadOnly()&&text->getText().contains("seed=42 [default]");check(readable);
-   check(vp->getY()>=compose->getBottom()&&seed->getRight()<=mode->getX());snapshot("loopforge-compose-ui-min.png");editor->setSize(1600,1100);snapshot("loopforge-compose-ui-large.png");editor->setSize(1000,740);mode->onClick();phase=1;
-  }else if(phase==1){check(!p->isComposerMode()&&mode->getButtonText()=="VIEW COMPOSER");check(!compose->isVisible());mode->onClick();phase=2;
+  if(phase==0){check(p->composerDraft(UINT64_MAX)->json);check(p->isComposerMode()&&dynamic_cast<ComposerOverview*>(vp->getViewedComponent()));check(compose->isVisible()&&compose->isEnabled()&&direction->isVisible()&&direction->isEnabled());check(mode->getButtonText()=="IDEA BANK");check(listener.changes>0);
+   juce::TextButton* settings=nullptr;for(int i=0;i<editor->getNumChildComponents();++i)if(editor->getChildComponent(i)->getName()=="Composer mood settings")settings=dynamic_cast<juce::TextButton*>(editor->getChildComponent(i));check(settings&&settings->isVisible());settings->onClick();check(!vp->isVisible());int recipeButtons=0;for(int i=0;i<editor->getNumChildComponents();++i)if(auto* b=dynamic_cast<juce::TextButton*>(editor->getChildComponent(i)))if(b->getButtonText()=="OPEN RECIPE"||b->getButtonText()=="SAVE RECIPE"){check(b->isVisible()&&b->getBottom()<editor->getHeight()-60);++recipeButtons;}check(recipeButtons==2);checkStudioLayout();snapshot("loopforge-mood-panel-min.png");settings->onClick();check(vp->isVisible());
+   for(auto* c:editor->getChildren())if(c->getName()=="Composer note view"){
+    auto* noteView=dynamic_cast<juce::TextButton*>(c);check(noteView&&noteView->isVisible()&&noteView->isEnabled());
+    noteView->onClick();checkStudioLayout();noteView->onClick();
+   }
+   for(auto* c:editor->getChildren())if(c->getName()=="Loop details"){
+    auto* details=dynamic_cast<juce::TextButton*>(c);check(details&&details->isVisible());details->onClick();
+   }
+   checkStudioLayout();
+   bool readable=false;for(int i=0;i<editor->getNumChildComponents();++i)if(auto* text=dynamic_cast<juce::TextEditor*>(editor->getChildComponent(i)))if(text->getName()=="Resolved Composer settings")readable=text->isVisible()&&text->isReadOnly()&&text->getText().contains("seed=42 [default]");check(readable);
+   for(auto* c:editor->getChildren())if(c->getName()=="Loop details")dynamic_cast<juce::TextButton*>(c)->onClick();
+   checkStudioLayout();snapshot("loopforge-compose-ui-min.png");editor->setSize(1600,1100);checkStudioLayout();snapshot("loopforge-compose-ui-large.png");editor->setSize(1000,740);mode->onClick();phase=1;
+  }else if(phase==1){check(!p->isComposerMode()&&mode->getButtonText()=="VIEW LOOP");check(!compose->isVisible());mode->onClick();phase=2;
   }else if(phase==2){check(p->isComposerMode()&&compose->isVisible());seed->setText("43");ComposerMoodControls* panel=nullptr;for(int i=0;i<editor->getNumChildComponents();++i)if(auto* c=dynamic_cast<ComposerMoodControls*>(editor->getChildComponent(i)))panel=c;check(panel);
    auto* automatic=dynamic_cast<juce::ToggleButton*>(panel->getChildComponent(4));auto* energy=dynamic_cast<juce::Slider*>(panel->getChildComponent(5));check(automatic&&energy);automatic->setToggleState(false,juce::sendNotificationSync);energy->setValue(0);direction->setText("4 bars energy100");compose->onClick();energy->setValue(100);direction->setText("3 minutes song");phase=3;
   }else if(phase==3){check(p->isComposerMode());auto presentation=p->presentation(UINT64_MAX);check(presentation);first=presentation->json;check(composer::decodeProjectJson(first).project->composition->seed==43);check(p->composerSummary().contains("energy=0 [manual]"));compose->onClick();phase=4;

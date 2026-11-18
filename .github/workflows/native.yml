@@ -72,7 +72,7 @@ jobs:
           (cd release-input && sha256sum --check SHA256SUMS)
           mapfile -t archives < <(find release-input -maxdepth 1 -type f -name '*.zip')
           test "${#archives[@]}" -eq 1
-          release_tag=v0.2.0-alpha.1
+          release_tag=v0.2.0-alpha.2
           if gh release view "$release_tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Existing alpha preserved; choose a new version for another release." >> "$GITHUB_STEP_SUMMARY"
             exit 0
@@ -84,5 +84,5 @@ jobs:
           fi
           gh release create "$release_tag" "${archives[0]}" release-input/SHA256SUMS \
             --repo "$GITHUB_REPOSITORY" --verify-tag \
-            --title 'LoopForge 0.2.0-alpha.1 — Windows EXE + VST3 test' \
-            --notes-file docs/releases/0.2.0-alpha.1.md --prerelease --latest=false
+            --title 'LoopForge 0.2.0-alpha.2 — Windows EXE + VST3 test' \
+            --notes-file docs/releases/0.2.0-alpha.2.md --prerelease --latest=false

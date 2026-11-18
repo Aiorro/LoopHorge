@@ -116,7 +116,7 @@ function packageNative({ buildDir, juceDir, output, platform = process.platform 
   [path.join(rootDir, 'docs/NATIVE-PACKAGING.md'), 'README.md'],
   [path.join(rootDir, 'docs/NATIVE-DAW-ACCEPTANCE.md'), 'DAW-ACCEPTANCE.md'],
   [path.join(rootDir, 'docs/FL-STUDIO-TEST.md'), 'FL-STUDIO-TEST.md'],
-  [path.join(rootDir, 'docs/releases/0.2.0-alpha.1.md'), 'RELEASE-NOTES.md'],
+  [path.join(rootDir, 'docs/releases/0.2.0-alpha.2.md'), 'RELEASE-NOTES.md'],
   ...NOTICE_FILES.map(file => [path.join(juceDir, file), `licenses/JUCE/${file}`])];
  for (const [source] of copies) regular(source);
  if (fs.existsSync(output)) throw new Error(`Output already exists; refusing to overwrite: ${output}`);

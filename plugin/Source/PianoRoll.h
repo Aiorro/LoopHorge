@@ -1,12 +1,14 @@
 #pragma once
 #include "Processor.h"
+#include "StudioLook.h"
 // View-only previews are local; the processor accepts one revision-guarded edit on release.
 class PianoRoll final:public juce::Component {
 public:
  explicit PianoRoll(Processor& p):processor(p){setName("Piano roll");setTitle("Piano roll");setWantsKeyboardFocus(true);refresh();}
- void selectLayer(const juce::String& name){refresh();if(!editing::layer(name)&&!state.idea["layers"][juce::Identifier(name)].isArray())return;activeLayer=name;selected=-1;dragging=false;refresh();}
+ void selectLayer(const juce::String& name){refresh();if(!editing::layer(name)&&!state.idea["layers"][juce::Identifier(name)].isArray())return;activeLayer=name;selected=-1;dragging=false;repaint();}
  bool refresh(){if(state.idea.isObject()&&processor.compositionRevision()==state.revision)return false;auto next=processor.snapshot();bool replaced=next.replacement!=state.replacement;if(next.revision!=state.revision){dragging=false;selected=-1;state=std::move(next);if(bool(state.idea["composer"])&&!state.idea["layers"][juce::Identifier(activeLayer)].isArray()){auto tracks=state.idea["tracks"];activeLayer=tracks.size()?tracks[0]["key"].toString():"bass";}setDescription(notes().size()?"No note selected. Brackets select notes.":"Empty layer. Use Add note to begin.");repaint();}return replaced;}
  int preferredScrollY()const{int pitch=60;auto notes=state.idea["layers"][juce::Identifier(activeLayer)];if(notes.size())pitch=int(notes[0]["pitch"]);return juce::jlimit(0,128*row-300,(127-pitch)*row-130);}
+ bool hasTimeline()const{return beats()>0;}
  bool hasSelection()const{return selected>=0&&selected<notes().size();}
  bool addNote(){refresh();if(beats()<=0)return false;auto list=notes();double start=0;int pitch=bool(state.idea["composer"])?int(state.idea["defaults"][juce::Identifier(activeLayer)]):activeLayer=="bass"?36:activeLayer=="melody"?72:60;if(selected>=0&&selected<list.size()){auto n=list[selected];start=juce::jlimit(0.0,beats()-.25,editing::snap(double(n["start"])+double(n["duration"])));pitch=int(n["pitch"]);}auto replacement=state.replacement;bool changed=processor.edit(state.revision,activeLayer,-1,pitch,start,juce::jmin(1.0,beats()-start));afterEdit(changed,list.size(),replacement);return changed;}
  bool deleteSelected(){if(refresh())return false;auto list=notes();if(selected<0||selected>=list.size())return false;int index=selected;auto replacement=state.replacement;bool changed=processor.edit(state.revision,activeLayer,index,0,0,1,true);afterEdit(changed,index,replacement);return changed;}
@@ -24,12 +26,80 @@ public:
  }
  void focusGained(FocusChangeType)override{refresh();if(selected<0&&notes().size())selected=0;reveal();}
  std::unique_ptr<juce::AccessibilityHandler> createAccessibilityHandler()override{return std::make_unique<juce::AccessibilityHandler>(*this,juce::AccessibilityRole::group);}
- void paint(juce::Graphics& g)override{
-  g.fillAll(juce::Colour(0xff242936));double end=beats();if(end<=0)return;
-  for(int pitch=0;pitch<128;++pitch){int y=(127-pitch)*row;g.setColour(juce::Colour(pitch%12==0?0xff4c566a:0xff303646));g.drawHorizontalLine(y,0,float(getWidth()));if(pitch%12==0){g.setColour(juce::Colours::lightgrey);g.drawText("C"+juce::String(pitch/12-1),0,y,46,row,juce::Justification::centredRight);}}
-  for(double beat=0;beat<=end;beat+=.25){g.setColour(juce::Colour(isBar(beat)?0xff667286:std::fmod(beat,1)==0?0xff424b5c:0xff303646));g.drawVerticalLine(int(xAt(beat)),0,float(getHeight()));}
-  juce::StringArray names;if(bool(state.idea["composer"])){for(auto& t:*state.idea["tracks"].getArray())names.add(t["key"].toString());}else names={"bass","chords","melody"};const juce::Colour colours[]={juce::Colour(0xffb494ff),juce::Colour(0xff53d9ba),juce::Colour(0xffffbc70),juce::Colour(0xffef8b9e)};
-  for(int ch=0;ch<names.size();++ch){auto list=state.idea["layers"][juce::Identifier(names[ch])];for(int i=0;i<list.size();++i){auto note=dragging&&activeLayer==names[ch]&&i==selected?preview:list[i];auto rect=bounds(note);g.setColour(colours[ch%4].withAlpha(activeLayer==names[ch]?1.0f:.3f));g.fillRoundedRectangle(rect,2);if(i==selected&&activeLayer==names[ch]){g.setColour(juce::Colours::white);g.drawRect(rect.expanded(hasKeyboardFocus(true)?2.0f:0.0f),hasKeyboardFocus(true)?2.0f:1.5f);}}}
+ void paintRuler(juce::Graphics& g, juce::Rectangle<int> area) const {
+  const juce::Graphics::ScopedSaveState saved(g);
+  g.reduceClipRegion(area);
+  g.setColour(studio::field);
+  g.fillRect(area);
+  g.setFont(studio::font(11, juce::Font::bold));
+  g.setColour(studio::muted);
+  g.drawText("KEY", area.removeFromLeft(48), juce::Justification::centred);
+  const double end = beats();
+  if (end <= 0) return;
+  const auto bars = state.idea["metadata"]["barStarts"];
+  const bool composer = bool(state.idea["composer"]);
+  const int barCount = composer ? std::max(0, bars.size()-1) : int(end/4);
+  for (int i = 0; i < barCount; ++i) {
+   const double start = composer ? double(bars[i]) : double(i*4);
+   const int x = area.getX()-48+int(xAt(start));
+   g.setColour(studio::border);
+   g.drawVerticalLine(x, float(area.getY()), float(area.getBottom()));
+   const double next = composer ? double(bars[i+1]) : start+4;
+   const int labelWidth = int(xAt(next)) - int(xAt(start)) - 6;
+   if (labelWidth >= 16) {
+    g.setColour(studio::muted);
+    g.drawText(juce::String(i+1), x+6, area.getY(), labelWidth, area.getHeight(), juce::Justification::centredLeft);
+   }
+  }
+ }
+
+ void paint(juce::Graphics& g) override {
+  g.fillAll(studio::background);
+  const double end = beats();
+  if (end <= 0) {
+   const auto centre = getLocalBounds().getCentre();
+   const auto badge = juce::Rectangle<float>(48, 48).withCentre(centre.toFloat() - juce::Point<float>(0, 40));
+   g.setColour(studio::active);
+   g.fillRoundedRectangle(badge, 9.0f);
+   g.setColour(studio::accent);
+   for (int i=0; i<3; ++i)
+    g.fillRoundedRectangle(badge.getX()+9+8*i, badge.getY()+30-6*i, 13, 3, 1.5f);
+   g.setColour(studio::text);
+   g.setFont(studio::font(19, juce::Font::bold));
+   g.drawText("No loop in the piano roll", 0, centre.y-6, getWidth(), 28, juce::Justification::centred);
+   g.setColour(studio::muted);
+   g.setFont(studio::font(14));
+   g.drawText("Compose a loop or generate ideas to start editing.", 0, centre.y+26, getWidth(), 26,
+              juce::Justification::centred);
+   return;
+  }
+
+  const auto clip = g.getClipBounds();
+  g.setFont(studio::font(10));
+  const int first = std::max(0, clip.getY()/row);
+  const int last = std::min(128, (clip.getBottom()+row-1)/row);
+  for (int index = first; index < last; ++index) {
+   const int pitch = 127-index, pitchClass = pitch%12, y = index*row;
+   constexpr bool blackKeys[] = {false,true,false,true,false,false,true,false,true,false,true,false};
+   const bool black = blackKeys[pitchClass];
+   g.setColour(black ? studio::background : studio::panel);
+   g.fillRect(48, y, getWidth()-48, row);
+   g.setColour(black ? studio::field : juce::Colour(0xffc6cfca));
+   g.fillRect(0, y, black ? 32 : 48, row-1);
+   g.setColour(pitchClass == 0 ? studio::border : studio::field);
+   g.drawHorizontalLine(y, 48.0f, float(getWidth()));
+   if (pitchClass == 0) {
+    g.setColour(studio::background);
+    g.drawText("C"+juce::String(pitch/12-1), 0, y, 43, row, juce::Justification::centredRight);
+   }
+  }
+  for (double beat = 0; beat <= end; beat += 0.25) {
+   g.setColour(isBar(beat) ? studio::border : std::fmod(beat,1)==0 ?
+               juce::Colour(0xff273037) : studio::field);
+   g.drawVerticalLine(int(xAt(beat)), float(clip.getY()), float(clip.getBottom()));
+  }
+  juce::StringArray names;if(bool(state.idea["composer"])){for(auto& t:*state.idea["tracks"].getArray())names.add(t["key"].toString());}else names={"bass","chords","melody"};const juce::Colour colours[]={studio::accent,juce::Colour(0xff67d8bb),juce::Colour(0xffe4b877),juce::Colour(0xffb7a4ef)};
+  for(int ch=0;ch<names.size();++ch){auto list=state.idea["layers"][juce::Identifier(names[ch])];for(int i=0;i<list.size();++i){auto note=dragging&&activeLayer==names[ch]&&i==selected?preview:list[i];auto rect=bounds(note);g.setColour((activeLayer==names[ch]?studio::accent:colours[ch%4]).withAlpha(activeLayer==names[ch]?1.0f:.44f));g.fillRoundedRectangle(rect,2);if(i==selected&&activeLayer==names[ch]){g.setColour(juce::Colours::white);g.drawRect(rect.expanded(hasKeyboardFocus(true)?2.0f:0.0f),hasKeyboardFocus(true)?2.0f:1.5f);}}}
  }
  void mouseDoubleClick(const juce::MouseEvent& e)override{refresh();if(e.x<48||hit(e.position)>=0||beats()<=0)return;int index=notes().size();auto replacement=state.replacement;bool changed=processor.edit(state.revision,activeLayer,-1,pitchAt(e.y),beatAt(e.x),1);afterEdit(changed,index,replacement);}
  void mouseDown(const juce::MouseEvent& e)override{

@@ -77,7 +77,7 @@ int main(int argc,char** argv){
   restore(p,std::string(32*1024*1024+1,' '));check(saved(p)==v2);
   check(!p.edit(snap.revision,"bass",0,70,0,1)&&!p.quantize(snap.revision,"bass")&&!p.undoEdit()&&!p.redoEdit());
   {std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());int disabled=0;bool title=false,exportEnabled=false;
-   for(int i=0;i<editor->getNumChildComponents();++i){auto* child=editor->getChildComponent(i);if(auto* b=dynamic_cast<juce::TextButton*>(child)){if(b->getButtonText()=="GENERATE 8 IDEAS"||b->getButtonText().startsWith("QUANTIZE")){check(!b->isEnabled());++disabled;}if(b->getButtonText()=="EXPORT MIDI")exportEnabled=b->isVisible()&&b->isEnabled();}if(auto* label=dynamic_cast<juce::Label*>(child))title|=label->getText()=="COMPOSER  /  LOOP MIDI";}
+   for(int i=0;i<editor->getNumChildComponents();++i){auto* child=editor->getChildComponent(i);if(auto* b=dynamic_cast<juce::TextButton*>(child)){if(b->getButtonText()=="GENERATE 8 IDEAS"||b->getButtonText().startsWith("QUANTIZE")){check(!b->isEnabled());++disabled;}if(b->getButtonText()=="EXPORT MIDI")exportEnabled=b->isVisible()&&b->isEnabled();}if(auto* label=dynamic_cast<juce::Label*>(child))title|=label->getText()=="LoopForge";}
    check(disabled==2&&title&&exportEnabled);
   }
   p.choose(0);p.request("{\"provider\":\"offline\"}");check(!p.busy&&saved(p)==v2&&p.getIdea().isVoid());

@@ -2,6 +2,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "engine/Composition.h"
 #include "engine/Direction.h"
+#include "StudioLook.h"
 #include <array>
 #include <algorithm>
 #include <charconv>
@@ -11,7 +12,7 @@
 // Read-only full-song overview. Model construction is non-RT and paint never scans source notes.
 class ComposerOverview final:public juce::Component {
 public:
- ComposerOverview(){setWantsKeyboardFocus(true);setName("Composer overview");setTitle("Composer overview");details.setName("Composition maps and tracks");details.setTitle("Composition maps and tracks");details.setMultiLine(true);details.setReadOnly(true);details.setScrollbarsShown(true);details.setCaretVisible(false);details.setFont(juce::FontOptions(12));details.setColour(juce::TextEditor::backgroundColourId,juce::Colour(0xff171c26));addAndMakeVisible(details);}
+ ComposerOverview(){setWantsKeyboardFocus(true);setName("Composer overview");setTitle("Composer overview");details.setName("Composition maps and tracks");details.setTitle("Composition maps and tracks");details.setMultiLine(true);details.setReadOnly(true);details.setScrollbarsShown(true);details.setCaretVisible(false);details.setFont(juce::FontOptions(12));details.setColour(juce::TextEditor::backgroundColourId,studio::field);addAndMakeVisible(details);}
  // Input has passed the composition/project validator. No document is retained.
  bool setDocument(const composer::Composition& c,double origin){
   if(c.endTick.value<=0||c.tracks.size()>rows.size()||!std::isfinite(origin))return false;
@@ -49,21 +50,21 @@ public:
  int requiredHeight()const{return header+int(rowCount)*rowHeight+230;}
  void resized()override{details.setBounds(12,header+int(rowCount)*rowHeight+10,std::max(1,getWidth()-24),210);}
  void paint(juce::Graphics& g)override{
-  g.fillAll(juce::Colour(0xff202633));g.setColour(juce::Colours::white);g.setFont(juce::FontOptions(15));g.drawText("COMPOSITION OVERVIEW - READ ONLY",12,8,getWidth()-24,24,juce::Justification::centredLeft);g.setFont(juce::FontOptions(12));g.setColour(juce::Colour(0xffb9c4d8));g.drawText(summary,12,34,getWidth()-24,24,juce::Justification::centredLeft);
-  g.drawText("Pitch range and density | timeline in quarter beats",12,59,getWidth()-24,20,juce::Justification::centredLeft);
+  g.fillAll(studio::background);g.setColour(studio::text);g.setFont(studio::font(14,juce::Font::bold));g.drawFittedText(summary,12,10,getWidth()-24,24,juce::Justification::centredLeft,1);g.setFont(studio::font(12));g.setColour(studio::muted);
+  g.drawText("Track activity   /   Quarter beats",12,39,getWidth()-24,20,juce::Justification::centredLeft);
   const int x=190,w=std::max(1,getWidth()-x-14);if(end<=0)return;
-  for(int i=0;i<=8;++i){const int at=x+w*i/8;g.setColour(juce::Colour(0xff394357));g.drawVerticalLine(at,105.0f,float(header+int(rowCount)*rowHeight));g.setColour(juce::Colour(0xffa9b5ca));g.drawText(juce::String(double(end)*i/(8*480.0),1),std::clamp(at-20,x,x+std::max(0,w-40)),83,40,20,i==0?juce::Justification::centredLeft:(i==8?juce::Justification::centredRight:juce::Justification::centred));}
-  for(const auto& s:sections){const int a=x+int(double(s.start)/end*w),b=x+int(double(s.end)/end*w);g.setColour(juce::Colour(0xff465479));g.fillRect(a,106,std::max(1,b-a-1),20);if(b-a>52){g.setColour(juce::Colours::white);g.drawText(s.name,a+3,106,b-a-6,20,juce::Justification::centredLeft);}}
-  for(size_t i=0;i<rowCount;++i){const auto& r=rows[i];const int top=header+int(i)*rowHeight;g.setColour(juce::Colour(0xff313b4d));g.drawHorizontalLine(top+rowHeight-1,0.0f,float(getWidth()));g.setColour(juce::Colours::white);g.drawFittedText(r.label,12,top+8,170,22,juce::Justification::centredLeft,1);g.setColour(juce::Colour(0xffa9b5ca));g.drawFittedText(r.sub,12,top+31,170,28,juce::Justification::topLeft,2);
+  for(int i=0;i<=8;++i){const int at=x+w*i/8;g.setColour(studio::border);g.drawVerticalLine(at,83.0f,float(header+int(rowCount)*rowHeight));g.setColour(studio::muted);g.drawText(juce::String(double(end)*i/(8*480.0),1),std::clamp(at-20,x,x+std::max(0,w-40)),61,40,20,i==0?juce::Justification::centredLeft:(i==8?juce::Justification::centredRight:juce::Justification::centred));}
+  for(const auto& s:sections){const int a=x+int(double(s.start)/end*w),b=x+int(double(s.end)/end*w);g.setColour(studio::active);g.fillRect(a,84,std::max(1,b-a-1),20);if(b-a>52){g.setColour(studio::text);g.drawText(s.name,a+3,84,b-a-6,20,juce::Justification::centredLeft);}}
+  for(size_t i=0;i<rowCount;++i){const auto& r=rows[i];const int top=header+int(i)*rowHeight;g.setColour(studio::border);g.drawHorizontalLine(top+rowHeight-1,0.0f,float(getWidth()));g.setColour(studio::text);g.drawFittedText(r.label,12,top+8,170,22,juce::Justification::centredLeft,1);g.setColour(studio::muted);g.drawFittedText(r.sub,12,top+31,170,28,juce::Justification::topLeft,2);
    const int columns=std::min(w,int(bins));for(int col=0;col<columns;++col){int low=128,high=-1;uint32_t density=0;const size_t first=size_t(col)*bins/size_t(columns),after=size_t(col+1)*bins/size_t(columns);for(auto b=first;b<after;++b){low=std::min(low,r.cells[b].low);high=std::max(high,r.cells[b].high);density=std::max(density,r.cells[b].count);}if(high<0)continue;
     const float a=float(x)+float(col)*w/columns,b=float(x)+float(col+1)*w/columns;g.setColour(juce::Colour(r.colour).withAlpha(std::min(1.0f,0.5f+float(density)*0.05f)));g.fillRect(a,float(top+8)+(127-high)*0.38f,std::max(1.0f,b-a),std::max(2.0f,(high-low+1)*0.38f));
    }
   }
  }
 private:
- static constexpr size_t bins=1024;static constexpr int header=136,rowHeight=72;
+ static constexpr size_t bins=1024;static constexpr int header=112,rowHeight=72;
  struct Bin{int low=128,high=-1;uint32_t count=0;};struct Row{juce::String label,sub;uint32_t colour=0;std::array<Bin,bins> cells;};
  struct Section{int64_t start,end;juce::String name;};
- inline static constexpr std::array<uint32_t,9> palette={0xff66c9c0,0xff9eabff,0xffe6b16a,0xffef8b9e,0xffe2a6d5,0xff8fbcff,0xff7bd6ad,0xffba9ef4,0xffc6d47e};
+ inline static constexpr std::array<uint32_t,9> palette={0xffd7fb66,0xff67d8bb,0xffe4b877,0xffb7a4ef,0xffeaa5b5,0xff88bdd5,0xffa9e6ab,0xffc5ade7,0xffc6d47e};
  std::array<Row,16> rows;size_t rowCount=0;int64_t end=0;std::vector<Section> sections;juce::String summary;juce::TextEditor details;
 };

@@ -11,7 +11,7 @@ const std::string legacy=R"({"version":1,"extension":{"precise":1.234567890123e-
 int main(){
  juce::ScopedJuceInitialiser_GUI init;auto owner=std::make_unique<Processor>();auto& p=*owner;
  check(saved(p)=="null"&&p.ideaCount()==0&&!p.canSwitchMode());
- {Processor pinned;ManualOverrides manual;manual.pinned.set(size_t(Field::energy));manual.values.mood.energy=0;
+ {auto pinnedStorage=std::make_unique<Processor>();auto& pinned=*pinnedStorage;ManualOverrides manual;manual.pinned.set(size_t(Field::energy));manual.values.mood.energy=0;
   const auto expected=generateResolvedLoop(LocalPromptInterpreter{}.interpret("4 bars energy100",42,manual));check(expected.composition);
   check(pinned.requestComposer("4 bars energy100",42,manual));manual.values.mood.energy=100;idle(pinned);
   auto actual=decodeProjectJson(saved(pinned));check(actual.project&&encodeCompositionJson(*actual.project->composition).json==encodeCompositionJson(*expected.composition).json);
@@ -21,7 +21,7 @@ int main(){
  }
 
 
- {Processor cap;Config config;config.bars=16;auto loop=generateLoop(config);check(loop.composition);
+ {auto capStorage=std::make_unique<Processor>();auto& cap=*capStorage;Config config;config.bars=16;auto loop=generateLoop(config);check(loop.composition);
   ProjectState old;old.activeMode=ProjectMode::composer;old.composition=std::move(loop.composition);old.composition->endTick={61440};old.composition->tracks[0].notes.push_back({999999,36,90,{60000},{480}});
   auto encoded=encodeProjectJson(old);check(encoded&&cap.restoreStateInformation(encoded.json.data(),int(encoded.json.size())));const auto original=saved(cap);
   auto midi=encodeCompositionMidi(*decodeProjectJson(original).project->composition);check(midi);juce::MemoryInputStream input(midi.bytes.data(),midi.bytes.size(),false);juce::MidiFile file;check(file.readFrom(input));for(int i=0;i<file.getNumTracks();++i)check(file.getTrack(i)->getEndTime()==61440);

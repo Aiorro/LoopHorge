@@ -113,7 +113,9 @@ Native evidence below is local Linux unless a row explicitly cites earlier platf
 
 | ERR-090 | High | Windows MCP shutdown | Fixed | A Windows MCP session with a full stdout pipe stayed live after EOF, blocking the Windows alpha test job. | Native Actions failed at 8 s and 12 s. Node documents synchronous pipe writes on Windows. Isolate Windows protocol stdout writes in a supervised child so shutdown timers can run. Windows npm test passed in job134640509664 with cleanup/drain checks. | T13/R06 |
 
-| ERR-091 | High | Windows native compile | Investigating | Musical audit and recipe tests compile Prompt.h as the default MSVC code page and fail C2015 on Cyrillic character literals. | Reproduced in job134640509664. Apply /utf-8 to all project C++ targets, including standalone test executables. Recheck Windows compilation. | T13/R06 |
+| ERR-091 | High | Windows native compile | Fixed | Musical audit and recipe tests compile Prompt.h as the default MSVC code page and fail C2015 on Cyrillic character literals. | Reproduced in job134640509664. Apply /utf-8 to all project C++ targets, including standalone test executables. Windows job134643713880 built all targets, including both affected tests. | T13/R06 |
+
+| ERR-092 | High | Native test stack | Investigating | Native Compose and Workspace Recipe tests overflow a 1 MiB stack with multiple large local Processor instances. | Windows134643713880 CTest38/40. Both reproduce exit139 with Linux stack limited to1MiB. After heap-allocating fixtures as the plugin factory does, both rebuilt Linux tests pass at1MiB. Windows result pending. | T13/R06 |
 
 ## Latest verification
 

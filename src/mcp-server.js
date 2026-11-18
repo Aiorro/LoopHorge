@@ -34,29 +34,46 @@ async function dispatch(message,{signal}={}){
  return error(id,-32601,'Method not found');
 }
 if(require.main===module){
+ // Windows Node stdout writes can block before returning. Isolate those
+ // writes in a child so the protocol's cleanup timer stays responsive.
+ const writer=process.platform==='win32'?require('node:child_process').spawn(
+  process.execPath,['-e','process.stdin.pipe(process.stdout)'],{stdio:['pipe',1,'ignore'],windowsHide:true}
+ ):null;
+ const output=writer?writer.stdin:process.stdout;
+ const writerClosed=writer?new Promise(resolve=>{
+  writer.once('close',resolve);
+  writer.once('error',()=>{outputFailed=true;shutdown(1)});
+ }):null;
+ function finishShutdown(code){
+  if(writer&&writer.exitCode===null&&writer.signalCode===null)writer.kill();
+  process.exit(code);
+ }
  const LIMIT=1024*1024,active=new Map();let parts=[],size=0,dropping=false,stopping=false,outputDeadline,outputFailed=false;
  function send(obj){
-  if(outputFailed||process.stdout.destroyed||process.stdout.writableEnded)return;
-  if(!process.stdout.write(JSON.stringify(obj)+'\n')){
+  if(outputFailed||output.destroyed||output.writableEnded)return;
+  if(!output.write(JSON.stringify(obj)+'\n')){
    process.stdin.pause();
    // Paused stdin may hide EOF, so a permanently blocked reply sink must also close the session.
    if(!stopping&&!outputDeadline)outputDeadline=setTimeout(()=>{outputFailed=true;shutdown(1)},5000);
   }
  }
- process.stdout.on('drain',()=>{clearTimeout(outputDeadline);outputDeadline=undefined;if(!stopping)process.stdin.resume()});
+ output.on('drain',()=>{clearTimeout(outputDeadline);outputDeadline=undefined;if(!stopping)process.stdin.resume()});
  function shutdown(code=0){
   if(stopping)return;stopping=true;process.stdin.pause();clearTimeout(outputDeadline);
   const pending=[...active.values()];for(const request of pending)request.controller.abort();
   // Covers provider/Windows job cleanup and a blocked stdout flush; hard kill/setsid are outside this session boundary.
-  const deadline=setTimeout(()=>process.exit(1),5000);
+  const deadline=setTimeout(()=>finishShutdown(1),5000);
   Promise.allSettled(pending.map(request=>request.task)).then(()=>{
    process.stdin.destroy();
-   if(outputFailed||process.stdout.destroyed){clearTimeout(deadline);process.exit(code);return;}
-   process.stdout.end(()=>{clearTimeout(deadline);process.exit(code)});
+   if(outputFailed||output.destroyed){clearTimeout(deadline);finishShutdown(code);return;}
+   output.end(()=>{
+    if(writerClosed)writerClosed.then(writerCode=>{clearTimeout(deadline);finishShutdown(writerCode===0?code:1)});
+    else{clearTimeout(deadline);finishShutdown(code);}
+   });
   });
  }
  process.on('SIGTERM',()=>shutdown());process.on('SIGINT',()=>shutdown());
- process.stdin.on('error',()=>shutdown(1));process.stdout.on('error',()=>{outputFailed=true;shutdown(1)});
+ process.stdin.on('error',()=>shutdown(1));output.on('error',()=>{outputFailed=true;shutdown(1)});
  function reply(task,id){task.then(result=>{if(result)send(result)},()=>send(error(id,-32603,'Request failed')))}
  function line(bytes){
   if(stopping)return;

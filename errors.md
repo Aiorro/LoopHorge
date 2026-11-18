@@ -111,6 +111,8 @@ Native evidence below is local Linux unless a row explicitly cites earlier platf
 
 | ERR-089 | High | Corresponding source integrity | Fixed | Tracked uncommitted code could produce binaries while bundled source archived older HEAD. | Staged/unstaged regression RED→GREEN; packager rejects tracked edits before output. Untracked user samples excluded from archives. | R06/T14 |
 
+| ERR-090 | High | Windows MCP shutdown | Investigating | A Windows MCP session with a full stdout pipe stayed live after EOF, blocking the Windows alpha test job. | Native Actions failed at 8 s and 12 s. Node documents synchronous pipe writes on Windows. Isolate Windows protocol stdout writes in a supervised child so shutdown timers can run. Check both EOF cleanup and drain recovery on Windows. | T13/R06 |
+
 ## Latest verification
 
 ERR-001/ERR-002: implementation5c5eafa; Linux VST3/Standalone/CTest32/32, Node42/42/sample equality, native protocol scripts and scoped ASan/UBSan/TSan passed. Independent gpt-6-astra/high review found no Critical/Important/Minor, reran the two focused tests and verified the55entry counts. Other Fixed rows retain their historical scope rather than inheriting a new full audit.

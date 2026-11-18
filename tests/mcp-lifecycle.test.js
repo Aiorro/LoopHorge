@@ -114,7 +114,10 @@ for(const phase of ['EOF','SIGTERM'])test(`MCP ${phase} remains bounded when a c
  let exit;client.child.once('exit',(code,signal)=>{exit={code,signal}});client.child.stdout.pause();
  for(let id=0;id<256;id++)client.send({id,method:'tools/list'});
  await delay(150);if(phase==='EOF')client.child.stdin.end();else client.child.kill('SIGTERM');
- await until(()=>exit,'blocked stdout prevented shutdown',8000);assert.equal(exit.code,1);assert.equal(exit.signal,null);
+ // EOF can be hidden while stdin is paused. The output stall timer may run
+ // for 5 s before the separate 5 s shutdown deadline starts. Allow scheduler slack.
+ const blockedOutputExitLimitMs=phase==='EOF'?12000:8000;
+ await until(()=>exit,'blocked stdout prevented shutdown',blockedOutputExitLimitMs);assert.equal(exit.code,1);assert.equal(exit.signal,null);
  client.child.stdout.resume();await exited(client);await dead(pids);
 });
 

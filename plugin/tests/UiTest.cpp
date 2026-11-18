@@ -3,20 +3,27 @@
 #include <iostream>
 #define check(value) do{if(!(value)){std::cerr<<"UI check at "<<__LINE__<<"\n";std::abort();}}while(false)
 int main(int argc,char** argv){juce::ScopedJuceInitialiser_GUI init;Processor p;std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
- juce::TextButton *generate=nullptr,*probe=nullptr,*cancel=nullptr,*undoButton=nullptr,*redoButton=nullptr,*quantizeButton=nullptr,*dragMidi=nullptr;juce::ComboBox *provider=nullptr,*variation=nullptr;juce::TextEditor* model=nullptr;
+ juce::TextButton *generate=nullptr,*probe=nullptr,*cancel=nullptr,*undoButton=nullptr,*redoButton=nullptr,*quantizeButton=nullptr,*dragMidi=nullptr,*ideaSettings=nullptr;juce::ComboBox *provider=nullptr,*variation=nullptr;juce::TextEditor* model=nullptr;
  for(int i=0;i<editor->getNumChildComponents();++i){auto* c=editor->getChildComponent(i);check(editor->getLocalBounds().contains(c->getBounds()));
-  if(auto* b=dynamic_cast<juce::TextButton*>(c)){if(b->getButtonText()=="GENERATE 8 IDEAS")generate=b;if(b->getButtonText()=="TEST (1 IDEA)")probe=b;if(b->getButtonText()=="CANCEL REQUEST")cancel=b;if(b->getButtonText()=="DRAG MIDI")dragMidi=b;if(b->getButtonText()=="UNDO")undoButton=b;if(b->getButtonText()=="REDO")redoButton=b;if(b->getButtonText()=="QUANTIZE 1/4 BEAT")quantizeButton=b;}
+  if(auto* b=dynamic_cast<juce::TextButton*>(c)){if(b->getButtonText()=="GENERATE 8 IDEAS")generate=b;if(b->getName()=="Idea bank settings")ideaSettings=b;if(b->getButtonText()=="TEST (1 IDEA)")probe=b;if(b->getButtonText()=="CANCEL REQUEST")cancel=b;if(b->getButtonText()=="DRAG MIDI")dragMidi=b;if(b->getButtonText()=="UNDO")undoButton=b;if(b->getButtonText()=="REDO")redoButton=b;if(b->getButtonText()=="QUANTIZE 1/4 BEAT")quantizeButton=b;}
   if(auto* box=dynamic_cast<juce::ComboBox*>(c)){if(box->getText()=="offline")provider=box;if(box->getNumItems()==0)variation=box;}
   if(auto* text=dynamic_cast<juce::TextEditor*>(c))if(!text->isMultiLine())model=text;
  }
  check(generate&&probe&&cancel&&provider&&model&&variation&&undoButton&&redoButton&&quantizeButton&&dragMidi);check(!dragMidi->isEnabled());check(!model->isEnabled());check(probe->getTooltip().contains("charges"));
- provider->setSelectedId(2,juce::sendNotificationSync);check(model->isEnabled());model->setText("test-model");provider->setSelectedId(1,juce::sendNotificationSync);check(!model->isEnabled()&&model->getText().isEmpty());
+ check(ideaSettings&&ideaSettings->isVisible()&&!provider->isVisible());
+ ideaSettings->onClick();check(provider->isVisible()&&probe->isVisible());
+ provider->setSelectedId(2,juce::sendNotificationSync);check(model->isEnabled());
+ ideaSettings->onClick();
+ auto* providerStatus=dynamic_cast<juce::Label*>(editor->findChildWithID("idea-provider"));
+ check(providerStatus&&providerStatus->isVisible()&&providerStatus->getText()=="VIA OPENAI");
+ ideaSettings->onClick();model->setText("test-model");provider->setSelectedId(1,juce::sendNotificationSync);check(!model->isEnabled()&&model->getText().isEmpty());
  bool boundaryOkay=true,selectionOkay=true;
  juce::Timer::callAfterDelay(100,[&]{
  generate->onClick();for(int i=0;i<100&&p.busy;++i)juce::Thread::sleep(10);check(!p.busy&&p.ideaCount()==8);auto before=juce::JSON::toString(p.getIdea());
  probe->onClick();for(int i=0;i<100&&p.busy;++i)juce::Thread::sleep(10);check(!p.busy&&p.getStatus().contains("ready"));check(before==juce::JSON::toString(p.getIdea()));cancel->onClick();
 
  juce::Timer::callAfterDelay(250,[&]{
+ ideaSettings->onClick();check(!provider->isVisible());
  check(dragMidi->isEnabled());
  bool initialScrollOkay=true;for(int c=0;c<editor->getNumChildComponents();++c)if(auto* v=dynamic_cast<juce::Viewport*>(editor->getChildComponent(c))){int y=(127-int(p.getIdea()["layers"]["bass"][0]["pitch"]))*12;if(y<v->getViewPositionY()||y>=v->getViewPositionY()+v->getViewHeight()){std::cerr<<"first generated layer outside viewport\n";initialScrollOkay=false;}}
  check(provider->getTitle()=="Provider");check(editor->isResizable());editor->setSize(1200,900);for(int c=0;c<editor->getNumChildComponents();++c){auto* component=editor->getChildComponent(c);check(editor->getLocalBounds().contains(component->getBounds()));if(auto* v=dynamic_cast<juce::Viewport*>(component))check(v->getHeight()>=editor->getHeight()/2);}editor->setSize(1000,740);

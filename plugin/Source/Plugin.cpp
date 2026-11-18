@@ -8,21 +8,34 @@
 #include "ComposerMoodControls.h"
 #include "engine/RecipeJson.h"
 #include "StudioLook.h"
+#include "LoopSignal.h"
 class Editor final: public juce::AudioProcessorEditor,private juce::Timer {
 public:
  Editor(Processor& p):AudioProcessorEditor(p),processor(p),roll(p),dragMidi([&p]{return p.snapshot().idea;},DragMidiCache(DragMidiCache::defaultRoot()),MidiDragSource::nativeDispatch,[safe=juce::Component::SafePointer<Editor>(this)](juce::String message){if(safe)safe->showDragStatus(std::move(message));}){
   setLookAndFeel(&look);setResizable(true,true);setResizeLimits(1000,740,1600,1100);
   composerNotice.setText("Read-only project - MIDI output only.\nHost PPQ/BPM controls playback; standalone follows the tempo map.",juce::dontSendNotification);composerNotice.setReadOnly(true);composerNotice.setMultiLine(true,true);composerNotice.setCaretVisible(false);composerNotice.setIndents(8,8);composerNotice.setScrollbarsShown(true);composerNotice.setFont(juce::FontOptions(12.0f));composerNotice.setName("Resolved Composer settings");composerNotice.setTitle("Committed Composer settings and origins; scroll for details");addChildComponent(composerNotice);
-  title.setText("LoopForge",juce::dontSendNotification);title.setFont(studio::font(30.0f,juce::Font::bold));title.setBorderSize({0,0,0,0});addAndMakeVisible(title);
+  title.setText("LoopForge",juce::dontSendNotification);title.setFont(studio::font(26.0f,juce::Font::bold));title.setBorderSize({0,0,0,0});addAndMakeVisible(title);
   identity.setText(p.wrapperType==juce::AudioProcessor::wrapperType_Standalone?"STANDALONE MIDI STUDIO":"MIDI LOOP STUDIO",juce::dontSendNotification);
   identity.setFont(studio::font(11.0f,juce::Font::bold));identity.setBorderSize({0,0,0,0});identity.setColour(juce::Label::textColourId,studio::muted);addAndMakeVisible(identity);
   openProject.setButtonText("OPEN PROJECT");saveProject.setButtonText("SAVE PROJECT");addAndMakeVisible(openProject);addAndMakeVisible(saveProject);
   openProject.setTitle("Open project JSON");saveProject.setTitle("Save project JSON");openProject.setTooltip("Open a full LoopForge v1/v2 project JSON. This replaces the committed project only after validation.");saveProject.setTooltip("Save the committed project captured when clicked. Composer v2 requires a current plugin version.");openProject.onClick=[this]{chooseProject(false);};saveProject.onClick=[this]{chooseProject(true);};
+  addAndMakeVisible(signal);
+  signal.onTrackSelected=[this](int index){
+   if (processor.compositionRevision()!=viewRevision || index>=layer.getNumItems() ||
+       (showComposer && !processor.canEditComposer())) return;
+   layer.setSelectedItemIndex(index,juce::dontSendNotification);
+   roll.selectLayer(activeTrack(),false);
+   if (showComposer) setNoteView(true);
+   else signal.setActiveTrack(index);
+   viewport.setViewPosition(0,roll.preferredScrollY());
+  };
+  ideaSettings.setName("Idea bank settings");ideaSettings.setButtonText("IDEA SETTINGS");addAndMakeVisible(ideaSettings);
+  ideaSettings.onClick=[this]{showIdeaSettings=!showIdeaSettings;timerCallback();repaint(signal.getBounds());};
   loopDetails.setName("Loop details");loopDetails.setButtonText("SHOW LOOP DETAILS");addChildComponent(loopDetails);
-  loopDetails.onClick=[this]{showDetails=!showDetails;timerCallback();};
+  loopDetails.onClick=[this]{showDetails=!showDetails;timerCallback();repaint(signal.getBounds());};
   mode.setName("Composer mode");compose.setName("Compose offline loop");seed.setName("Composer fallback seed");prompt.setName("Musical direction");
   openRecipe.setButtonText("OPEN RECIPE");saveRecipe.setButtonText("SAVE RECIPE");addChildComponent(openRecipe);addChildComponent(saveRecipe);openRecipe.onClick=[this]{chooseRecipe(false);};saveRecipe.onClick=[this]{chooseRecipe(true);};
-  moodSettings.setName("Composer mood settings");moodSettings.setButtonText("MOOD SETTINGS");moodSettings.setTooltip("Seven next-request mood settings; Auto follows text/defaults. Save/load separately with recipe files.");addChildComponent(moodSettings);addChildComponent(moodControls);moodSettings.onClick=[this]{showMood=!showMood;timerCallback();};
+  moodSettings.setName("Composer mood settings");moodSettings.setButtonText("MOOD SETTINGS");moodSettings.setTooltip("Seven next-request mood settings; Auto follows text/defaults. Save/load separately with recipe files.");addChildComponent(moodSettings);addChildComponent(moodControls);moodSettings.onClick=[this]{showMood=!showMood;timerCallback();repaint();};
   compose.setButtonText("COMPOSE OFFLINE LOOP");compose.setTooltip("Native deterministic4/8/16bar loop. Text/defaults choose Composer parameters; no service. MIDI output and basic preview.");addChildComponent(compose);compose.onClick=[this]{composeLoop();};
   addAndMakeVisible(mode);mode.onClick=[this]{if(processor.canSwitchMode()){processor.selectMode(processor.isComposerMode()?composer::ProjectMode::legacy:composer::ProjectMode::composer);timerCallback();}else composeLoop();};mode.setTooltip("Create a native Composer loop or switch between both preserved source documents. Switching cancels an active generation.");
   // Preserve complete insertions: filtering characters/length can change the requested seed.
@@ -30,11 +43,16 @@ public:
   prompt.setTooltip("Composer rejects directions above4096UTF8bytes without truncation. Composer uses this text, fallback seed and manual mood pins; Auto follows text/defaults. Legacy uses the controls below. SAVE RECIPE stores next-request text, seed and mood pins separately.");
   prompt.setFont(studio::font(15.0f));prompt.setIndents(9,7);prompt.setMultiLine(true);prompt.setText(defaultDirection);addAndMakeVisible(prompt);
   setup(provider,{"offline","openai","anthropic","openrouter","ollama","codex-cli","claude-cli"});
+  providerStatus.setComponentID("idea-provider");
+  providerStatus.setFont(studio::font(11.0f,juce::Font::bold));
+  providerStatus.setColour(juce::Label::textColourId,studio::muted);
+  providerStatus.setTooltip("Provider for Generate 8 Ideas");
+  addChildComponent(providerStatus);
   setup(key,{"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"});key.setSelectedId(3);
   setup(scale,{"minor","major","dorian","phrygian"});setup(style,{"nu-metal","trap","boom-bap","r&b","ambient"});setup(bars,{"4","8"});
   bpm.setRange(40,240,1);bpm.setValue(105);bpm.setTextValueSuffix(" BPM");addAndMakeVisible(bpm);
   model.setInputRestrictions(100);model.setTextToShowWhenEmpty("Default provider model",studio::muted);model.setTooltip("Optional model ID; sent only to the selected provider.");addAndMakeVisible(model);
-  provider.onChange=[this]{model.clear();model.setEnabled(provider.getText()!="offline");};model.setEnabled(false);
+  provider.onChange=[this]{model.clear();model.setEnabled(provider.getText()!="offline");timerCallback();};model.setEnabled(false);
   generate.setButtonText("GENERATE 8 IDEAS");addAndMakeVisible(generate);generate.onClick=[this]{processor.request(requestBody(false));};
   testConnection.setButtonText("TEST (1 IDEA)");testConnection.setTooltip("Generates one idea to check connection, login and model access. Cloud/CLI usage may incur charges. Keeps your current composition.");addAndMakeVisible(testConnection);testConnection.onClick=[this]{processor.request(requestBody(true));};
   cancel.setButtonText("CANCEL REQUEST");addAndMakeVisible(cancel);cancel.onClick=[this]{processor.cancel();};
@@ -43,8 +61,8 @@ public:
   variation.setTextWhenNothingSelected("No ideas yet");addAndMakeVisible(variation);variation.onChange=[this]{processor.choose(variation.getSelectedItemIndex());repaint();};
   addAndMakeVisible(dragMidi);
   exportButton.setButtonText("EXPORT MIDI");exportButton.setTooltip("Export the composition captured when clicked. Composer MIDI is prepared in the background with its tempo, meter, tracks and controllers.");addAndMakeVisible(exportButton);exportButton.onClick=[this]{exportMidi();};
-  setup(layer,{"bass","chords","melody"});layer.onChange=[this]{roll.selectLayer(activeTrack());viewport.setViewPosition(0,roll.preferredScrollY());};
-  noteView.setName("Composer note view");noteView.setButtonText("EDIT NOTES");addChildComponent(noteView);noteView.onClick=[this]{showEdit=!showEdit;showMood=false;viewRevision=UINT64_MAX;timerCallback();};
+  setup(layer,{"bass","chords","melody"});layer.onChange=[this]{roll.selectLayer(activeTrack());signal.setActiveTrack(layer.getSelectedItemIndex());viewport.setViewPosition(0,roll.preferredScrollY());};
+  noteView.setName("Composer note view");noteView.setButtonText("EDIT NOTES");addChildComponent(noteView);noteView.onClick=[this]{setNoteView(!showEdit);};
   quantize.setButtonText("QUANTIZE 1/4 BEAT");undo.setButtonText("UNDO");redo.setButtonText("REDO");
   for(auto* button:{&quantize,&undo,&redo})addAndMakeVisible(*button);
   quantize.onClick=[this]{processor.quantize(processor.compositionRevision(),activeTrack());roll.refresh();};undo.onClick=[this]{processor.undoEdit();roll.refresh();};redo.onClick=[this]{processor.redoEdit();roll.refresh();};
@@ -53,14 +71,14 @@ public:
   help.setText("Brackets select notes | Arrows move | Shift + Left/Right resize | Delete removes | Double-click adds",juce::dontSendNotification);help.setFont(juce::FontOptions(11.0f));help.setColour(juce::Label::textColourId,studio::muted);addAndMakeVisible(help);
   int focusOrder=1;
   for (auto* component : std::initializer_list<juce::Component*>{&prompt,&seed,&mode,&compose,&moodSettings,&loopDetails,&composerNotice,
-       &key,&scale,&style,&bars,&provider,&bpm,&model,&generate,&testConnection,&cancel,&play,&sound,&variation,&noteView,
+       &ideaSettings,&provider,&key,&scale,&style,&bars,&bpm,&model,&generate,&testConnection,&cancel,&play,&signal,&sound,&variation,&noteView,
        &exportButton,&dragMidi,&layer,&quantize,&undo,&redo,&addNote,&deleteNote,&viewport,&moodControls,&openRecipe,&saveRecipe,
        &openProject,&saveProject})
    component->setExplicitFocusOrder(focusOrder++);
-  viewport.setViewedComponent(&roll,false);viewport.setScrollBarsShown(true,false);addAndMakeVisible(viewport);setSize(1000,740);viewport.setViewPosition(0,roll.preferredScrollY());
+  viewport.setViewedComponent(&roll,false);viewport.setScrollBarsShown(true,false);viewport.setScrollBarThickness(9);addAndMakeVisible(viewport);setSize(1000,740);viewport.setViewPosition(0,roll.preferredScrollY());
   layer.setTooltip("Double-click to add; drag to move; drag right edge to resize; right-click to delete. Scroll for pitch.");
   refreshComposerDraft();prompt.onTextChange=[this]{syncComposerDraft();};seed.onTextChange=[this]{syncComposerDraft();};moodControls.onChange=[this]{syncComposerDraft();};
-  addAndMakeVisible(status);status.setColour(juce::Label::textColourId,studio::text);status.setFont(studio::font(13.0f));timerCallback();startTimerHz(5);
+  addAndMakeVisible(status);status.setColour(juce::Label::textColourId,studio::text);status.setFont(studio::font(12.0f));timerCallback();startTimerHz(5);
  }
  ~Editor() override {
   stopTimer();
@@ -69,156 +87,144 @@ public:
  }
 
  void resized() override {
-  const auto area = getLocalBounds().reduced(24, 0);
-  auto header = area.withHeight(76);
-  title.setBounds(header.getX()+48, 12, 220, 35);
-  identity.setBounds(title.getX(), 48, 220, 18);
-  auto files = header.withTrimmedLeft(header.getWidth()-238).withY(23).withHeight(32);
-  openProject.setBounds(files.removeFromLeft(114));
-  files.removeFromLeft(10);
+  const auto area = getLocalBounds().reduced(22, 0);
+  title.setBounds(area.getX()+43, 10, 162, 32);
+  identity.setBounds(title.getRight()+8, 18, 168, 17);
+  auto files = area.withY(13).withHeight(30).withTrimmedLeft(area.getWidth()-214);
+  openProject.setBounds(files.removeFromLeft(103));
+  files.removeFromLeft(8);
   saveProject.setBounds(files);
 
-  auto body = area.withTrimmedTop(88).withTrimmedBottom(62);
-  inputPanel = body.removeFromLeft(310);
-  body.removeFromLeft(16);
-  workPanel = body;
-  const auto input = inputPanel.reduced(16, 0);
-  const int x = input.getX(), w = input.getWidth();
   const bool composer = showComposer;
-  auto field = [&](juce::Label& label, juce::Component& control, int left, int y, int width) {
-   label.setBounds(left, y, width, 18);
-   control.setBounds(left, y+20, width, 32);
-  };
-  promptLabel.setBounds(x, 138, w, 18);
-  prompt.setBounds(x, 158, w, 82);
-  field(seedLabel, seed, x, 250, 88);
-  mode.setBounds(x+98, 270, w-98, 32);
-  compose.setBounds(x, 320, w, 40);
-  moodSettings.setBounds(x, 370, w, 34);
-  loopDetails.setBounds(x, 414, w, 34);
-  composerNotice.setBounds(x, 458, w, 184);
+  auto command = area.withY(71).withHeight(41);
+  play.setBounds(command.removeFromRight(106));
+  command.removeFromRight(9);
+  const auto composeSlot = command.removeFromRight(180);
+  compose.setBounds(composeSlot);
+  command.removeFromRight(9);
+  seed.setBounds(command.removeFromRight(68));
+  seedLabel.setBounds(seed.getX(), 53, seed.getWidth(), 14);
+  command.removeFromRight(9);
+  prompt.setBounds(command);
+  promptLabel.setBounds(command.getX(), 53, command.getWidth(), 14);
 
-  const int half = (w-10)/2, other = x+half+10;
-  field(keyLabel, key, x, 352, half);
-  field(scaleLabel, scale, other, 352, half);
-  field(styleLabel, style, x, 410, half);
-  field(barsLabel, bars, other, 410, half);
-  field(providerLabel, provider, x, 468, half);
-  field(tempoLabel, bpm, other, 468, half);
-  field(modelLabel, model, x, 526, w);
-  generate.setBounds(x, 588, w, 36);
-  testConnection.setBounds(x, 634, half, 30);
-  cancel.setBounds(other, composer ? 320 : 634, half, 30);
-  if (composer && busyLayout) {
-   compose.setBounds(x, 320, half, 40);
-   cancel.setBounds(other, 320, half, 40);
+  const auto upper = area.withY(125).withHeight(137);
+  signal.setBounds(upper);
+  composerNotice.setBounds(upper.reduced(12, 10));
+  auto options = upper.reduced(12, 10);
+  int column = 0;
+  for (const auto& [label, control] : std::array<std::pair<juce::Label*, juce::Component*>, 6>{{
+        {&providerLabel, &provider}, {&keyLabel, &key}, {&scaleLabel, &scale},
+        {&styleLabel, &style}, {&barsLabel, &bars}, {&tempoLabel, &bpm}}}) {
+   const int left = options.getX()+options.getWidth()*column/6;
+   const int right = options.getX()+options.getWidth()*(column+1)/6;
+   label->setBounds(left, options.getY(), right-left-8, 17);
+   control->setBounds(left, options.getY()+20, right-left-8, 31);
+   ++column;
   }
+  modelLabel.setBounds(options.getX(), options.getY()+58, 390, 17);
+  model.setBounds(options.getX(), options.getY()+77, 390, 31);
+  testConnection.setBounds(model.getRight()+10, model.getY(), 144, 31);
 
-  auto work = workPanel.reduced(16, 0);
-  auto transport = work.withY(138).withHeight(36);
-  auto left = [&](int width) {
-   const auto bounds = transport.removeFromLeft(width);
-   transport.removeFromLeft(8);
-   return bounds;
+  auto tools = area.withY(270).withHeight(34);
+  const auto place = [](juce::Rectangle<int>& row, juce::Component& control, int width) {
+   control.setBounds(row.removeFromLeft(width));
+   row.removeFromLeft(7);
   };
-  play.setBounds(left(104));
-  sound.setBounds(left(84));
-  const auto viewSlot = left(133);
-  variation.setBounds(viewSlot);
-  noteView.setBounds(viewSlot);
-  if (!composer) {
-   dragMidi.setBounds(transport.removeFromRight(99));
-   transport.removeFromRight(8);
-  } else {
+  if (composer) {
+   place(tools, mode, 110);
+   place(tools, moodSettings, 139);
+   place(tools, loopDetails, 146);
+   place(tools, noteView, 145);
+   ideaSettings.setBounds({});
+   generate.setBounds({});
+   variation.setBounds({});
    dragMidi.setBounds({});
+  } else {
+   mode.setBounds(composeSlot);
+   place(tools, ideaSettings, 131);
+   place(tools, generate, 148);
+   place(tools, variation, 114);
+   place(tools, providerStatus, 105);
+   dragMidi.setBounds(tools.removeFromRight(104));
+   tools.removeFromRight(7);
+   noteView.setBounds({});
+   moodSettings.setBounds({});
+   loopDetails.setBounds({});
   }
-  exportButton.setBounds(transport.removeFromRight(114));
+  exportButton.setBounds(tools.removeFromRight(111));
+  tools.removeFromRight(7);
+  sound.setBounds(tools.removeFromRight(78));
+  tools.removeFromRight(7);
+  cancel.setBounds(tools.removeFromRight(122));
 
-  auto edit = work.withY(184).withHeight(34);
-  auto tool = [&](int width) {
-   const auto bounds = edit.removeFromLeft(width);
-   edit.removeFromLeft(6);
-   return bounds;
-  };
-  layer.setBounds(tool(104));
-  quantize.setBounds(tool(128));
-  undo.setBounds(tool(57));
-  redo.setBounds(tool(57));
-  deleteNote.setBounds(edit.removeFromRight(103));
-  edit.removeFromRight(6);
-  addNote.setBounds(edit.removeFromRight(83));
+  auto edit = area.withY(314).withHeight(33);
+  place(edit, layer, 152);
+  place(edit, quantize, 139);
+  place(edit, undo, 61);
+  place(edit, redo, 61);
+  deleteNote.setBounds(edit.removeFromRight(108));
+  edit.removeFromRight(7);
+  addNote.setBounds(edit.removeFromRight(96));
 
   const bool editVisible = !composer || showEdit;
-  const int top = editVisible ? 246 : 190;
-  viewport.setBounds(work.withTop(top).withTrimmedBottom(36));
-  viewport.setScrollBarThickness(10);
+  const int top = editVisible ? 371 : 314;
+  viewport.setBounds(area.withTop(top).withTrimmedBottom(55));
   auto contentWidth = [&](int height) {
    return viewport.getWidth() - (height > viewport.getHeight() ? viewport.getScrollBarThickness() : 0);
   };
   const auto rollHeight = roll.hasTimeline() ? 128*12 : viewport.getHeight();
   roll.setSize(contentWidth(rollHeight), rollHeight);
   overview.setSize(contentWidth(overview.requiredHeight()), overview.requiredHeight());
-  help.setBounds(work.withTop(work.getBottom()-30).withHeight(24));
+  help.setBounds(area.withY(getHeight()-50).withHeight(19));
 
-  moodControls.setBounds(work.getX(), 190, work.getWidth(), 308);
-  openRecipe.setBounds(work.getX(), 512, 138, 32);
-  saveRecipe.setBounds(work.getX()+148, 512, 138, 32);
-  status.setBounds(area.getX()+20, getHeight()-48, area.getWidth()-20, 34);
+  moodControls.setBounds(area.getX(), 317, area.getWidth(), 256);
+  openRecipe.setBounds(area.getX(), 587, 138, 32);
+  saveRecipe.setBounds(area.getX()+148, 587, 138, 32);
+  status.setBounds(area.getX()+16, getHeight()-27, area.getWidth()-16, 21);
  }
 
  void paint(juce::Graphics& g) override {
   g.fillAll(studio::background);
-  const auto mark = juce::Rectangle<float>(24, 20, 36, 36);
-  g.setColour(studio::accent);
-  g.fillRoundedRectangle(mark, 8.0f);
+  g.setGradientFill(juce::ColourGradient(juce::Colour(0xff242b2e), 0.0f, 0.0f,
+                                        studio::background, 30.0f, 290.0f, false));
+  g.fillRect(getLocalBounds().withHeight(300));
+  const auto mark = juce::Rectangle<float>(22, 13, 31, 31);
+  g.setGradientFill(juce::ColourGradient(studio::accent.brighter(0.18f), mark.getTopLeft(),
+                                        juce::Colour(0xffa0cd4c), mark.getBottomRight(), false));
+  g.fillRoundedRectangle(mark, 7.0f);
   g.setColour(studio::accentInk);
-  for (int i = 0; i < 3; ++i)
-   g.fillRoundedRectangle(33.0f + 5.0f*i, 42.0f-5.0f*i, 8.0f, 3.0f, 1.5f);
-  g.setColour(studio::border);
-  g.drawHorizontalLine(76, 24.0f, float(getWidth()-24));
+  for (int i=0; i<3; ++i) g.fillRoundedRectangle(29.0f+4.5f*i, 33.0f-5.0f*i, 8.0f, 3.0f, 1.5f);
+  g.setColour(studio::border.withAlpha(0.8f));
+  g.drawHorizontalLine(49, 22.0f, float(getWidth()-22));
 
-  for (auto bounds : {inputPanel, workPanel}) {
-   auto frame = bounds.toFloat().reduced(0.5f);
+  if (!signal.isVisible()) {
+   const auto frame = signal.getBounds().toFloat().reduced(0.5f);
    g.setColour(studio::panel);
-   g.fillRoundedRectangle(frame, 8.0f);
+   g.fillRoundedRectangle(frame, 9.0f);
    g.setColour(studio::border);
-   g.drawRoundedRectangle(frame, 8.0f, 1.0f);
-  }
-  const bool composer = showComposer;
-  const auto y = inputPanel.getY()+13;
-  g.setFont(studio::font(18, juce::Font::bold));
-  g.setColour(studio::text);
-  g.drawText("Create a loop", inputPanel.getX()+16, y, 230, 26, juce::Justification::centredLeft);
-  g.drawText(composer && showMood ? "Mood settings" :
-             composer && !showEdit ? "Loop overview" : "Piano roll",
-             workPanel.getX()+16, y, 240, 26, juce::Justification::centredLeft);
-  g.setColour(studio::muted);
-  g.setFont(studio::font(12));
-  g.drawText("4 / 8 / 16 bars", inputPanel.getRight()-108, y, 92, 26, juce::Justification::centredRight);
-  if (!composer) {
-   g.setColour(studio::border);
-   g.drawHorizontalLine(323, float(inputPanel.getX()+16), float(inputPanel.getRight()-16));
-   g.setColour(studio::text);
-   g.setFont(studio::font(14, juce::Font::bold));
-   g.drawText("Idea bank", inputPanel.getX()+16, 329, 140, 20, juce::Justification::centredLeft);
+   g.drawRoundedRectangle(frame, 9.0f, 1.0f);
   }
   if (viewport.isVisible()) {
-   const auto frame = viewport.getBounds();
+   auto frame = viewport.getBounds();
+   if (viewport.getViewedComponent() == &roll && roll.hasTimeline()) {
+    roll.paintRuler(g, {frame.getX(), frame.getY()-20, roll.getWidth(), 20});
+    frame = frame.withTop(frame.getY()-20);
+   }
    g.setColour(studio::border);
    g.drawRect(frame.expanded(1), 1);
-   if (viewport.getViewedComponent() == &roll && roll.hasTimeline())
-    roll.paintRuler(g, {frame.getX(), frame.getY()-22, roll.getWidth(), 22});
   }
-  g.setColour(processor.busy ? studio::accent : studio::muted);
-  g.fillEllipse(25.0f, float(getHeight()-34), 6.0f, 6.0f);
+  const float statusY = float(getHeight()-17);
+  g.setColour(busyLayout ? studio::accent : studio::muted);
+  g.fillEllipse(23.0f, statusY, 5.0f, 5.0f);
  }
 private:
  studio::Look look;
- juce::Label identity;
- juce::Rectangle<int> inputPanel, workPanel;
+ juce::Label identity, providerStatus;
+ LoopSignal signal;
  static constexpr auto defaultDirection = "8 bars D minor 105 bpm, dark atmospheric nu-metal with bass, chords and lead";
- bool busyLayout = false, showComposer = false, showDetails = false;
- juce::TextButton loopDetails;
+ bool busyLayout = false, showComposer = false, showDetails = false, showIdeaSettings = false;
+ juce::TextButton loopDetails, ideaSettings;
  Processor& processor;ComposerMoodControls moodControls;juce::TextButton moodSettings;juce::TextButton openRecipe,saveRecipe;bool showMood=false,showEdit=false,applyingDraft=false;juce::TextButton noteView;juce::StringArray trackKeys;uint64_t draftEpoch=UINT64_MAX;std::string renderedDraftJson;ComposerMidiExport composerMidiExport;bool fileChoosing=false;PianoRoll roll;ComposerOverview overview;uint64_t viewRevision=UINT64_MAX;MidiDragSource dragMidi;juce::String dragStatus;juce::uint32 dragStatusUntil=0;juce::Viewport viewport;juce::ComboBox layer;juce::TextButton quantize,undo,redo,addNote,deleteNote;juce::Label seedLabel,title,status,help,promptLabel,providerLabel,keyLabel,scaleLabel,styleLabel,barsLabel,tempoLabel,modelLabel;juce::TextEditor prompt,model,seed,composerNotice;juce::ComboBox provider,key,scale,style,bars,variation;juce::Slider bpm;juce::TextButton mode,compose,generate,play,exportButton,testConnection,cancel,openProject,saveProject;juce::ToggleButton sound;std::unique_ptr<juce::FileChooser> chooser;
  void refreshComposerDraft(){
   if(auto state=processor.composerDraft(draftEpoch)){
@@ -251,20 +257,43 @@ private:
  void showDragStatus(juce::String message){dragStatus=std::move(message);dragStatusUntil=juce::Time::getMillisecondCounter()+5000;status.setText(dragStatus,juce::dontSendNotification);}
  juce::String activeTrack(){auto index=layer.getSelectedItemIndex();return index>=0&&index<trackKeys.size()?trackKeys[index]:layer.getText();}
  void refreshPresentation(){
-  if(auto state=processor.presentation(viewRevision)){viewRevision=state->revision;
+  if(auto state=processor.presentation(viewRevision)){
+   auto snapshot=processor.snapshot();
+   if (state->revision != snapshot.revision) return;
+   viewRevision=state->revision;
    if (state->composer != showComposer) {
     showComposer = state->composer;
-    showDetails = showMood = false;
+    showDetails = showMood = showIdeaSettings = false;
     showEdit = showComposer && processor.wrapperType == juce::AudioProcessor::wrapperType_Standalone;
    }
    saveProject.setEnabled(state->hasState);
-   if(state->composer){auto project=composer::decodeProjectJson(state->json);if(project.project&&project.project->composition)overview.setDocument(*project.project->composition,project.project->hostStartQuarterBeat);}
-   auto snapshot=processor.snapshot();if(state->composer&&!bool(snapshot.idea["metadata"]["editable"]))showEdit=false;auto current=activeTrack();juce::StringArray keys,names;if(state->composer){auto tracks=snapshot.idea["tracks"];for(int i=0;i<tracks.size();++i){keys.add(tracks[i]["key"].toString());names.add(tracks[i]["name"].toString());}}else{keys={"bass","chords","melody"};names=keys;}
+   if (state->composer) {
+    auto project=composer::decodeProjectJson(state->json);
+    if(project.project&&project.project->composition) {
+     overview.setDocument(*project.project->composition,project.project->hostStartQuarterBeat);
+     const auto& document = *project.project->composition;
+     signal.setComposition(document, composerView::barStarts(document), bool(snapshot.idea["metadata"]["editable"]));
+    }
+   } else {
+    signal.setIdea(snapshot.idea);
+   }
+   if(state->composer&&!bool(snapshot.idea["metadata"]["editable"]))showEdit=false;auto current=activeTrack();juce::StringArray keys,names;if(state->composer){auto tracks=snapshot.idea["tracks"];for(int i=0;i<tracks.size();++i){keys.add(tracks[i]["key"].toString());names.add(tracks[i]["name"].toString());}}else{keys={"bass","chords","melody"};names=keys;}
+   const bool replaced=roll.applySnapshot(std::move(snapshot));
    bool same=keys==trackKeys&&names.size()==layer.getNumItems();for(int i=0;same&&i<names.size();++i)same=names[i]==layer.getItemText(i);
-   if(!same){trackKeys=keys;layer.clear(juce::dontSendNotification);for(int i=0;i<names.size();++i)layer.addItem(names[i],i+1);auto index=keys.indexOf(current);layer.setSelectedItemIndex(index<0?0:index,juce::dontSendNotification);roll.selectLayer(activeTrack());}layer.setTitle(state->composer?"Edit track":"Edit layer");
-   juce::Component* target=state->composer&&!showEdit?static_cast<juce::Component*>(&overview):static_cast<juce::Component*>(&roll);
-   const bool changed=viewport.getViewedComponent()!=target;if(changed)viewport.setViewedComponent(target,false);resized();if(changed)viewport.setViewPosition(0,target==&roll?roll.preferredScrollY():0);
+   if(!same){trackKeys=keys;layer.clear(juce::dontSendNotification);for(int i=0;i<names.size();++i)layer.addItem(names[i],i+1);auto index=keys.indexOf(current);layer.setSelectedItemIndex(index<0?0:index,juce::dontSendNotification);roll.selectLayer(activeTrack(),false);}layer.setTitle(state->composer?"Edit track":"Edit layer");
+   layoutWorkspace(replaced);
   }
+ }
+ void setNoteView(bool edit){
+  showEdit=edit;showMood=false;layoutWorkspace();timerCallback();
+ }
+ void layoutWorkspace(bool recenter=false){
+  auto* target=showComposer&&!showEdit?static_cast<juce::Component*>(&overview):static_cast<juce::Component*>(&roll);
+  const bool changed=viewport.getViewedComponent()!=target;
+  if(changed)viewport.setViewedComponent(target,false);
+  resized();
+  repaint();
+  if(changed||(recenter&&target==&roll))viewport.setViewPosition(0,target==&roll?roll.preferredScrollY():0);
  }
  void chooseRecipe(bool saving){
   if(fileChoosing)return;
@@ -302,6 +331,7 @@ private:
   refreshPresentation();
 
   const bool legacy = !showComposer;
+  const bool ideaControls = legacy && showIdeaSettings;
   const bool busy = processor.busy;
   const bool canSwitch = processor.canSwitchMode();
   const bool resetView = legacy && (showMood || showEdit);
@@ -315,9 +345,13 @@ private:
   status.setTooltip(message);
 
   for (auto* control : std::initializer_list<juce::Component*>{&provider,&providerLabel,&key,&keyLabel,
-       &scale,&scaleLabel,&style,&styleLabel,&bars,&barsLabel,&bpm,&tempoLabel,&generate,
-       &variation,&dragMidi,&model,&modelLabel,&testConnection})
+       &scale,&scaleLabel,&style,&styleLabel,&bars,&barsLabel,&bpm,&tempoLabel,&model,&modelLabel,&testConnection})
+   control->setVisible(ideaControls);
+  for (auto* control : std::initializer_list<juce::Component*>{&generate,&variation,&dragMidi,&ideaSettings,&providerStatus})
    control->setVisible(legacy);
+  ideaSettings.setButtonText(ideaControls ? "CLOSE SETTINGS" : "IDEA SETTINGS");
+  providerStatus.setText("VIA " + provider.getText().toUpperCase(),juce::dontSendNotification);
+  signal.setVisible(!ideaControls && !showDetails);
   for (auto* control : std::initializer_list<juce::Component*>{&layer,&quantize,&undo,&redo,&addNote,&deleteNote})
    control->setVisible(editing);
 
@@ -327,7 +361,7 @@ private:
   compose.setEnabled(!busy);
   studio::primary(mode, legacy && !canSwitch && !busy);
   studio::primary(compose, !busy);
-  cancel.setVisible(legacy || busy);
+  cancel.setVisible(busy);
   cancel.setEnabled(busy);
   generate.setEnabled(legacy && !busy);
   testConnection.setEnabled(legacy && !busy);
@@ -339,7 +373,7 @@ private:
 
   noteView.setVisible(!legacy && !showMood);
   noteView.setEnabled(editable);
-  noteView.setButtonText(showEdit ? "SHOW OVERVIEW" : "EDIT NOTES");
+  noteView.setButtonText(showEdit ? "TRACK OVERVIEW" : "PIANO ROLL");
   moodSettings.setVisible(!legacy);
   moodSettings.setButtonText(showMood ? "BACK TO LOOP" : "MOOD SETTINGS");
   moodControls.setVisible(!legacy && showMood);
@@ -352,7 +386,7 @@ private:
                juce::dontSendNotification);
 
   loopDetails.setVisible(!legacy);
-  loopDetails.setButtonText(showDetails ? "HIDE LOOP DETAILS" : "SHOW LOOP DETAILS");
+  loopDetails.setButtonText(showDetails ? "CLOSE DETAILS" : "LOOP DETAILS");
   composerNotice.setVisible(!legacy && showDetails);
   if (!legacy && showDetails) {
    const auto summary = processor.composerSummary();
@@ -363,6 +397,7 @@ private:
    }
    composerNotice.setTooltip(settings);
   }
+  signal.setActiveTrack(editing ? layer.getSelectedItemIndex() : -1);
   layer.setEnabled(editing);
   roll.setEnabled(editable);
   const int count = processor.ideaCount();
@@ -376,19 +411,15 @@ private:
    for (int i = 0; i < count; ++i) variation.addItem("IDEA " + juce::String(i+1), i+1);
   }
   if (count > 0) variation.setSelectedItemIndex(processor.selectedIdeaIndex(), juce::dontSendNotification);
-  const bool hadTimeline = roll.hasTimeline();
-  const bool replaced = roll.refresh();
-  if (hadTimeline != roll.hasTimeline()) resized();
-  if (replaced && editing) viewport.setViewPosition(0, roll.preferredScrollY());
   deleteNote.setEnabled(roll.hasSelection());
   undo.setEnabled(processor.canUndo());
   redo.setEnabled(processor.canRedo());
 
-  if (resetView || busy != busyLayout) {
+  if (resetView) resized();
+  if (busy != busyLayout) {
    busyLayout = busy;
-   resized();
+   repaint(22, getHeight()-19, 8, 8);
   }
-  repaint();
  }
  void pollComposerMidi(){
   if(fileChoosing)return;auto result=composerMidiExport.takeResult();if(!result)return;

@@ -29,7 +29,7 @@ struct Flow:juce::Timer{
 static_cast<juce::AudioProcessor&>(*p).addListener(&listener);for(int i=0;i<editor->getNumChildComponents();++i){auto* c=editor->getChildComponent(i);if(c->getName()=="Composer mode")mode=dynamic_cast<juce::TextButton*>(c);if(c->getName()=="Compose offline loop")compose=dynamic_cast<juce::TextButton*>(c);if(c->getName()=="Composer fallback seed")seed=dynamic_cast<juce::TextEditor*>(c);if(c->getName()=="Musical direction")direction=dynamic_cast<juce::TextEditor*>(c);if(auto* v=dynamic_cast<juce::Viewport*>(c))vp=v;}
   check(mode&&compose&&seed&&direction&&vp);check(mode->getButtonText()=="COMPOSE LOOP"&&mode->isEnabled()&&!compose->isVisible());
   checkStudioLayout();
-  snapshot("loopforge-studio-start.png");
+  snapshot("loopforge-instrument-start.png");
   direction->setText("4 bars ambient bass chords lead drums");
   // Real insertion exercises JUCE filters; setText alone bypasses them.
   for(const auto& invalid:juce::StringArray{"-1","1.5","10000000000","12x","4294967296"}){seed->selectAll();seed->insertTextAtCaret(invalid);mode->onClick();check(!p->busy&&!p->isComposerMode());check(seed->getText()==invalid);}
@@ -40,9 +40,13 @@ static_cast<juce::AudioProcessor&>(*p).addListener(&listener);for(int i=0;i<edit
  }
  ~Flow(){static_cast<juce::AudioProcessor&>(*p).removeListener(&listener);}
  void checkStudioLayout(){
-  check(direction->getBottom() <= mode->getY());
-  check(direction->getRight() < vp->getX());
-  if(vp->isVisible())check(vp->getHeight() >= editor->getHeight() / 2);
+  auto* signal = editor->findChildWithID("loop-signal");
+  check(signal && direction->getWidth() >= editor->getWidth() / 2);
+  check(direction->getBottom() < signal->getY());
+  if(vp->isVisible()){
+   check(vp->getWidth() >= editor->getWidth() - 56);
+   check(vp->getHeight() >= 300 && signal->getBottom() < vp->getY());
+  }
   std::vector<juce::Component*> controls;
   for(auto* child:editor->getChildren()){
    if(!child->isVisible())continue;
@@ -54,7 +58,15 @@ static_cast<juce::AudioProcessor&>(*p).addListener(&listener);for(int i=0;i<edit
  void snapshot(const char* path){auto image=editor->createComponentSnapshot(editor->getLocalBounds());juce::MemoryOutputStream out;juce::PNGImageFormat png;check(png.writeImageToStream(image,out)&&juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile(path).replaceWithData(out.getData(),out.getDataSize()));}
  void timerCallback()override{
   check(++ticks<400);if(p->busy||ticks%8)return;
-  if(phase==0){check(p->composerDraft(UINT64_MAX)->json);check(p->isComposerMode()&&dynamic_cast<ComposerOverview*>(vp->getViewedComponent()));check(compose->isVisible()&&compose->isEnabled()&&direction->isVisible()&&direction->isEnabled());check(mode->getButtonText()=="IDEA BANK");check(listener.changes>0);
+  if(phase==0){check(p->composerDraft(UINT64_MAX)->json);check(p->isComposerMode()&&dynamic_cast<ComposerOverview*>(vp->getViewedComponent()));check(compose->isVisible()&&compose->isEnabled()&&direction->isVisible()&&direction->isEnabled());check(mode->getButtonText()=="IDEA BANK");check(listener.changes>0);check(editor->findChildWithID("loop-signal")->getDescription().contains("4 tracks"));
+   auto* signal=editor->findChildWithID("loop-signal");
+   auto* signalTrack=dynamic_cast<juce::TextButton*>(signal->findChildWithID("signal-track-1"));
+   check(signalTrack&&signalTrack->isVisible());
+   signalTrack->onClick();
+   check(vp->getViewedComponent()->getName()=="Piano roll"&&signalTrack->getToggleState());
+   checkStudioLayout();snapshot("loopforge-instrument-piano-roll.png");
+   for(auto* c:editor->getChildren())if(c->getName()=="Composer note view")dynamic_cast<juce::TextButton*>(c)->onClick();
+   check(dynamic_cast<ComposerOverview*>(vp->getViewedComponent()));
    juce::TextButton* settings=nullptr;for(int i=0;i<editor->getNumChildComponents();++i)if(editor->getChildComponent(i)->getName()=="Composer mood settings")settings=dynamic_cast<juce::TextButton*>(editor->getChildComponent(i));check(settings&&settings->isVisible());settings->onClick();check(!vp->isVisible());int recipeButtons=0;for(int i=0;i<editor->getNumChildComponents();++i)if(auto* b=dynamic_cast<juce::TextButton*>(editor->getChildComponent(i)))if(b->getButtonText()=="OPEN RECIPE"||b->getButtonText()=="SAVE RECIPE"){check(b->isVisible()&&b->getBottom()<editor->getHeight()-60);++recipeButtons;}check(recipeButtons==2);checkStudioLayout();snapshot("loopforge-mood-panel-min.png");settings->onClick();check(vp->isVisible());
    for(auto* c:editor->getChildren())if(c->getName()=="Composer note view"){
     auto* noteView=dynamic_cast<juce::TextButton*>(c);check(noteView&&noteView->isVisible()&&noteView->isEnabled());
@@ -66,7 +78,7 @@ static_cast<juce::AudioProcessor&>(*p).addListener(&listener);for(int i=0;i<edit
    checkStudioLayout();
    bool readable=false;for(int i=0;i<editor->getNumChildComponents();++i)if(auto* text=dynamic_cast<juce::TextEditor*>(editor->getChildComponent(i)))if(text->getName()=="Resolved Composer settings")readable=text->isVisible()&&text->isReadOnly()&&text->getText().contains("seed=42 [default]");check(readable);
    for(auto* c:editor->getChildren())if(c->getName()=="Loop details")dynamic_cast<juce::TextButton*>(c)->onClick();
-   checkStudioLayout();snapshot("loopforge-compose-ui-min.png");editor->setSize(1600,1100);checkStudioLayout();snapshot("loopforge-compose-ui-large.png");editor->setSize(1000,740);mode->onClick();phase=1;
+   checkStudioLayout();snapshot("loopforge-instrument-overview.png");editor->setSize(1600,1100);checkStudioLayout();snapshot("loopforge-instrument-wide.png");editor->setSize(1000,740);mode->onClick();phase=1;
   }else if(phase==1){check(!p->isComposerMode()&&mode->getButtonText()=="VIEW LOOP");check(!compose->isVisible());mode->onClick();phase=2;
   }else if(phase==2){check(p->isComposerMode()&&compose->isVisible());seed->setText("43");ComposerMoodControls* panel=nullptr;for(int i=0;i<editor->getNumChildComponents();++i)if(auto* c=dynamic_cast<ComposerMoodControls*>(editor->getChildComponent(i)))panel=c;check(panel);
    auto* automatic=dynamic_cast<juce::ToggleButton*>(panel->getChildComponent(4));auto* energy=dynamic_cast<juce::Slider*>(panel->getChildComponent(5));check(automatic&&energy);automatic->setToggleState(false,juce::sendNotificationSync);energy->setValue(0);direction->setText("4 bars energy100");compose->onClick();energy->setValue(100);direction->setText("3 minutes song");phase=3;

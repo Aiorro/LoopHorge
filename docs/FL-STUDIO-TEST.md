@@ -1,12 +1,12 @@
-# FL Studio x64 — first alpha test
+# FL Studio x64 — alpha test
 
 Target: Windows x64, FL Studio x64, LoopForge VST3. FL Studio acceptance has NOT been performed. Record exact FL Studio/Windows versions, audio driver, sample rate, buffer size, source commit and package SHA256 with every report. Start with a disposable FL project and keep existing projects backed up.
 
 ## Standalone Windows EXE
 
-The same Windows ZIP includes `Standalone/LoopForge AI MIDI.exe`. Extract the complete package and launch that EXE directly. It is a native JUCE application, not Electron/a web launcher, and offline Composer does not need Node. Open its audio settings, select an available Windows audio device/driver, rate and buffer, generate a loop, enable SOUND and press PLAY. Record the exact device/driver in the test report. Standalone currently plays one pass; MIDI export/import is the supported transfer into FL Studio. No virtual MIDI cable/output-device integration is claimed. Keep both the EXE and the package notices/sources; no background service is installed.
+The same Windows ZIP includes `Standalone/LoopForge AI MIDI.exe`. Extract the complete package and launch that EXE directly. It is a native JUCE application, not Electron/a web launcher, and offline Composer does not need Node. Open its audio settings, select an available Windows audio device/driver, rate and buffer, generate a loop, enable **Sound** and press **Play / Stop**. Record the exact device/driver in the test report. Standalone currently plays one pass; MIDI export/import is the supported transfer into FL Studio. No virtual MIDI cable/output-device integration is claimed. Keep both the EXE and the package notices/sources; no background service is installed.
 
-Windows EXE compilation/execution is still unverified until the Windows CI artifact and real Windows test exist. A Linux executable or synthetic test fixture is never an EXE deliverable.
+The Native plugin workflow builds the Windows x64 EXE and VST3 and runs automated tests. Standalone playback with a real Windows audio device still needs a manual test.
 
 ## Install and scan
 

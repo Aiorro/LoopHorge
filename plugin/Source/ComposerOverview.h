@@ -21,7 +21,7 @@ public:
   char number[64];auto last=std::to_chars(number,number+sizeof(number),origin,std::chars_format::general,std::numeric_limits<double>::max_digits10);
   text+="Host origin PPQ "+std::string(number,last.ptr)+" | End tick "+std::to_string(end)+"\nComposition tempo map is used standalone; host BPM controls plugin playback.\n\n";
   std::vector<std::array<int32_t,bins+1>> changes(128);
-  for(size_t i=0;i<rowCount;++i){auto& row=rows[i];const auto& t=c.tracks[i];row=Row{};row.colour=palette[size_t(t.role)%palette.size()];row.label=juce::String::fromUTF8(t.name.c_str());row.sub=juce::String(composer::roleName(t.role))+" | ch "+juce::String(t.channel)+" | "+juce::String(t.notes.size())+" notes";
+  for(size_t i=0;i<rowCount;++i){auto& row=rows[i];const auto& t=c.tracks[i];row=Row{};row.colour=studio::trackColour(int(i)).getARGB();row.label=juce::String::fromUTF8(t.name.c_str());row.sub=juce::String(composer::roleName(t.role))+" | ch "+juce::String(t.channel)+" | "+juce::String(t.notes.size())+" notes";
    text+="Track "+std::to_string(t.id)+": "+t.name+" | "+composer::roleName(t.role)+" | channel "+std::to_string(t.channel)+" | "+std::to_string(t.notes.size())+" notes | "+std::to_string(t.controls.size())+" CC";
    if(t.program){text+=" | GM program "+std::to_string(*t.program);}
    if(t.bank){text+=" | bank "+std::to_string(t.bank->msb)+":"+std::to_string(t.bank->lsb);}
@@ -65,6 +65,5 @@ private:
  static constexpr size_t bins=1024;static constexpr int header=112,rowHeight=72;
  struct Bin{int low=128,high=-1;uint32_t count=0;};struct Row{juce::String label,sub;uint32_t colour=0;std::array<Bin,bins> cells;};
  struct Section{int64_t start,end;juce::String name;};
- inline static constexpr std::array<uint32_t,9> palette={0xffd7fb66,0xff67d8bb,0xffe4b877,0xffb7a4ef,0xffeaa5b5,0xff88bdd5,0xffa9e6ab,0xffc5ade7,0xffc6d47e};
  std::array<Row,16> rows;size_t rowCount=0;int64_t end=0;std::vector<Section> sections;juce::String summary;juce::TextEditor details;
 };

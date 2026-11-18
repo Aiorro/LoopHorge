@@ -5,8 +5,27 @@
 class PianoRoll final:public juce::Component {
 public:
  explicit PianoRoll(Processor& p):processor(p){setName("Piano roll");setTitle("Piano roll");setWantsKeyboardFocus(true);refresh();}
- void selectLayer(const juce::String& name){refresh();if(!editing::layer(name)&&!state.idea["layers"][juce::Identifier(name)].isArray())return;activeLayer=name;selected=-1;dragging=false;repaint();}
- bool refresh(){if(state.idea.isObject()&&processor.compositionRevision()==state.revision)return false;auto next=processor.snapshot();bool replaced=next.replacement!=state.replacement;if(next.revision!=state.revision){dragging=false;selected=-1;state=std::move(next);if(bool(state.idea["composer"])&&!state.idea["layers"][juce::Identifier(activeLayer)].isArray()){auto tracks=state.idea["tracks"];activeLayer=tracks.size()?tracks[0]["key"].toString():"bass";}setDescription(notes().size()?"No note selected. Brackets select notes.":"Empty layer. Use Add note to begin.");repaint();}return replaced;}
+ void selectLayer(const juce::String& name, bool refreshState=true) {
+  if(refreshState)refresh();
+  if(!editing::layer(name)&&!state.idea["layers"][juce::Identifier(name)].isArray())return;
+  activeLayer=name;selected=-1;dragging=false;repaint();
+ }
+ bool refresh(){
+  if(processor.compositionRevision()==state.revision)return false;
+  return applySnapshot(processor.snapshot());
+ }
+ bool applySnapshot(editing::Snapshot next){
+  if(next.revision==state.revision)return false;
+  const bool replaced=next.replacement!=state.replacement;
+  dragging=false;selected=-1;state=std::move(next);
+  if(bool(state.idea["composer"])&&!state.idea["layers"][juce::Identifier(activeLayer)].isArray()){
+   const auto tracks=state.idea["tracks"];
+   activeLayer=tracks.size()?tracks[0]["key"].toString():"bass";
+  }
+  setDescription(notes().size()?"No note selected. Brackets select notes.":"Empty layer. Use Add note to begin.");
+  repaint();
+  return replaced;
+ }
  int preferredScrollY()const{int pitch=60;auto notes=state.idea["layers"][juce::Identifier(activeLayer)];if(notes.size())pitch=int(notes[0]["pitch"]);return juce::jlimit(0,128*row-300,(127-pitch)*row-130);}
  bool hasTimeline()const{return beats()>0;}
  bool hasSelection()const{return selected>=0&&selected<notes().size();}
@@ -58,18 +77,20 @@ public:
   const double end = beats();
   if (end <= 0) {
    const auto centre = getLocalBounds().getCentre();
-   const auto badge = juce::Rectangle<float>(48, 48).withCentre(centre.toFloat() - juce::Point<float>(0, 40));
-   g.setColour(studio::active);
-   g.fillRoundedRectangle(badge, 9.0f);
-   g.setColour(studio::accent);
-   for (int i=0; i<3; ++i)
-    g.fillRoundedRectangle(badge.getX()+9+8*i, badge.getY()+30-6*i, 13, 3, 1.5f);
+   g.setColour(studio::field.withAlpha(0.55f));
+   for (int y=0; y<getHeight(); y+=row) g.drawHorizontalLine(y, 0.0f, float(getWidth()));
+   for (int i=1; i<16; ++i) g.drawVerticalLine(i*getWidth()/16, 0.0f, float(getHeight()));
+   const auto plaque = juce::Rectangle<int>(330, 62).withCentre(centre);
+   g.setColour(studio::background);
+   g.fillRoundedRectangle(plaque.toFloat(), 8.0f);
+   g.setColour(studio::border);
+   g.drawRoundedRectangle(plaque.toFloat(), 8.0f, 1.0f);
    g.setColour(studio::text);
-   g.setFont(studio::font(19, juce::Font::bold));
-   g.drawText("No loop in the piano roll", 0, centre.y-6, getWidth(), 28, juce::Justification::centred);
+   g.setFont(studio::font(17, juce::Font::bold));
+   g.drawText("Piano roll", plaque.withY(plaque.getY()+8).withHeight(24), juce::Justification::centred);
    g.setColour(studio::muted);
-   g.setFont(studio::font(14));
-   g.drawText("Compose a loop or generate ideas to start editing.", 0, centre.y+26, getWidth(), 26,
+   g.setFont(studio::font(13));
+   g.drawText("Compose a loop to start editing.", plaque.withY(plaque.getY()+32).withHeight(20),
               juce::Justification::centred);
    return;
   }
@@ -98,8 +119,8 @@ public:
                juce::Colour(0xff273037) : studio::field);
    g.drawVerticalLine(int(xAt(beat)), float(clip.getY()), float(clip.getBottom()));
   }
-  juce::StringArray names;if(bool(state.idea["composer"])){for(auto& t:*state.idea["tracks"].getArray())names.add(t["key"].toString());}else names={"bass","chords","melody"};const juce::Colour colours[]={studio::accent,juce::Colour(0xff67d8bb),juce::Colour(0xffe4b877),juce::Colour(0xffb7a4ef)};
-  for(int ch=0;ch<names.size();++ch){auto list=state.idea["layers"][juce::Identifier(names[ch])];for(int i=0;i<list.size();++i){auto note=dragging&&activeLayer==names[ch]&&i==selected?preview:list[i];auto rect=bounds(note);g.setColour((activeLayer==names[ch]?studio::accent:colours[ch%4]).withAlpha(activeLayer==names[ch]?1.0f:.44f));g.fillRoundedRectangle(rect,2);if(i==selected&&activeLayer==names[ch]){g.setColour(juce::Colours::white);g.drawRect(rect.expanded(hasKeyboardFocus(true)?2.0f:0.0f),hasKeyboardFocus(true)?2.0f:1.5f);}}}
+  juce::StringArray names;if(bool(state.idea["composer"])){for(auto& t:*state.idea["tracks"].getArray())names.add(t["key"].toString());}else names={"bass","chords","melody"};
+  for(int ch=0;ch<names.size();++ch){auto list=state.idea["layers"][juce::Identifier(names[ch])];for(int i=0;i<list.size();++i){auto note=dragging&&activeLayer==names[ch]&&i==selected?preview:list[i];auto rect=bounds(note);const auto tint=studio::trackColour(ch);const bool active=activeLayer==names[ch];g.setColour(tint.withAlpha(active?1.0f:.34f));g.fillRoundedRectangle(rect,2);if(active&&rect.getWidth()>5.0f){g.setColour(studio::background.withAlpha(0.35f));g.fillRect(rect.getRight()-2.5f,rect.getY()+2.0f,1.0f,rect.getHeight()-4.0f);}if(i==selected&&activeLayer==names[ch]){g.setColour(juce::Colours::white);g.drawRect(rect.expanded(hasKeyboardFocus(true)?2.0f:0.0f),hasKeyboardFocus(true)?2.0f:1.5f);}}}
  }
  void mouseDoubleClick(const juce::MouseEvent& e)override{refresh();if(e.x<48||hit(e.position)>=0||beats()<=0)return;int index=notes().size();auto replacement=state.replacement;bool changed=processor.edit(state.revision,activeLayer,-1,pitchAt(e.y),beatAt(e.x),1);afterEdit(changed,index,replacement);}
  void mouseDown(const juce::MouseEvent& e)override{

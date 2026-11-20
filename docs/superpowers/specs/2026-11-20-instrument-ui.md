@@ -8,7 +8,7 @@ The second image repeats that hierarchy at promotional scale. Its headline and r
 
 ## Implementation
 
-Use a graphite shell, pale type and LoopForge lime for focus and primary actions. Build the field from original nested bands of forest, teal, chartreuse and ivory. An off-centre core gives it direction. Keep it static and render it locally. The field provides visual context for the selected loop. Controls with a real action use buttons.
+Use a graphite shell, pale type and LoopForge lime for focus and primary actions. Build the field from original nested bands of forest, teal, chartreuse and ivory. An off-centre core gives it direction. Keep it static and render it locally. Shade each contour from cool turquoise into lime with a fine reflected edge. Place web loop metadata on a translucent dark plaque with a solid fallback. Native controls use painted diagonal highlights. Keep the note grid matte and all highlights static. The field provides visual context for the selected loop. Controls with a real action use buttons.
 
 In Standalone and VST3, centre the direction/seed/compose/transport row. Keep the MIDI timing overview and track buttons on a dark surface within the field, with the tempo at its core. Preserve piano-roll, overview, settings and export entry points.
 

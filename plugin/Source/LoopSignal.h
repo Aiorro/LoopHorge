@@ -102,11 +102,17 @@ public:
     const float scale = 1.0f - float(i)*0.13f;
     const auto band = juce::Rectangle<float>(frame.getWidth()*0.83f*scale, frame.getHeight()*2.6f*scale)
                           .withCentre(centre.translated(-12.0f*i, 0));
-    g.setColour(juce::Colour(ink[size_t(i)]));
+    const auto tint = juce::Colour(ink[size_t(i)]);
+    juce::ColourGradient glass(tint.interpolatedWith(juce::Colour(0xff53ddd6), 0.55f),
+                               band.getTopLeft(), tint.darker(0.25f), band.getBottomRight(), false);
+    glass.addColour(0.58, tint.brighter(0.12f));
+    g.setGradientFill(glass);
     g.fillEllipse(band);
+    g.setColour(juce::Colours::white.withAlpha(0.23f));
+    g.drawEllipse(band, 1.0f);
    }
    drawDial(g, centre.translated(-72.0f, 0));
-   g.setColour(juce::Colour(0xff101714));
+   g.setColour(juce::Colour(0xf0182b29));
    g.fillRoundedRectangle(displayArea().expanded(7,4).toFloat(), 5.0f);
    drawTracks(g, displayArea());
   }

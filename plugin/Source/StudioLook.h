@@ -67,7 +67,12 @@ public:
   const bool primary = enabled && colour == accent;
   const auto top = fill.interpolatedWith(juce::Colours::white, primary ? 0.13f : 0.08f);
   const auto bottom = fill.darker(primary ? 0.17f : 0.25f);
-  g.setGradientFill(juce::ColourGradient(top, area.getTopLeft(), bottom, area.getBottomLeft(), false));
+  juce::ColourGradient glass(top, area.getTopLeft(),
+                             bottom.interpolatedWith(juce::Colour(0xff53cabb), primary ? 0.55f : 0.12f),
+                             area.getBottomRight(), false);
+  glass.addColour(0.36, fill.interpolatedWith(text, enabled ? 0.15f : 0.04f));
+  glass.addColour(0.58, bottom);
+  g.setGradientFill(glass);
   g.fillRoundedRectangle(area, 6.0f);
   g.setColour(button.hasKeyboardFocus(true) ? (colour == accent ? text : accent) :
               enabled && colour == accent ? fill : border.withAlpha(enabled ? 1.0f : 0.55f));

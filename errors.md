@@ -1,6 +1,6 @@
 # LoopForge error register
 
-Updated: 2026-11-18. Historical reviews/regressions are imported from [task.md](task.md); the focused whole-project triage atb257237 is recorded in docs/audits/2026-11-15-remediation-triage.md. Historical Fixed scope is not broadened by that audit. task.md remains the sole execution checklist and priority source. This register has stable finding IDs, statuses and evidence, not competing task checkboxes.
+Updated: 2026-11-20. Historical reviews/regressions are imported from [task.md](task.md); the focused whole-project triage atb257237 is recorded in docs/audits/2026-11-15-remediation-triage.md. Historical Fixed scope is not broadened by that audit. task.md remains the sole execution checklist and priority source. This register has stable finding IDs, statuses and evidence, not competing task checkboxes.
 
 **Open:** unresolved finding/risk. **Investigating:** observed failure, cause unproven. **Blocked:** unavailable infrastructure/host/tools prevent verification. **Fixed:** regression passes only in the stated scope, not a release/DAW claim. Missing staged Composer features remain in task.md; missing-API TDD steps and fixture typos are not product defects.
 
@@ -17,6 +17,8 @@ Updated: 2026-11-18. Historical reviews/regressions are imported from [task.md](
 | ERR-077 | Low | Download robustness | Open | Immediate URL.revokeObjectURL after a.click() can cancel the MIDI download in some browsers. | web/app.js now defers revocation 1000ms; browser download behavior unverified locally (no browser harness installed). | T13 |
 
 | ERR094 | Low | Test timing | Investigating | The native Compose stale-result fixture can fail when a legacy edit races the worker. | One Linux parallel CTest run failed at NativeComposeTest.cpp line 57. The serial CI-equivalent run passed. The test queues a fast local generation and assumes its immediate edit always wins. | T13 |
+
+| ERR096 | Medium | Model acceptance | Blocked | Live MIDI-LLM weight download and inference could not run in the development environment. | The Hugging Face model card and configuration were readable through web research. The shell download route returns HTTP 403 and no CUDA device is available. A local test worker exercises transport and note validation without weights. | R02 |
 
 ## Fixed findings and recorded regressions
 

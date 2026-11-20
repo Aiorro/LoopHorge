@@ -51,8 +51,10 @@ function fixture(t) {
  write(path.join(rootDir, 'LICENSE'), 'Fixture repository MIT notice\n');
  write(path.join(rootDir, 'docs/NATIVE-PACKAGING.md'), 'Fixture portable instructions\n');
  write(path.join(rootDir, 'docs/FL-STUDIO-TEST.md'), 'Fixture FL Studio instructions\n');
- write(path.join(rootDir, 'docs/releases/0.2.0-alpha.3.md'), 'Fixture alpha release notes\n');
+ write(path.join(rootDir, 'docs/releases/0.2.0-alpha.4.md'), 'Fixture alpha release notes\n');
  write(path.join(rootDir, 'docs/NATIVE-DAW-ACCEPTANCE.md'), 'Fixture host acceptance procedure\n');
+ for (const helper of ['Setup MIDI-LLM.cmd', 'setup-midi-llm.py'])
+  write(path.join(rootDir,'scripts/midi-llm',helper),'Fixture setup helper');
  const buildSha = commit(rootDir);
  const base = path.join(buildDir, 'LoopForge_artefacts/Release');
  const app = path.join(base, 'Standalone/LoopForge AI MIDI.exe');

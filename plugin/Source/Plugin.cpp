@@ -42,6 +42,17 @@ public:
   seed.setText("42");seed.setTooltip("Fallback unsigned32bit seed (0-4294967295). An explicit seed in direction text wins. Next request only; SAVE RECIPE stores this value separately.");addAndMakeVisible(seed);caption(seedLabel,"Seed",seed);
   prompt.setTooltip("Composer rejects directions above4096UTF8bytes without truncation. Composer uses this text, fallback seed and manual mood pins; Auto follows text/defaults. Legacy uses the controls below. SAVE RECIPE stores next-request text, seed and mood pins separately.");
   prompt.setFont(studio::font(15.0f));prompt.setIndents(9,7);prompt.setMultiLine(true);prompt.setText(defaultDirection);addAndMakeVisible(prompt);
+  setup(engine,{"Rule Composer","MIDI-LLM"});
+  engine.setTitle("Composition engine");
+  addAndMakeVisible(modelSetup);modelSetup.setButtonText("MODEL SETUP");
+  modelSetup.setTooltip("Check this computer and install the local MIDI-LLM model");
+  modelSetup.onClick=[]{
+   const auto launcher=midiLlm::setupLauncher();
+   if(!launcher.existsAsFile() || !launcher.startAsProcess())
+    juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::InfoIcon,"MIDI-LLM setup",
+       "Open Setup MIDI-LLM.cmd in the MIDI-LLM folder of the extracted Windows ZIP. Standalone and VST3 share the installed model.");
+  };
+  refreshModelChoice();
   setup(provider,{"offline","openai","anthropic","openrouter","ollama","codex-cli","claude-cli"});
   providerStatus.setComponentID("idea-provider");
   providerStatus.setFont(studio::font(11.0f,juce::Font::bold));
@@ -90,6 +101,8 @@ public:
   const auto area = getLocalBounds().reduced(22, 0);
   title.setBounds(area.getX()+43, 10, 162, 32);
   identity.setBounds(title.getRight()+8, 18, 168, 17);
+  engine.setBounds(area.getRight()-485,13,143,30);
+  modelSetup.setBounds(area.getRight()-333,13,110,30);
   auto files = area.withY(13).withHeight(30).withTrimmedLeft(area.getWidth()-214);
   openProject.setBounds(files.removeFromLeft(103));
   files.removeFromLeft(8);
@@ -222,6 +235,10 @@ private:
  studio::Look look;
  juce::Label identity, providerStatus;
  LoopSignal signal;
+ juce::ComboBox engine;
+ juce::TextButton modelSetup;
+ bool modelReady=false;
+ juce::uint32 modelCheckedAt=0;
  static constexpr auto defaultDirection = "8 bars D minor 105 bpm, dark atmospheric nu-metal with bass, chords and lead";
  bool busyLayout = false, showComposer = false, showDetails = false, showIdeaSettings = false;
  juce::TextButton loopDetails, ideaSettings;
@@ -242,11 +259,18 @@ private:
   if(processor.setComposerDraft(recipe,draftEpoch)){renderedDraftJson=std::move(encoded.json);return;}
   {auto old=draftEpoch;refreshComposerDraft();if(old==draftEpoch)showDragStatus("Settings cannot be saved within this project metadata budget");}
  }
+ void refreshModelChoice(){
+  modelCheckedAt=juce::Time::getMillisecondCounter();
+  const bool ready=midiLlm::installed();
+  engine.setItemEnabled(2,ready);
+  if(ready!=modelReady)engine.setSelectedId(ready?2:1,juce::dontSendNotification);
+  modelReady=ready;
+ }
  void composeLoop(){
   refreshComposerDraft();
   const auto text=seed.getText().toStdString();uint32_t value=0;auto read=std::from_chars(text.data(),text.data()+text.size(),value);
   if(text.empty()||read.ec!=std::errc{}||read.ptr!=text.data()+text.size()){showDragStatus("Composer seed must be an integer0-4294967295");seed.grabKeyboardFocus();return;}
-  syncComposerDraft();dragStatus.clear();processor.requestComposer(prompt.getText(),value,moodControls.overrides());timerCallback();
+  syncComposerDraft();dragStatus.clear();processor.requestComposer(prompt.getText(),value,moodControls.overrides(),engine.getSelectedId()==2);timerCallback();
  }
  juce::String requestBody(bool probe){auto* o=new juce::DynamicObject;
   o->setProperty("provider",provider.getText());o->setProperty("key",key.getText());o->setProperty("mode",scale.getText());o->setProperty("style",style.getText());o->setProperty("bars",bars.getText().getIntValue());o->setProperty("bpm",int(bpm.getValue()));o->setProperty("description",prompt.getText());o->setProperty("count",8);
@@ -326,6 +350,7 @@ private:
   }catch(const std::bad_alloc&){fileChoosing=false;showDragStatus("Insufficient memory to choose a project file");}
  }
  void timerCallback() override {
+  if(juce::Time::getMillisecondCounter()-modelCheckedAt>=2000)refreshModelChoice();
   refreshComposerDraft();
   pollComposerMidi();
   refreshPresentation();
@@ -360,6 +385,7 @@ private:
   compose.setVisible(!legacy);
   compose.setEnabled(!busy);
   studio::primary(mode, legacy && !canSwitch && !busy);
+  compose.setButtonText(engine.getSelectedId()==2?"COMPOSE WITH MIDI-LLM":"COMPOSE OFFLINE LOOP");
   studio::primary(compose, !busy);
   cancel.setVisible(busy);
   cancel.setEnabled(busy);

@@ -11,6 +11,7 @@
 #include "PreparedMidi.h"
 #include "ComposerEditView.h"
 #include "PreviewSynth.h"
+#include "MidiLlm.h"
 #include <deque>
 #include <atomic>
 #include <mutex>
@@ -54,7 +55,7 @@ public:
    midiLimitReached=result.overflow||sink.rejected();
    if(!block.playing||midiLimitReached)preview.clear();
    auto event=midi.cbegin();const auto end=midi.cend();const bool sound=audition.load();
-   for(int sample=0;sample<audio.getNumSamples();++sample){while(event!=end&&(*event).samplePosition<=sample){const auto e=*event;if(e.numBytes>=3)preview.message(e.data[0],e.data[1],e.data[2]);++event;}const float rendered=preview.sample();const float value=sound?rendered:0;for(int ch=0;ch<audio.getNumChannels();++ch)audio.setSample(ch,sample,value);}
+   for(int sample=0;sample<audio.getNumSamples();++sample){while(event!=end&&(*event).samplePosition<=sample){const auto e=*event;if(e.numBytes>=2)preview.message(e.data[0],e.data[1],e.numBytes>=3?e.data[2]:0);++event;}const float rendered=preview.sample();const float value=sound?rendered:0;for(int ch=0;ch<audio.getNumChannels();++ch)audio.setSample(ch,sample,value);}
    if(block.clock==composer::Clock::compositionSeconds)internalSeconds=block.playing?result.nextPosition:0;
    return;
   }
@@ -140,12 +141,12 @@ public:
  std::optional<Presentation> presentation(uint64_t knownRevision){std::lock_guard lock(mutex);if(knownRevision==revision)return {};return Presentation{revision,composerMode,!stateJson.empty(),composerMode?stateJson:std::string{}};}
  bool isComposerMode(){std::lock_guard lock(mutex);return composerMode;}
  void request(const juce::String& body){std::lock_guard lock(mutex);if(composerMode){status="Legacy generation unavailable in Composer mode";return;}if(busy)return;composerRequest=false;requestBody=body;requestRevision=revision;++jobGeneration;cancelled=false;status="Queued...";busy=true;notify();}
- bool requestComposer(const juce::String& direction,uint32_t seed,composer::ManualOverrides manual={}){
+ bool requestComposer(const juce::String& direction,uint32_t seed,composer::ManualOverrides manual={},bool useModel=false){
   std::lock_guard lock(mutex);if(busy)return false;
   if(direction.getNumBytesAsUTF8()>4096){status="Composer rejected: direction exceeds4096UTF8bytes";return false;}
   std::string base=stateJson;
   if(base.empty()){auto* root=new juce::DynamicObject;root->setProperty("version",1);root->setProperty("idea",builtInIdea());base=juce::JSON::toString(juce::var(root)).toStdString();}
-  requestDirection=direction.toStdString();requestBase=std::move(base);requestSeed=seed;requestManual=std::move(manual);requestMode=composerMode;composerRequest=true;
+  requestDirection=direction.toStdString();requestBase=std::move(base);requestSeed=seed;requestManual=std::move(manual);requestMode=composerMode;requestModel=useModel;composerRequest=true;
   requestRevision=revision;++jobGeneration;cancelled=false;status="Composer queued...";busy=true;notify();return true;
  }
  bool cancel(){std::lock_guard lock(mutex);if(!busy)return false;cancelled=true;status="Cancelling...";notify();return true;}
@@ -251,7 +252,7 @@ private:
   }catch(const std::bad_alloc&){return false;}
  }
  struct CommitGuard{uint64_t revision=0,job=0;bool mode=false,generated=false;};
- bool composerRequest=false,requestMode=false;uint32_t requestSeed=0;std::string requestDirection,requestBase;std::optional<std::string> draftRecipeJson;std::optional<size_t> canonicalStateBytes;uint64_t draftEpoch=0;composer::ManualOverrides requestManual;juce::String resolvedSummary;
+ bool composerRequest=false,requestMode=false,requestModel=false;uint32_t requestSeed=0;std::string requestDirection,requestBase;std::optional<std::string> draftRecipeJson;std::optional<size_t> canonicalStateBytes;uint64_t draftEpoch=0;composer::ManualOverrides requestManual;juce::String resolvedSummary;
  void handleAsyncUpdate()override{updateHostDisplay(ChangeDetails{}.withNonParameterStateChanged(true));}
  void notifyCommittedState()noexcept{try{triggerAsyncUpdate();}catch(const std::bad_alloc&){cancelPendingUpdate();}}
  static juce::var builtInIdea(){
@@ -331,18 +332,29 @@ private:
  }
  void run()override{
   while(!threadShouldExit()){
-   wait(200);juce::String body;uint64_t baseRevision=0,job=0;bool native=false,baseMode=false;std::string direction,base;uint32_t seed=0;composer::ManualOverrides manual;
-   {std::lock_guard lock(mutex);reclaimReturned();if(!busy)continue;native=composerRequest;if(native){direction=std::move(requestDirection);base=std::move(requestBase);seed=requestSeed;manual=std::move(requestManual);baseMode=requestMode;}else body=requestBody;baseRevision=requestRevision;job=jobGeneration;status=native?"Resolving Composer direction...":"Generating...";}
+   wait(200);juce::String body;uint64_t baseRevision=0,job=0;bool native=false,baseMode=false,useModel=false;std::string direction,base;uint32_t seed=0;composer::ManualOverrides manual;
+   {std::lock_guard lock(mutex);reclaimReturned();if(!busy)continue;native=composerRequest;if(native){direction=std::move(requestDirection);base=std::move(requestBase);seed=requestSeed;manual=std::move(requestManual);baseMode=requestMode;useModel=requestModel;}else body=requestBody;baseRevision=requestRevision;job=jobGeneration;status=native?(useModel?"Generating with MIDI-LLM...":"Resolving Composer direction..."):"Generating...";}
    juce::String resultStatus;
    try{
     if(native){
      if(cancelled||threadShouldExit())throw std::runtime_error("Generation cancelled");
      auto resolved=composer::LocalPromptInterpreter{}.interpret(direction,seed,manual);
      if(!resolved.valid()){for(const auto& d:resolved.diagnostics)if(d.severity==composer::Severity::error)throw std::runtime_error("Composer rejected: "+d.message);}
-     auto summary=describe(resolved);auto generated=composer::generateResolvedLoop(resolved);if(!generated.composition)throw std::runtime_error("Composer rejected: "+generated.error);
+     auto summary=describe(resolved);
+     std::optional<composer::Composition> composition;
+     if(useModel) {
+      auto generated=midiLlm::run(direction,resolved,[this]{return !cancelled&&!threadShouldExit();});
+      if(!generated.composition)throw std::runtime_error(generated.error);
+      summary="MIDI-LLM | "+summary;
+      composition=std::move(generated.composition);
+     } else {
+      auto generated=composer::generateResolvedLoop(resolved);
+      if(!generated.composition)throw std::runtime_error("Composer rejected: "+generated.error);
+      composition=std::move(generated.composition);
+     }
      composer::ProjectState candidate;auto decoded=composer::decodeProjectJson(base);
      if(decoded.project)candidate=std::move(*decoded.project);else candidate.legacyStateJson=std::move(base);
-     candidate.activeMode=composer::ProjectMode::composer;candidate.composition=std::move(generated.composition);
+     candidate.activeMode=composer::ProjectMode::composer;candidate.composition=std::move(composition);
      auto recipe=composer::encodeRecipeJson({direction,seed,manual});if(recipe)candidate.generationRecipeJson=std::move(recipe.json);else candidate.generationRecipeJson.reset(); // Preserve non-UI manual callers without promising a portable recipe.
      auto encoded=composer::encodeProjectJson(candidate);if(!encoded)throw std::runtime_error("Composer project encoding rejected");
      if(!restoreV2(std::move(candidate),std::move(encoded.json),CommitGuard{baseRevision,job,baseMode,true},std::move(summary)))throw std::runtime_error("Generation cancelled or Composer publication rejected");

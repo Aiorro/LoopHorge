@@ -1,5 +1,6 @@
 #include "../Source/Processor.h"
 #include "../Source/engine/Midi.h"
+#include "../Source/engine/ModelNotes.h"
 #include <iostream>
 #include <thread>
 using namespace composer;
@@ -8,8 +9,41 @@ std::string saved(Processor& p){juce::MemoryBlock b;p.getStateInformation(b);ret
 void idle(Processor& p){for(int i=0;i<1000&&p.busy;++i)juce::Thread::sleep(5);check(!p.busy);}
 const juce::String direction="4 bars C minor ambient bass chords lead drums";
 const std::string legacy=R"({"version":1,"extension":{"precise":1.234567890123e-2},"idea":{"metadata":{"bars":4,"bpm":120},"layers":{"bass":[{"pitch":38,"start":0,"duration":4,"velocity":90}],"chords":[],"melody":[]}}})";
-int main(){
- juce::ScopedJuceInitialiser_GUI init;auto owner=std::make_unique<Processor>();auto& p=*owner;
+void modelTokens(){
+ const auto config=LocalPromptInterpreter{}.interpret("4 bars D minor 120 bpm",17);
+ const int v=model::textVocab;
+ const std::array notes{v,v+10050,v+11060,
+                        v+50,v+10010,v+11000+128*128+36,
+                        v+799,v+10099,v+11000+128*32+48,
+                        v+800,v+10099,v+11061};
+ auto result=model::decode(notes,config);
+ check(result.composition&&result.composition->source=="midi-llm-llama-3.2-1b");
+ const auto& song=*result.composition;
+ check(song.endTick.value==7680&&song.tracks.size()==3);
+ check(song.tracks[0].program==0&&song.tracks[0].notes[0].duration.value==480);
+ check(song.tracks[1].channel==10&&song.tracks[1].notes[0].pitch==36);
+ check(song.tracks[2].program==32&&song.tracks[2].notes[0].start.value+song.tracks[2].notes[0].duration.value==7680);
+ check(encodeCompositionMidi(song));
+ check(!model::decode(std::span(notes).first(5),config).composition);
+ auto invalid=notes;invalid[2]=model::midiBos;
+ check(!model::decode(invalid,config).composition);
+ const auto longRequest=LocalPromptInterpreter{}.interpret("32 bars",17);
+ check(!model::decode(notes,longRequest).composition);
+}
+int main(int argc,char** argv){
+ modelTokens();
+ juce::ScopedJuceInitialiser_GUI init;
+ if(argc==2){
+  const auto config=LocalPromptInterpreter{}.interpret("4 bars D minor 120 bpm",17);
+  const auto root=juce::File(argv[1]);
+  const auto result=midiLlm::run("Jazz \"guitar\" and bass",config,[]{return true;},root,3000);
+  if(!result.composition)std::cerr<<result.error<<"\n";
+  check(result.composition&&result.composition->tracks.size()==2&&result.composition->endTick.value==7680);
+  check(!midiLlm::run("Cancelled",config,[]{return false;},root,3000).composition);
+  check(!midiLlm::run("Slow",config,[]{return true;},root,200).composition);
+  std::cout<<"MIDI-LLM worker round-trip and cancellation passed\n";return 0;
+ }
+auto owner=std::make_unique<Processor>();auto& p=*owner;
  check(saved(p)=="null"&&p.ideaCount()==0&&!p.canSwitchMode());
  {auto pinnedStorage=std::make_unique<Processor>();auto& pinned=*pinnedStorage;ManualOverrides manual;manual.pinned.set(size_t(Field::energy));manual.values.mood.energy=0;
   const auto expected=generateResolvedLoop(LocalPromptInterpreter{}.interpret("4 bars energy100",42,manual));check(expected.composition);

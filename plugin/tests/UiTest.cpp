@@ -5,7 +5,7 @@
 int main(int argc,char** argv){juce::ScopedJuceInitialiser_GUI init;Processor p;std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
  juce::TextButton *generate=nullptr,*probe=nullptr,*cancel=nullptr,*undoButton=nullptr,*redoButton=nullptr,*quantizeButton=nullptr,*dragMidi=nullptr,*ideaSettings=nullptr;juce::ComboBox *provider=nullptr,*variation=nullptr;juce::TextEditor* model=nullptr;
  for(int i=0;i<editor->getNumChildComponents();++i){auto* c=editor->getChildComponent(i);check(editor->getLocalBounds().contains(c->getBounds()));
-  if(auto* b=dynamic_cast<juce::TextButton*>(c)){if(b->getButtonText()=="GENERATE 8 IDEAS")generate=b;if(b->getName()=="Idea bank settings")ideaSettings=b;if(b->getButtonText()=="TEST (1 IDEA)")probe=b;if(b->getButtonText()=="CANCEL REQUEST")cancel=b;if(b->getButtonText()=="DRAG MIDI")dragMidi=b;if(b->getButtonText()=="UNDO")undoButton=b;if(b->getButtonText()=="REDO")redoButton=b;if(b->getButtonText()=="QUANTIZE 1/4 BEAT")quantizeButton=b;}
+  if(auto* b=dynamic_cast<juce::TextButton*>(c)){if(b->getButtonText()=="GENERATE 8 IDEAS")generate=b;if(b->getName()=="Idea bank settings")ideaSettings=b;if(b->getButtonText()=="TEST (1 IDEA)")probe=b;if(b->getTitle()=="Cancel generation request")cancel=b;if(b->getButtonText()=="DRAG MIDI")dragMidi=b;if(b->getButtonText()=="UNDO")undoButton=b;if(b->getButtonText()=="REDO")redoButton=b;if(b->getButtonText()=="QUANTIZE 1/4 BEAT")quantizeButton=b;}
   if(auto* box=dynamic_cast<juce::ComboBox*>(c)){if(box->getText()=="offline")provider=box;if(box->getNumItems()==0)variation=box;}
   if(auto* text=dynamic_cast<juce::TextEditor*>(c))if(!text->isMultiLine())model=text;
  }

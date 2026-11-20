@@ -79,6 +79,18 @@ public:
   g.drawRoundedRectangle(area, 6.0f, 1.0f);
  }
 
+ void fillTextEditorBackground(juce::Graphics& g, int, int, juce::TextEditor& editor) override {
+  g.setColour(editor.findColour(juce::TextEditor::backgroundColourId));
+  g.fillRoundedRectangle(editor.getLocalBounds().toFloat().reduced(0.5f), 6.0f);
+ }
+
+ void drawTextEditorOutline(juce::Graphics& g, int, int, juce::TextEditor& editor) override {
+  const auto id = editor.hasKeyboardFocus(true) ? juce::TextEditor::focusedOutlineColourId
+                                               : juce::TextEditor::outlineColourId;
+  g.setColour(editor.findColour(id));
+  g.drawRoundedRectangle(editor.getLocalBounds().toFloat().reduced(0.5f), 6.0f, 1.0f);
+ }
+
  void drawRotarySlider(juce::Graphics& g, int x, int y, int width, int height,
                        float position, float start, float end, juce::Slider& slider) override {
   const auto centre = juce::Rectangle<float>(float(x),float(y),float(width),float(height)).getCentre();

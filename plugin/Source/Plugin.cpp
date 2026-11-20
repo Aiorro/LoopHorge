@@ -39,9 +39,9 @@ public:
   compose.setButtonText("COMPOSE OFFLINE LOOP");compose.setTooltip("Native deterministic4/8/16bar loop. Text/defaults choose Composer parameters; no service. MIDI output and basic preview.");addChildComponent(compose);compose.onClick=[this]{composeLoop();};
   addAndMakeVisible(mode);mode.onClick=[this]{if(processor.canSwitchMode()){processor.selectMode(processor.isComposerMode()?composer::ProjectMode::legacy:composer::ProjectMode::composer);timerCallback();}else composeLoop();};mode.setTooltip("Create a native Composer loop or switch between both preserved source documents. Switching cancels an active generation.");
   // Preserve complete insertions: filtering characters/length can change the requested seed.
-  seed.setText("42");seed.setTooltip("Fallback unsigned32bit seed (0-4294967295). An explicit seed in direction text wins. Next request only; SAVE RECIPE stores this value separately.");addAndMakeVisible(seed);caption(seedLabel,"Seed",seed);
+  seed.setFont(studio::font(15.0f));seed.setIndents(9,8);seed.setText("42");seed.setTooltip("Fallback unsigned32bit seed (0-4294967295). An explicit seed in direction text wins. Next request only; SAVE RECIPE stores this value separately.");addAndMakeVisible(seed);caption(seedLabel,"Seed",seed);
   prompt.setTooltip("Composer rejects directions above4096UTF8bytes without truncation. Composer uses this text, fallback seed and manual mood pins; Auto follows text/defaults. Legacy uses the controls below. SAVE RECIPE stores next-request text, seed and mood pins separately.");
-  prompt.setFont(studio::font(15.0f));prompt.setIndents(9,7);prompt.setMultiLine(true);prompt.setText(defaultDirection);addAndMakeVisible(prompt);
+  prompt.setFont(studio::font(15.0f));prompt.setIndents(9,8);prompt.setMultiLine(true);prompt.setText(defaultDirection);addAndMakeVisible(prompt);
   setup(engine,{"Rule Composer","MIDI-LLM"});
   engine.setTitle("Composition engine");
   addAndMakeVisible(modelSetup);modelSetup.setButtonText("MODEL SETUP");
@@ -66,7 +66,7 @@ public:
   provider.onChange=[this]{model.clear();model.setEnabled(provider.getText()!="offline");timerCallback();};model.setEnabled(false);
   generate.setButtonText("GENERATE 8 IDEAS");addAndMakeVisible(generate);generate.onClick=[this]{processor.request(requestBody(false));};
   testConnection.setButtonText("TEST (1 IDEA)");testConnection.setTooltip("Generates one idea to check connection, login and model access. Cloud/CLI usage may incur charges. Keeps your current composition.");addAndMakeVisible(testConnection);testConnection.onClick=[this]{processor.request(requestBody(true));};
-  cancel.setButtonText("CANCEL REQUEST");addAndMakeVisible(cancel);cancel.onClick=[this]{processor.cancel();};
+  cancel.setButtonText("CANCEL");cancel.setTitle("Cancel generation request");addAndMakeVisible(cancel);cancel.onClick=[this]{processor.cancel();};
   play.setButtonText("PLAY / STOP");play.setTooltip("Start or stop the local preview. Plugin playback follows the host transport.");addAndMakeVisible(play);play.onClick=[this]{processor.play=!processor.play.load();};
   sound.setButtonText("SOUND");sound.setTitle("Audition synth");sound.setTooltip("Use the built-in preview instrument.");sound.setToggleState(processor.audition.load(),juce::dontSendNotification);addAndMakeVisible(sound);sound.onClick=[this]{processor.audition=sound.getToggleState();};
   variation.setTextWhenNothingSelected("No ideas yet");addAndMakeVisible(variation);variation.onChange=[this]{processor.choose(variation.getSelectedItemIndex());repaint();};
@@ -113,18 +113,17 @@ public:
   saveProject.setBounds(files);
 
   const bool composer = showComposer;
-  const int commandWidth = juce::jmin(area.getWidth()-24, getWidth()/2+400);
-  auto command = area.withSizeKeepingCentre(commandWidth, 41).withY(71);
+  auto command = area.withY(74).withHeight(36);
   play.setBounds(command.removeFromRight(106));
-  command.removeFromRight(9);
+  command.removeFromRight(8);
   const auto composeSlot = command.removeFromRight(180);
   compose.setBounds(composeSlot);
-  command.removeFromRight(9);
-  seed.setBounds(command.removeFromRight(68));
-  seedLabel.setBounds(seed.getX(), 53, seed.getWidth(), 14);
-  command.removeFromRight(9);
+  command.removeFromRight(8);
+  seed.setBounds(command.removeFromRight(108));
+  seedLabel.setBounds(seed.getX(), 54, seed.getWidth(), 17);
+  command.removeFromRight(8);
   prompt.setBounds(command);
-  promptLabel.setBounds(command.getX(), 53, command.getWidth(), 14);
+  promptLabel.setBounds(command.getX(), 54, command.getWidth(), 17);
 
   const auto upper = area.withY(125).withHeight(137);
   signal.setBounds(upper);
@@ -149,11 +148,21 @@ public:
    control.setBounds(row.removeFromLeft(width));
    row.removeFromLeft(7);
   };
+  // Both toolbars share the same column edges at every supported width.
+  const auto cell = [area](int y, int column, int span) {
+   const int pitch = area.getWidth()+8;
+   const int left = column*pitch/12;
+   const int right = (column+span)*pitch/12-8;
+   return juce::Rectangle<int>(area.getX()+left, y, right-left, 34);
+  };
   if (composer) {
-   place(tools, mode, 110);
-   place(tools, moodSettings, 139);
-   place(tools, loopDetails, 146);
-   place(tools, noteView, 145);
+   mode.setBounds(cell(270,0,2));
+   moodSettings.setBounds(cell(270,2,2));
+   loopDetails.setBounds(cell(270,4,2));
+   noteView.setBounds(cell(270,6,2));
+   cancel.setBounds(cell(270,8,1));
+   sound.setBounds(cell(270,9,1));
+   exportButton.setBounds(cell(270,10,2));
    ideaSettings.setBounds({});
    generate.setBounds({});
    variation.setBounds({});
@@ -169,22 +178,21 @@ public:
    noteView.setBounds({});
    moodSettings.setBounds({});
    loopDetails.setBounds({});
+   exportButton.setBounds(tools.removeFromRight(111));
+   tools.removeFromRight(7);
+   sound.setBounds(tools.removeFromRight(78));
+   tools.removeFromRight(7);
+   cancel.setBounds(tools.removeFromRight(122));
   }
-  exportButton.setBounds(tools.removeFromRight(111));
-  tools.removeFromRight(7);
-  sound.setBounds(tools.removeFromRight(78));
-  tools.removeFromRight(7);
-  cancel.setBounds(tools.removeFromRight(122));
 
-  auto edit = area.withY(314).withHeight(33);
-  place(edit, layer, 152);
-  place(edit, quantize, 139);
-  place(edit, undo, 61);
-  place(edit, redo, 61);
-  place(edit, regenerate, 153);
-  deleteNote.setBounds(edit.removeFromRight(108));
-  edit.removeFromRight(7);
-  addNote.setBounds(edit.removeFromRight(96));
+  constexpr int editY = 312;
+  layer.setBounds(cell(editY,0,2));
+  quantize.setBounds(cell(editY,2,2));
+  undo.setBounds(cell(editY,4,1));
+  redo.setBounds(cell(editY,5,1));
+  regenerate.setBounds(cell(editY,6,2));
+  addNote.setBounds(cell(editY,8,2));
+  deleteNote.setBounds(cell(editY,10,2));
 
   const bool editVisible = !composer || showEdit;
   const int top = editVisible ? 371 : 314;

@@ -43,6 +43,14 @@ static_cast<juce::AudioProcessor&>(*p).addListener(&listener);for(int i=0;i<edit
   auto* signal = editor->findChildWithID("loop-signal");
   check(signal && direction->getWidth() >= editor->getWidth() / 2);
   check(direction->getBottom() < signal->getY());
+  check(direction->getX()==signal->getX());
+  check(seed->getX()-direction->getRight()==8);
+  check(seed->getY()==direction->getY() && seed->getHeight()==direction->getHeight());
+  check(seed->getWidth()>=100);
+  if(compose->isVisible()){
+   check(compose->getX()-seed->getRight()==8);
+   check(compose->getY()==seed->getY() && compose->getHeight()==seed->getHeight());
+  }
   if(vp->isVisible()){
    check(vp->getWidth() >= editor->getWidth() - 56);
    check(vp->getHeight() >= 300 && signal->getBottom() < vp->getY());

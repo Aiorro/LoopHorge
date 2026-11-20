@@ -1,7 +1,7 @@
 'use strict';
 const schema=require('../schemas/bridge-v1.schema.json');
 const {generate}=require('./operations');
-const {normalizeOptions,validateIdea}=require('./schema');
+const {isLegacyMeter,normalizeOptions,validateIdea}=require('./schema');
 class BridgeError extends Error{constructor(code,message,status=422){super(message);this.code=code;this.status=status;}}
 function validateRequest(params){
  if(!params||typeof params!=='object'||Array.isArray(params))throw new BridgeError('INVALID_REQUEST','Expected request object');
@@ -9,7 +9,7 @@ function validateRequest(params){
  for(const [name,value] of Object.entries(params)){
   if(!Object.hasOwn(fields,name))throw new BridgeError('INVALID_REQUEST','Unknown request field');
   const rule=fields[name];let valid;
-  if(name==='timeSignature')valid=value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).length===2&&value.numerator===4&&value.denominator===4;
+  if(name==='timeSignature')valid=isLegacyMeter(value);
   else valid=(rule.type==='string'?typeof value==='string':Number.isInteger(value))&&(!rule.enum||rule.enum.includes(value))&&(rule.minimum===undefined||value>=rule.minimum)&&(rule.maximum===undefined||value<=rule.maximum)&&(rule.maxLength===undefined||[...value].length<=rule.maxLength)&&(!rule.pattern||new RegExp(rule.pattern).test(value));
   if(!valid)throw new BridgeError('INVALID_REQUEST',`Invalid ${name}`);
  }

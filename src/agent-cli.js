@@ -3,9 +3,7 @@ const {spawn}=require('node:child_process');
 const fs=require('node:fs');
 const path=require('node:path');
 const os=require('node:os');
-const {normalizeResponse}=require('./schema');
-const {generateEight}=require('./core');
-const {prompt}=require('./ai');
+const {prompt,completeIdeas}=require('./ai');
 const SPECS={
  'codex-cli': {bin:'codex',args:['exec','--ephemeral','--sandbox','read-only','--skip-git-repo-check','-']},
  'claude-cli': {bin:'claude',args:['-p','--output-format','json','--max-turns','1','--permission-mode','plan']}
@@ -92,9 +90,6 @@ async function execPrompt(name,input,{signal,model,timeoutMs=120000,maxOutputByt
 }
 async function generateUsingAccountCLI(provider,opts,{count=8,description='',signal,model}={}){
  const output=await execPrompt(provider,prompt(opts,count,description),{signal,model});
- const ideas=normalizeResponse(output,opts,count);
- const sources=ideas.map(()=>provider);
- if(ideas.length<count){const missing=generateEight(opts).slice(0,count-ideas.length);ideas.push(...missing);sources.push(...missing.map(()=> 'offline-fallback'))}
- return {provider,model:model||'authenticated CLI account',ideas,sources};
+ return {...completeIdeas(output, opts, count, provider), provider, model:model||'authenticated CLI account'};
 }
 module.exports={available,execPrompt,generateUsingAccountCLI};

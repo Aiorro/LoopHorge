@@ -30,7 +30,7 @@ function renderCards(){
  for(let i=0;i<ideas.length;i++){
   const idea=ideas[i];const card=document.createElement('button');card.type='button';card.className='idea-card'+(i===selected?' active':'');card.setAttribute('aria-pressed',String(i===selected));
   const num=document.createElement('div');num.className='idea-number';num.textContent='DIRECTION / '+String(i+1).padStart(2,'0');
-  const tag=document.createElement('i');tag.textContent=sources[i]==='ai'?'AI ✦':'LOCAL';num.append(tag);
+  const tag=document.createElement('i');tag.textContent=['ai','codex-cli','claude-cli'].includes(sources[i])?'AI ✦':'LOCAL';num.append(tag);
   const title=document.createElement('div');title.className='idea-name';title.textContent=String(idea.metadata.key)+' '+idea.metadata.mode.toUpperCase();
   const lines=document.createElement('div');lines.className='mini-keys';
   for(let j=0;j<36;j++){const bar=document.createElement('span');const n=idea.layers.melody[j%Math.max(1,idea.layers.melody.length)];bar.style.height=(9+(n?((n.pitch*7+j*11)%32):0))+'px';lines.append(bar)}

@@ -61,9 +61,12 @@
       const barStart = bar*4;
       const degree = progression[bar % progression.length];
       const chordPitches = chordTones(degree, 3, root, scale, style === 'r&b' || style === 'ambient');
-      chordPitches.forEach((p, idx) => layers.chords.push(note(p,barStart + (random()<.2 ? .25:0),
-        (style === 'ambient' ? 3.8 : style === 'nu-metal' ? 2 : 3.5) - idx*.06,
-        66 + Math.floor(random()*24), 'chords')));
+      chordPitches.forEach((pitch, index) => {
+        const start = barStart + (random() < .2 ? .25 : 0);
+        const gate = (style === 'ambient' ? 3.8 : style === 'nu-metal' ? 2 : 3.5) - index * .06;
+        layers.chords.push(note(pitch, start, Math.min(gate, totalBeats - start),
+          66 + Math.floor(random() * 24), 'chords'));
+      });
       const bassRoot = midiPitch(degree, preset.bassOctave, root, scale);
       const rhythm = style === 'ambient' ? [0,2] : style === 'nu-metal' ? [0,.5,1,2,2.5,3] : [0,1.5,2.5,3.5];
       for (let i=0; i<rhythm.length; i++) {

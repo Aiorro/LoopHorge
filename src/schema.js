@@ -4,6 +4,10 @@ const MAX_NOTES = 1600;
 const LAYERS=['bass','chords','melody'];
 function num(value, fallback){const n=Number(value);return Number.isFinite(n)?n:fallback;}
 function clamp(x,lo,hi){return Math.min(hi,Math.max(lo,x));}
+function isLegacyMeter(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    && Object.keys(value).length === 2 && value.numerator === 4 && value.denominator === 4;
+}
 function normalizeOptions(raw={}){
   if (!raw || typeof raw!=='object' || Array.isArray(raw)) throw new Error('Invalid options');
   const key=Object.hasOwn(ROOTS,String(raw.key))?String(raw.key):'C';
@@ -56,4 +60,4 @@ function normalizeResponse(value,opts,count=8){
  if(!ideas.length)throw new Error('Model output has no ideas');
  return ideas.slice(0,count).map(x=>validateIdea(x,opts));
 }
-module.exports={normalizeOptions,validateIdea,normalizeResponse,LAYERS};
+module.exports={isLegacyMeter,normalizeOptions,validateIdea,normalizeResponse,LAYERS};

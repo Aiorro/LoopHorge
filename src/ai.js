@@ -18,6 +18,16 @@ function prompt(opts,count,description){
  'Keep note count modest (roughly 10-32 bass, 12-32 chord, 15-40 melody notes per idea); ensure key/scale agreement and voice-leading. No copyrighted melody quotations.'
  ].join('\n');
 }
+function completeIdeas(content, opts, count, source) {
+ const ideas = normalizeResponse(content, opts, count);
+ const sources = ideas.map(() => source);
+ if (ideas.length < count) {
+  const missing = generateEight(opts).slice(0, count - ideas.length);
+  ideas.push(...missing);
+  sources.push(...missing.map(() => 'offline-fallback'));
+ }
+ return {ideas, sources};
+}
 async function requestAI(provider, opts, {count=8,description='',model,signal,transport=fetch}={}){
  if(signal?.aborted)throw new Error('Generation cancelled');
  if(!Object.hasOwn(ENDPOINTS,provider))throw new Error('Unsupported provider');
@@ -61,12 +71,6 @@ async function requestAI(provider, opts, {count=8,description='',model,signal,tr
  if(!json||typeof json!=='object'||Array.isArray(json))throw new Error('Provider sent invalid JSON response');
  const content=provider==='anthropic'?(Array.isArray(json.content)?json.content.filter(c=>c?.type==='text'&&typeof c.text==='string').map(c=>c.text).join('\n'):undefined):json.choices?.[0]?.message?.content;
  if(typeof content!=='string'||!content.trim())throw new Error('Provider response contained no text');
- const ideas=normalizeResponse(content,opts,count);
- const sources=ideas.map(()=> 'ai');
- if(ideas.length<count){
-   const missing=generateEight(opts).slice(0,count-ideas.length);
-   ideas.push(...missing);sources.push(...missing.map(()=> 'offline-fallback'));
- }
- return {ideas,sources,model:actualModel,provider};
+ return {...completeIdeas(content, opts, count, 'ai'), model:actualModel, provider};
 }
-module.exports={requestAI,configuration,ENDPOINTS,prompt};
+module.exports={requestAI,configuration,ENDPOINTS,prompt,completeIdeas};

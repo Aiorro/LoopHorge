@@ -8,8 +8,8 @@ Updated: 2026-11-20. Historical reviews/regressions are imported from [task.md](
 
 | ID | Severity | Kind | Status | Finding | Evidence / verification scope | Task |
 | --- | --- | --- | --- | --- | --- | --- |
+| ERR100 | Medium | Prototype CI | Investigating | Windows CLI argument/UTF-8 fixture failed on Node 20 and 22. Node 20 also failed the MCP EOF backpressure fixture. | [Prototype run 44693860071](https://github.com/Aiorro/LoopHorge/actions/runs/44693860071). Root causes remain unconfirmed. | T13 |
 | ERR-004 | Medium | CI failure | Investigating | Windows Node22 CLI availability returned unavailable after2222ms against a2000ms deadline. | Workflow43400295998; not reproduced on Windows here. Do not weaken tests without a proven cause. | T13/E06 |
-| ERR-005 | High | Infrastructure | Blocked | Fresh cross-platform build execution/artifacts remain unavailable. | Observed atcd07ed4: native44042462736 Windows and Ubuntu failed,no artifacts,absent job steps/log metadata. Prior87ba3a2Windows log request returned404BlobNotFound. Exact cause and execution cannot be established. Earlier b257237 jobs had runner_id0/steps0. | T07/T13/E06 |
 | ERR-006 | High | Acceptance gap | Blocked | Fresh Windows/real DAW/pluginval/OS drag and chooser acceptance is unverified. | Linux/component screenshots do not establish platform execution; see NATIVE-DAW-ACCEPTANCE.md. | T12–T15/E06 |
 | ERR-007 | High | Resource gap | Open | Whole256MiB workspace and transient memory peak are not measured. | Retained64MiB accounting excludes other jobs, JSON/UI/history/scratch. | E04/E06 |
 | ERR-009 | Medium | UI limitation | Open | Slow storage/large project IO can block the message thread. | Bounded synchronous chooser IO stays outside audio; responsiveness not certified. | E04/E06 |
@@ -26,6 +26,10 @@ Native evidence below is local Linux unless a row explicitly cites earlier platf
 
 | ID | Severity | Kind | Status | Finding / correction | Evidence / verification scope | Task |
 | --- | --- | --- | --- | --- | --- | --- |
+| ERR-005 | High | Infrastructure | Fixed | Runner jobs previously never started. | Native CI [44693860029](https://github.com/Aiorro/LoopHorge/actions/runs/44693860029) built both platforms and supplied a verified Windows x64 candidate at 22e72d9. | T07/T13/E06 |
+| ERR101 | Low | Browser UI | Fixed | Ideas returned by an account CLI showed the LOCAL badge reserved for offline generation. | Chromium regression checks a CLI result beside seven offline fallback ideas. | T13 |
+| ERR098 | Medium | Loop timing | Fixed | A delayed Ambient chord could extend past the requested length in browser and legacy Node generation. | Seed 6 produced a note ending at 16.05 beats. Boundary regression covers seeds 1 through 64 at both lengths. | T13 |
+| ERR099 | Medium | Request contract | Fixed | Legacy generation silently accepted a requested 3/4 meter and generated 4/4. | Shared meter validation covers legacy and v1 generation. Regression checks rejection and explicit 4/4 success. | T13 |
 | ERR097 | High | Transport | Fixed | The default JUCE bypass callback left the internal generator's active notes and pedals held. | A mixed-size Processor fixture reproduced the missing Note Off. The valid bypass callback drains once and emits silence. Real host delivery and suspension behaviour remain unverified. | R04/T12 |
 | ERR095 | Low | UI consistency | Fixed | During regeneration the signal map could briefly show the previous loop while the piano roll showed the newly committed one. | Observed during Linux Standalone smoke. Presentation and edit layers now use one revision, including the snapshot applied to the roll. Stale signal-track clicks are ignored. Serial CTest 43/43. | R02 |
 | ERR-001 | Low | Bug | Fixed | POSIX drag descriptors could survive child exec and prolong a file lease. | Atomic O_CLOEXEC on all three opens; real fork/exec child readiness/release/cleanup regression RED→GREEN on Linux2026-11-15. Fork-only children are not an exec guarantee. | T13 |

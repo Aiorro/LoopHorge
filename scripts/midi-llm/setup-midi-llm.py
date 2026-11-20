@@ -130,7 +130,8 @@ def generate(model, request_path, response_path):
     tokenizer = AutoTokenizer.from_pretrained(model, trust_remote_code=False, local_files_only=True)
     network = AutoModelForCausalLM.from_pretrained(model, local_files_only=True, trust_remote_code=False,
                                                   use_safetensors=True, dtype=dtype).to(device).eval()
-    prompt = (f"Compose a musical MIDI loop. {request['direction']} "
+    prompt = ("You are a world-class composer. Please compose some music according to the following description: "
+              f"{request['direction']} "
               f"Length: {bars} bars. Tempo: {request['bpm']} BPM. "
               f"Key: {request['key']}. Meter: {request['meter']}. {request['hints']} ")
     prefix = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=1536)["input_ids"].to(device)
@@ -182,20 +183,24 @@ def wizard():
     ttk.Label(frame, text=guidance, wraplength=480).grid(sticky="w", pady=(0, 10))
     ttk.Button(frame, text="View model and license on Hugging Face", command=lambda: webbrowser.open(MODEL_PAGE)).grid(sticky="w")
     consent = tk.BooleanVar()
+    use_cuda = tk.BooleanVar(value=cuda)
     status = tk.StringVar(value="Built with Llama 3.2. The model and runtime are stored on this computer.")
     messages = queue.SimpleQueue()
     checking = False
 
     def refresh_button():
-        install_button.configure(state="normal" if available and consent.get() and not checking else "disabled")
+        gpu = use_cuda.get()
+        eligible = suitable_python and disk >= (20 if gpu else 9)*GIB and (gpu or ram >= 12*GIB)
+        install_button.configure(state="normal" if eligible and consent.get() and not checking else "disabled")
 
     def begin():
         nonlocal checking
         checking = True
+        gpu = use_cuda.get()
         refresh_button()
         def work():
             try:
-                install(app_root(), cuda, lambda message: messages.put((False, message)))
+                install(app_root(), gpu, lambda message: messages.put((False, message)))
             except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
                 messages.put((False, "Setup failed. Check network access, disk space and your Python/CUDA runtime."))
             finally:
@@ -219,6 +224,9 @@ def wizard():
         else:
             window.destroy()
 
+    if cuda:
+        ttk.Checkbutton(frame, text="Use NVIDIA CUDA (BF16 required). Clear to use CPU.",
+                        variable=use_cuda, command=refresh_button).grid(sticky="w")
     ttk.Checkbutton(frame, text="I have reviewed and accept the Llama 3.2 license", variable=consent,
                     command=refresh_button).grid(sticky="w", pady=8)
     install_button = ttk.Button(frame, text="Download runtime and model", command=begin)

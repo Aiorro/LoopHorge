@@ -132,3 +132,7 @@ The product release is a native offline loop tool, capped at16new bars; full son
 Download the Windows x64 Standalone and VST3 ZIP from [GitHub Releases](https://github.com/Aiorro/LoopHorge/releases). The ZIP includes SHA256 verification instructions, license notices and the [FL Studio installation and test guide](docs/FL-STUDIO-TEST.md). FL Studio host acceptance remains open in [task.md](task.md).
 
 The combined native binary distribution uses GNU AGPLv3 with preserved original MIT notices and the SDK GPLv3 option. Full terms: [native distribution](licenses/NATIVE-DISTRIBUTION.md). Candidate packages include corresponding committed LoopForge/JUCE sources and license texts.
+
+## Comparative product research
+
+- [SPAWN 2.0 workflow reference and LoopForge gap analysis](docs/research/SPAWN-2-WORKFLOW-REFERENCE.md) - public behavior, evidence levels, architecture lessons, and approved-alpha scope boundaries. Reference only; active implementation work remains tracked in [task.md](task.md).

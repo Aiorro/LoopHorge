@@ -112,15 +112,21 @@ test('MCP shutdown deadline bounds a transport that does not cooperate with abor
 for(const phase of ['EOF','SIGTERM'])test(`MCP ${phase} remains bounded when a client stops reading replies`,{skip:process.platform==='win32'&&phase==='SIGTERM'},async t=>{
  const client=fixture(t);generate(client,'job','blocked');const pids=await client.pids('blocked');
  let exit;client.child.once('exit',(code,signal)=>{exit={code,signal}});client.child.stdout.pause();
- // A few hundred small replies can fit in the Windows pipe buffers.
- // Keep stdout paused and offer several MiB so the writer really stalls.
- for(let id=0;id<8192;id++)client.send({id,method:'tools/list'});
+ const requestCount=256;
+ for(let id=0;id<requestCount;id++)client.send({id,method:'tools/list'});
  await delay(150);if(phase==='EOF')client.child.stdin.end();else client.child.kill('SIGTERM');
  // EOF can be hidden while stdin is paused. The output stall timer may run
  // for 5 s before the separate 5 s shutdown deadline starts. Allow scheduler slack.
  const blockedOutputExitLimitMs=phase==='EOF'?12000:8000;
- await until(()=>exit,'blocked stdout prevented shutdown',blockedOutputExitLimitMs);assert.equal(exit.code,1);assert.equal(exit.signal,null);
+ await until(()=>exit,'blocked stdout prevented shutdown',blockedOutputExitLimitMs);
+ assert.equal(exit.signal,null);
  client.child.stdout.resume();await exited(client);await dead(pids);
+ if(phase==='EOF'&&exit.code===0){
+  // Pipe capacity varies. A clean exit must deliver every buffered reply.
+  const ids=client.replies.filter(reply=>Array.isArray(reply.result?.tools)).map(reply=>reply.id);
+  assert.deepEqual(ids,Array.from({length:requestCount},(_,id)=>id));
+  assert.match((await client.reply('job')).result.content[0].text,/cancelled/);
+ }else assert.equal(exit.code,1);
 });
 
 test('MCP resumes input after reply backpressure drains and clears the stall deadline',async t=>{

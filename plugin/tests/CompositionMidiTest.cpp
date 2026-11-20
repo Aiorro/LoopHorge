@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <tuple>
+#include <set>
 using namespace composer;
 #define check(x) do {if(!(x)){std::cerr<<"line "<<__LINE__<<": " #x "\n";std::abort();}}while(false)
 Composition fixture(){
@@ -27,7 +28,73 @@ using Edge=std::tuple<int64_t,bool,int,int>;
 std::vector<Edge> notes(const juce::MidiMessageSequence& s){
     std::vector<Edge> result;for(auto* e:s){auto m=e->message;if(m.isNoteOnOrOff())result.emplace_back(int64_t(m.getTimeStamp()),m.isNoteOn(),m.getNoteNumber(),m.getVelocity());}return result;
 }
+void auditUserDirections(){
+    const auto compose=[](const std::string& direction){
+        return generateResolvedLoop(LocalPromptInterpreter{}.interpret(direction,42));
+    };
+    const std::array<const char*,12> roots{"C","C#","D","Eb","E","F","F#","G","Ab","A","Bb","B"};
+    for(int root=0;root<12;++root)for(bool minor:{false,true}){
+        const auto allowed=minor?std::set<int>{0,2,3,5,7,8,10}:std::set<int>{0,2,4,5,7,9,11};
+        std::set<std::vector<Edge>> bassPatterns;
+        for(const auto* style:{"trap","boom-bap","r&b","ambient","nu-metal"}){
+            auto result=compose(std::string(style)+" 4 bars "+roots[root]+(minor?" minor":" major")+" bass chords lead drums");
+            check(result.composition);
+            const auto& song=*result.composition;
+            check(song.style==style && song.keys.front().root==root);
+            auto file=decode(encodeCompositionMidi(song));
+            check(file.getNumTracks()==5);
+            for(int track=1;track<5;++track){
+                auto edges=notes(*file.getTrack(track));
+                check(!edges.empty());
+                if(track==1)bassPatterns.insert(edges);
+                for(auto* event:*file.getTrack(track)){
+                    auto& m=event->message;
+                    if(!m.isNoteOn())continue;
+                    if(track==4)check(m.getChannel()==10);
+                    else check(allowed.count((m.getNoteNumber()-root+12)%12));
+                }
+            }
+        }
+        check(bassPatterns.size()==5);
+    }
+    for(int bars:{4,8,16}){
+        std::vector<Edge> baseline;
+        for(int bpm:{60,120,180}){
+            auto result=compose(std::to_string(bars)+" bars D minor piano "+std::to_string(bpm)+" bpm");
+            check(result.composition);
+            auto file=decode(encodeCompositionMidi(*result.composition));
+            check(file.getNumTracks()==2 && file.getTrack(1)->getEndTime()==bars*4*480);
+            bool tempo=false,piano=false;
+            for(auto* e:*file.getTrack(0))if(e->message.isTempoMetaEvent())
+                tempo=std::abs(e->message.getTempoSecondsPerQuarterNote()-60.0/bpm)<0.000001;
+            for(auto* e:*file.getTrack(1))if(e->message.isProgramChange())
+                piano=e->message.getProgramChangeNumber()==0;
+            check(tempo&&piano);
+            auto edges=notes(*file.getTrack(1));
+            if(baseline.empty())baseline=edges;
+            check(!edges.empty()&&baseline==edges);
+        }
+    }
+    for(auto* role:{"bass","lead","drums"}){
+        auto result=compose(std::string("4 bars ")+role);
+        check(result.composition&&result.composition->tracks.size()==1);
+        check(std::string(roleName(result.composition->tracks.front().role))==role);
+    }
+    auto piano=compose("4 bars piano"),chords=compose("4 bars chords");
+    check(piano.composition && chords.composition);
+    auto pianoFile=decode(encodeCompositionMidi(*piano.composition));
+    auto chordsFile=decode(encodeCompositionMidi(*chords.composition));
+    check(notes(*pianoFile.getTrack(1))==notes(*chordsFile.getTrack(1)));
+    check(!chords.composition->tracks.front().program);
+    auto mixed=compose("4 bars trap70% ambient30%");
+    check(!mixed.composition && mixed.error.find("Blended-genre")!=std::string::npos);
+    auto endpoint=compose("4 bars trap0% ambient100%"),ambient=compose("4 bars ambient");
+    check(endpoint.composition && ambient.composition);
+    check(encodeCompositionMidi(*endpoint.composition).bytes==encodeCompositionMidi(*ambient.composition).bytes);
+    check(!compose("4 bars guitar").composition);
+}
 int main(){
+    auditUserDirections();
     auto c=fixture();check(validate(c));auto encoded=encodeCompositionMidi(c);auto file=decode(encoded);check(file.getNumTracks()==2);
     for(int i=0;i<2;++i)check(file.getTrack(i)->getEndTime()==6240);
     const std::vector<Edge> expected={{0,true,60,90},{240,false,60,0},{240,true,60,100},{960,false,60,0},{960,true,60,110},{1440,false,60,0}};

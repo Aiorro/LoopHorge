@@ -8,6 +8,9 @@ Updated: 2026-11-20. Historical reviews/regressions are imported from [task.md](
 
 | ID | Severity | Kind | Status | Finding | Evidence / verification scope | Task |
 | --- | --- | --- | --- | --- | --- | --- |
+| ERR104 | Medium | Generation feedback | Open | An unknown instrument can leave all default instruments active. | Native prompt `4 bars cello` produced bass, chords and lead with an unrecognized-fragment warning. Recognized unsupported guitar instead returned a generation error. | T13/R02 |
+| ERR105 | Medium | Legacy API | Open | Unsupported style values silently select trap. | Legacy generation with style `trap+ambient`, seed 42, returned trap. The browser selector offers only single genres. | T13 |
+| ERR106 | Low | RU prompt | Open | The Russian spelling `трап` misses the trap genre. | Native prompt with this token produced default nu-metal and an unrecognized-fragment warning. The dictionary includes `трэп` and `треп`. | T13/R02 |
 | ERR-004 | Medium | CI failure | Investigating | Windows Node22 CLI availability returned unavailable after2222ms against a2000ms deadline. | Workflow43400295998; not reproduced on Windows here. Do not weaken tests without a proven cause. | T13/E06 |
 | ERR-006 | High | Acceptance gap | Blocked | Fresh Windows/real DAW/pluginval/OS drag and chooser acceptance is unverified. | Linux/component screenshots do not establish platform execution; see NATIVE-DAW-ACCEPTANCE.md. | T12–T15/E06 |
 | ERR-007 | High | Resource gap | Open | Whole256MiB workspace and transient memory peak are not measured. | Retained64MiB accounting excludes other jobs, JSON/UI/history/scratch. | E04/E06 |

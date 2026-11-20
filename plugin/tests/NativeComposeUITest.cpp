@@ -30,7 +30,7 @@ static_cast<juce::AudioProcessor&>(*p).addListener(&listener);for(int i=0;i<edit
   check(mode&&compose&&seed&&direction&&vp);check(mode->getButtonText()=="COMPOSE LOOP"&&mode->isEnabled()&&!compose->isVisible());
   checkStudioLayout();
   snapshot("loopforge-instrument-start.png");
-  direction->setText("4 bars ambient bass chords lead drums");
+  direction->setText("4 bars Eb major 137 bpm ambient bass piano lead drums");
   // Real insertion exercises JUCE filters; setText alone bypasses them.
   for(const auto& invalid:juce::StringArray{"-1","1.5","10000000000","12x","4294967296"}){seed->selectAll();seed->insertTextAtCaret(invalid);mode->onClick();check(!p->busy&&!p->isComposerMode());check(seed->getText()==invalid);}
   seed->setText("42");
@@ -67,6 +67,14 @@ static_cast<juce::AudioProcessor&>(*p).addListener(&listener);for(int i=0;i<edit
  void timerCallback()override{
   check(++ticks<400);if(p->busy||ticks%8)return;
   if(phase==0){check(p->composerDraft(UINT64_MAX)->json);check(p->isComposerMode()&&dynamic_cast<ComposerOverview*>(vp->getViewedComponent()));check(compose->isVisible()&&compose->isEnabled()&&direction->isVisible()&&direction->isEnabled());check(mode->getButtonText()=="IDEA BANK");check(listener.changes>0);check(editor->findChildWithID("loop-signal")->getDescription().contains("4 tracks"));
+   juce::MemoryBlock saved;
+   p->getStateInformation(saved);
+   auto decoded=composer::decodeProjectJson({static_cast<const char*>(saved.getData()),saved.getSize()});
+   check(decoded.project && decoded.project->composition);
+   const auto& loop=*decoded.project->composition;
+   check(loop.style=="ambient" && loop.keys.front().root==3 && loop.keys.front().scale==composer::Scale::major);
+   check(loop.tempos.front().microsPerQuarter==std::llround(60000000.0/137));
+   check(loop.tracks.size()==4 && loop.tracks[1].program==0);
    auto* signal=editor->findChildWithID("loop-signal");
    auto* signalTrack=dynamic_cast<juce::TextButton*>(signal->findChildWithID("signal-track-1"));
    check(signalTrack&&signalTrack->isVisible());

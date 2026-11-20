@@ -18,6 +18,16 @@ Select an idea, begin DRAG MIDI and drop on the arrangement. Record actual OS ge
 
 While a gesture is captured, replace/select/edit the idea; the exported file should still contain the captured committed snapshot. Test closing the editor around drag completion and delayed import; verify the file remains readable. Save/export a permanent .mid and compare musical content with the drag file. For a host that permanently references a source path, use the permanent export; cache retention is not project asset storage.
 
+## Current Windows acceptance checklist
+
+Repeat the following in Windows REAPER and FL Studio. Record the exact host, driver, sample rate, audio buffer settings and artifact SHA256.
+
+1. On a clean Windows account, extract the complete ZIP. Start Standalone with networking disabled and without Node or a model. Compose a 4, 8 and 16 bar loop using Rule Composer. Verify audition, region variation with Undo, project reopen, MIDI export and removal of the extracted installation.
+2. Scan and load the VST3. Start and stop playback, seek across held notes, loop, change tempo, bypass during held notes and re-enable the plugin. Test at 32 and 64 samples where the driver permits. In FL Studio, also exercise variable block lengths and record the actual host behaviour.
+3. During internal pattern playback, route incoming MIDI with the same channel and pitch into LoopForge. Confirm that the generated pattern owns the output. Count Note On and Note Off with an external MIDI monitor and check audio silence on bypass. Record if the host stops invoking the plugin or discards its MIDI while bypassed.
+4. In the idea bank, repeat external MIDI drags while earlier imports are still pending. Confirm unique temporary paths and readable files after delayed import or editor close. Compare the imported notes, track channels, tempo, meter and endpoint with a permanent Type-1 export.
+5. Run the 16-bar workflow with generation, preview, edits, Undo history and export. Record peak memory and responsiveness using the agreed workspace measurement, alongside a clean-launch baseline. Keep R05 open until the aggregate 256 MiB budget and the slow-storage case have evidence.
+
 ## Results to retain
 
 For each scenario record Pass/Fail/Not run, exact steps, observed behaviour, expected behaviour, host logs/screenshots and any reproduced failure. Acceptance presently remains Not run for Windows REAPER load/routing/transport, actual OS drag/import and plugin unload. Update task.md with observed evidence and exact host versions; T12 cannot be checked from this template.

@@ -31,10 +31,10 @@ inline int registerPitch(int pitch,int previous,int low,int high){
 }
 }
 
-inline GenerationResult generateLoop(const Config& config){
+inline GenerationResult generateLoop(const Config& config,const HarmonyPlan* fixedHarmony=nullptr){
     auto checked=validateConfig(config);if(!checked)return {{},checked.message};
     try {
-        auto harmony=planHarmony(config);if(!harmony.error.empty())return {{},harmony.error};
+        auto harmony=fixedHarmony?*fixedHarmony:planHarmony(config);if(!harmony.error.empty())return {{},harmony.error};
         const int64_t barTicks=480LL*4*config.numerator/config.denominator;
         Composition c;c.id=musicDetail::configId(config);c.engineVersion=5;c.seed=config.seed;c.style=styleName(config.style);c.source="native-motif-rules-v5";
         c.endTick={config.bars*barTicks};c.tempos={{{0},int(std::llround(60000000.0/config.bpm))}};

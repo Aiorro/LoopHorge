@@ -74,6 +74,10 @@ public:
   exportButton.setButtonText("EXPORT MIDI");exportButton.setTooltip("Export the composition captured when clicked. Composer MIDI is prepared in the background with its tempo, meter, tracks and controllers.");addAndMakeVisible(exportButton);exportButton.onClick=[this]{exportMidi();};
   setup(layer,{"bass","chords","melody"});layer.onChange=[this]{roll.selectLayer(activeTrack());signal.setActiveTrack(layer.getSelectedItemIndex());viewport.setViewPosition(0,roll.preferredScrollY());};
   noteView.setName("Composer note view");noteView.setButtonText("EDIT NOTES");addChildComponent(noteView);noteView.onClick=[this]{setNoteView(!showEdit);};
+  regenerate.setButtonText("REGENERATE BARS");
+  regenerate.setTooltip("Create an offline variation of selected bars on the active track");
+  addChildComponent(regenerate);
+  regenerate.onClick=[this]{chooseRegion();};
   quantize.setButtonText("QUANTIZE 1/4 BEAT");undo.setButtonText("UNDO");redo.setButtonText("REDO");
   for(auto* button:{&quantize,&undo,&redo})addAndMakeVisible(*button);
   quantize.onClick=[this]{processor.quantize(processor.compositionRevision(),activeTrack());roll.refresh();};undo.onClick=[this]{processor.undoEdit();roll.refresh();};redo.onClick=[this]{processor.redoEdit();roll.refresh();};
@@ -83,7 +87,7 @@ public:
   int focusOrder=1;
   for (auto* component : std::initializer_list<juce::Component*>{&prompt,&seed,&mode,&compose,&moodSettings,&loopDetails,&composerNotice,
        &ideaSettings,&provider,&key,&scale,&style,&bars,&bpm,&model,&generate,&testConnection,&cancel,&play,&signal,&sound,&variation,&noteView,
-       &exportButton,&dragMidi,&layer,&quantize,&undo,&redo,&addNote,&deleteNote,&viewport,&moodControls,&openRecipe,&saveRecipe,
+       &exportButton,&dragMidi,&layer,&quantize,&regenerate,&undo,&redo,&addNote,&deleteNote,&viewport,&moodControls,&openRecipe,&saveRecipe,
        &openProject,&saveProject})
    component->setExplicitFocusOrder(focusOrder++);
   viewport.setViewedComponent(&roll,false);viewport.setScrollBarsShown(true,false);viewport.setScrollBarThickness(9);addAndMakeVisible(viewport);setSize(1000,740);viewport.setViewPosition(0,roll.preferredScrollY());
@@ -176,6 +180,7 @@ public:
   place(edit, quantize, 139);
   place(edit, undo, 61);
   place(edit, redo, 61);
+  place(edit, regenerate, 153);
   deleteNote.setBounds(edit.removeFromRight(108));
   edit.removeFromRight(7);
   addNote.setBounds(edit.removeFromRight(96));
@@ -236,8 +241,8 @@ private:
  juce::Label identity, providerStatus;
  LoopSignal signal;
  juce::ComboBox engine;
- juce::TextButton modelSetup;
- bool modelReady=false;
+ juce::TextButton modelSetup,regenerate;
+ int regionBars=0;
  juce::uint32 modelCheckedAt=0;
  static constexpr auto defaultDirection = "8 bars D minor 105 bpm, dark atmospheric nu-metal with bass, chords and lead";
  bool busyLayout = false, showComposer = false, showDetails = false, showIdeaSettings = false;
@@ -263,8 +268,7 @@ private:
   modelCheckedAt=juce::Time::getMillisecondCounter();
   const bool ready=midiLlm::installed();
   engine.setItemEnabled(2,ready);
-  if(ready!=modelReady)engine.setSelectedId(ready?2:1,juce::dontSendNotification);
-  modelReady=ready;
+  if(!ready&&engine.getSelectedId()==2)engine.setSelectedId(1,juce::dontSendNotification);
  }
  void composeLoop(){
   refreshComposerDraft();
@@ -291,12 +295,16 @@ private:
     showEdit = showComposer && processor.wrapperType == juce::AudioProcessor::wrapperType_Standalone;
    }
    saveProject.setEnabled(state->hasState);
+   regionBars=0;
    if (state->composer) {
     auto project=composer::decodeProjectJson(state->json);
     if(project.project&&project.project->composition) {
      overview.setDocument(*project.project->composition,project.project->hostStartQuarterBeat);
      const auto& document = *project.project->composition;
-     signal.setComposition(document, composerView::barStarts(document), bool(snapshot.idea["metadata"]["editable"]));
+     const auto starts=composerView::barStarts(document);
+     signal.setComposition(document,starts,bool(snapshot.idea["metadata"]["editable"]));
+     if(document.source=="native-motif-rules-v5"&&document.meters.size()==1&&!document.chords.empty()&&!starts.empty())
+      regionBars=int(starts.size())-1;
     }
    } else {
     signal.setIdea(snapshot.idea);
@@ -318,6 +326,20 @@ private:
   resized();
   repaint();
   if(changed||(recenter&&target==&roll))viewport.setViewPosition(0,target==&roll?roll.preferredScrollY():0);
+ }
+ void chooseRegion(){
+  juce::PopupMenu menu;
+  for(int first=1;first<=regionBars;++first){
+   juce::PopupMenu endings;
+   for(int last=first;last<=regionBars;++last)
+    endings.addItem(first*17+last, last==first?"This bar":"Through bar "+juce::String(last));
+   menu.addSubMenu("From bar "+juce::String(first),endings);
+  }
+  menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&regenerate),
+   [safe=juce::Component::SafePointer<Editor>(this),revision=viewRevision,track=activeTrack()](int chosen){
+    if(safe&&chosen!=0&&!safe->processor.requestRegion(revision,track,chosen/17,chosen%17))
+     safe->showDragStatus("Region unavailable. Select bars again.");
+   });
  }
  void chooseRecipe(bool saving){
   if(fileChoosing)return;
@@ -379,6 +401,8 @@ private:
   signal.setVisible(!ideaControls && !showDetails);
   for (auto* control : std::initializer_list<juce::Component*>{&layer,&quantize,&undo,&redo,&addNote,&deleteNote})
    control->setVisible(editing);
+  regenerate.setVisible(!legacy&&editing&&regionBars>0);
+  regenerate.setEnabled(!busy);
 
   mode.setButtonText(legacy ? (canSwitch ? "VIEW LOOP" : "COMPOSE LOOP") : "IDEA BANK");
   mode.setEnabled(canSwitch || (legacy && !busy));

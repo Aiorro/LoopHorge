@@ -26,6 +26,7 @@ Native evidence below is local Linux unless a row explicitly cites earlier platf
 
 | ID | Severity | Kind | Status | Finding / correction | Evidence / verification scope | Task |
 | --- | --- | --- | --- | --- | --- | --- |
+| ERR097 | High | Transport | Fixed | The default JUCE bypass callback left the internal generator's active notes and pedals held. | A mixed-size Processor fixture reproduced the missing Note Off. The valid bypass callback drains once and emits silence. Real host delivery and suspension behaviour remain unverified. | R04/T12 |
 | ERR095 | Low | UI consistency | Fixed | During regeneration the signal map could briefly show the previous loop while the piano roll showed the newly committed one. | Observed during Linux Standalone smoke. Presentation and edit layers now use one revision, including the snapshot applied to the roll. Stale signal-track clicks are ignored. Serial CTest 43/43. | R02 |
 | ERR-001 | Low | Bug | Fixed | POSIX drag descriptors could survive child exec and prolong a file lease. | Atomic O_CLOEXEC on all three opens; real fork/exec child readiness/release/cleanup regression RED→GREEN on Linux2026-11-15. Fork-only children are not an exec guarantee. | T13 |
 | ERR-002 | Low | Bug | Fixed | Retained completed/failed drag callbacks could keep a file lease alive. | Shared atomic lease hold clears on completion/rejected start; retained/copy/concurrent/repeated callback and source-destruction tests RED→GREEN, ASan/UBSan/TSan scoped. | T13 |

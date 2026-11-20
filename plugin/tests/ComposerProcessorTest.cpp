@@ -19,6 +19,13 @@ std::string project(bool mode=true,double origin=8,int pitch=60){ProjectState p;
 void restore(Processor& p,const std::string& text){p.setStateInformation(text.data(),int(text.size()));}
 std::string saved(Processor& p){juce::MemoryBlock b;p.getStateInformation(b);return {static_cast<const char*>(b.getData()),b.getSize()};}
 void process(Processor& p,juce::AudioBuffer<float>& audio,juce::MidiBuffer& midi){allocationGuard::allocations=allocationGuard::frees=0;allocationGuard::active=true;p.processBlock(audio,midi);allocationGuard::active=false;check(allocationGuard::allocations==0&&allocationGuard::frees==0);check(midi.getNumEvents()<=2048&&midi.data.size()<=18432);}
+void bypass(Processor& p,juce::AudioBuffer<float>& audio,juce::MidiBuffer& midi){
+ allocationGuard::allocations=allocationGuard::frees=0;
+ allocationGuard::active=true;
+ p.processBlockBypassed(audio,midi);
+ allocationGuard::active=false;
+ check(allocationGuard::allocations==0&&allocationGuard::frees==0);
+}
 int count(const juce::MidiBuffer& midi,bool on,int pitch=-1){int n=0;for(auto e:midi){auto m=e.getMessage();n+=(on?m.isNoteOn():m.isNoteOff())&&(pitch<0||pitch==m.getNoteNumber());}return n;}
 void waitIdle(Processor& p){for(int i=0;i<500&&p.busy;++i)juce::Thread::sleep(10);check(!p.busy);}
 void waitFile(const juce::File& f){for(int i=0;i<500&&!f.existsAsFile();++i)juce::Thread::sleep(10);check(f.existsAsFile());}
@@ -55,10 +62,90 @@ void lifecycleCases(){
  }
  std::cout<<"release/reprepare retains notes and pedals until one allocation-free valid-block drain, then restarts at32/64samples\n";
 }
+void variableBlocksAndBypass(){
+ for(bool composer:{false,true}){
+  auto p=std::make_unique<Processor>();HostClock clock;p->setPlayHead(&clock);
+  p->prepareToPlay(48000,64);
+  restore(*p,composer?project(true,0):legacy);
+  juce::AudioBuffer<float> audio(2,257),zero(2,0);
+  juce::MidiBuffer midi;midi.ensureSize(32768);
+  auto inject=[&]{midi.addEvent(juce::MidiMessage::noteOn(composer?16:1,composer?60:38,juce::uint8(80)),0);};
+  int starts=0;
+  for(int n:{32,64,1,127,17,257}){
+   audio.setSize(2,n,false,false,true);
+   inject();process(*p,audio,midi);starts+=count(midi,true);
+   for(auto event:midi)check(event.samplePosition>=0&&event.samplePosition<n);
+   clock.beat+=n*clock.bpm/(60*48000.0);clock.bpm=clock.bpm==120?96:120;
+  }
+  check(starts==1);
+  midi.clear();bypass(*p,zero,midi);check(midi.isEmpty());
+  inject();bypass(*p,audio,midi);
+  check(count(midi,false)==1&&count(midi,true)==0&&audio.getMagnitude(0,audio.getNumSamples())==0);
+  inject();bypass(*p,audio,midi);check(midi.isEmpty());
+  clock.beat=0;process(*p,audio,midi);check(count(midi,true)==1&&count(midi,false)==0);
+ }
+}
+void regionCases(){
+ Config ambient;ambient.bars=4;ambient.style=Style::ambient;
+ auto generated=generateLoop(ambient);check(generated.composition);
+ const auto& ambientLoop=*generated.composition;
+ const auto chord=std::find_if(ambientLoop.tracks.begin(),ambientLoop.tracks.end(),[](const Track& track){return track.role==Role::chords;});
+ check(chord!=ambientLoop.tracks.end());
+ auto innerBar=regenerateRegion(ambientLoop,chord->id,2,2,45);
+ check(innerBar.composition);
+ const auto* variedChords=loopEditDetail::track(*innerBar.composition,chord->id);
+ check(std::any_of(variedChords->notes.begin(),variedChords->notes.end(),[](const Note& note){return note.start.value>=1920&&note.start.value<3840;}));
+ Config fast;fast.bars=4;fast.style=Style::trap;fast.feel=Feel::doubleTime;fast.numerator=6;fast.denominator=8;
+ auto fastLoop=generateLoop(fast);check(fastLoop.composition);
+ const auto& lead=fastLoop.composition->tracks[2];
+ auto variation=regenerateRegion(*fastLoop.composition,lead.id,2,2,8);check(variation.composition);
+ const auto* leadVariation=loopEditDetail::track(*variation.composition,lead.id);
+ auto attacks=[](const Track& t){return std::count_if(t.notes.begin(),t.notes.end(),[](const Note& n){return n.start.value>=1440&&n.start.value<2880;});};
+ check(attacks(lead)==12&&attacks(*leadVariation)==attacks(lead));
+ auto p=std::make_unique<Processor>();
+ ManualOverrides manual;manual.pinned.set(size_t(Field::energy));manual.values.mood.energy=47;
+ check(p->requestComposer("4 bars D minor trap bass chords lead drums",123,manual));waitIdle(*p);
+ auto before=saved(*p);auto source=decodeProjectJson(before);check(source.project&&source.project->composition);
+ auto& from=*source.project->composition;check(from.tracks.size()==4);
+ const auto index=size_t(std::find_if(from.tracks.begin(),from.tracks.end(),[](const Track& t){return t.role==Role::lead;})-from.tracks.begin());
+ check(index<from.tracks.size());
+ const auto key="track-"+juce::String(from.tracks[index].id);
+ const auto revision=p->compositionRevision();
+ check(p->requestRegion(revision,key,2,3));waitIdle(*p);
+ auto modified=saved(*p);auto result=decodeProjectJson(modified);
+ check(result.project&&result.project->composition&&modified!=before);
+ check(result.project->generationRecipeJson==source.project->generationRecipeJson);
+ const auto& to=*result.project->composition;
+ check(to.endTick==from.endTick&&to.tracks.size()==from.tracks.size());
+ auto unchanged=[&](const Track& track,bool filter){
+  std::vector<std::tuple<Id,int,int,int64_t,int64_t>> notes;
+  for(const auto& n:track.notes)if(!filter||n.start.value<1920||n.start.value>=5760)
+   notes.emplace_back(n.id,n.pitch,n.velocity,n.start.value,n.duration.value);
+  std::sort(notes.begin(),notes.end());return notes;
+ };
+ for(size_t t=0;t<from.tracks.size();++t)check(unchanged(from.tracks[t],t==index)==unchanged(to.tracks[t],t==index));
+ auto baseline=from,varied=to;
+ baseline.tracks[index].notes.clear();varied.tracks[index].notes.clear();
+ check(encodeCompositionJson(baseline).json==encodeCompositionJson(varied).json);
+ check(!p->requestRegion(revision,key,2,3));
+ check(p->requestRegion(p->compositionRevision(),key,3,99));waitIdle(*p);check(saved(*p)==modified);
+ check(p->undoEdit()&&saved(*p)==before);
+ check(p->redoEdit()&&saved(*p)==modified);
+ bool cancelledRegion=false;
+ for(int attempt=0;attempt<16&&!cancelledRegion;++attempt){
+  check(p->requestRegion(p->compositionRevision(),key,2,3));
+  cancelledRegion=p->cancel();waitIdle(*p);
+  if(cancelledRegion)check(saved(*p)==modified);
+  else restore(*p,modified);
+ }
+ check(cancelledRegion);
+ check(p->requestRegion(p->compositionRevision(),key,2,3));restore(*p,before);
+ waitIdle(*p);check(saved(*p)==before);
+}
 int main(int argc,char** argv){
  juce::ScopedJuceInitialiser_GUI init;
  if(argc>1){check(argc==2);workerCases(juce::File(argv[1]));return 0;}
- lifecycleCases();
+ lifecycleCases();variableBlocksAndBypass();regionCases();
  for(int size:{32,64}){
   auto owner=std::make_unique<Processor>();auto& p=*owner;HostClock clock;p.setPlayHead(&clock);p.prepareToPlay(48000,size);restore(p,legacy);
   juce::AudioBuffer<float> audio(2,size),zero(2,0);juce::MidiBuffer midi;midi.ensureSize(32768);

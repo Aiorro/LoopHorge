@@ -17,6 +17,8 @@ The Native plugin workflow builds the Windows x64 EXE and VST3 and runs automate
 
 ## First sound and MIDI
 
+For the offline acceptance run, choose **Rule Composer** in the engine selector. In the piano roll of a supported native loop, choose a track and use **Regenerate Bars**. Compare the edited span with the prior version and verify Undo restores the original notes. Record a separate result for bypass and for sending MIDI into the generator while its internal pattern plays.
+
 - Enter `4 bars D minor 100 bpm bass chords lead drums`, seed42, press COMPOSE LOOP. Enable SOUND. Start FL's transport: plugin playback follows host transport/tempo; the plugin PLAY button is for standalone playback when no host clock is supplied.
 - Basic SOUND is a sine/synthetic-percussion preview, not a GM instrument. For external instrument routing, mute SOUND. In the LoopForge wrapper settings, assign a MIDI **Output port** (for example10); give the receiving VST instrument the same wrapper MIDI **Input port**. Ports are FL routing numbers; track MIDI channels remain separate. Instrument/channel filtering depends on the receiving plugin. Verify this in your installed FL version before assuming live routing works.
 - The first test path, independent of live wrapper routing, is **EXPORT MIDI**. Import the `.mid` into a fresh FL project using the MIDI import dialog and retain separate channels/tracks. Assign instruments to the imported channels. Check bass/chords/lead/drums and note timing. Do not import over valuable piano-roll data.

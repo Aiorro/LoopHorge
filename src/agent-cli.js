@@ -44,7 +44,9 @@ async function execPrompt(name,input,{signal,model,timeoutMs=120000,maxOutputByt
  if(signal?.aborted)throw new Error('Generation cancelled');
  const spec=SPECS[name];if(!spec)throw new Error('Unknown account CLI');
  if(model!==undefined&&(typeof model!=='string'||model.length>100||!/^[-\w.\/:]+$/.test(model)))throw new Error('Invalid model name');
- if(!await available(name))throw new Error(`${spec.bin} CLI not found. Install it and sign in on this computer.`);
+ // A readiness probe is advisory. Launch the requested CLI directly so a slow
+ // locator or stale status cache cannot reject an installed provider.
+ const missingCLI=()=>new Error(`${spec.bin} CLI not found. Install it and sign in on this computer.`);
  const cwd=fs.mkdtempSync(path.join(os.tmpdir(),'loopforge-ai-agent-'));
  try{return await new Promise((resolve,reject)=>{
   const args=model?[...spec.args.filter(a=>a!=='-'),'--model',model,...(name==='codex-cli'?['-']:[])]:spec.args;
@@ -74,12 +76,13 @@ async function execPrompt(name,input,{signal,model,timeoutMs=120000,maxOutputByt
   signal?.addEventListener('abort',cancel,{once:true});if(signal?.aborted)cancel();
   child.stdout.on('data',b=>{if(done)return;size+=b.length;if(size>maxOutputBytes)finish(new Error('AI agent output exceeded safety limit'));else chunks.push(b)});
   child.stderr.resume();
-  child.on('error',()=>finish(new Error(`${name} could not start; check CLI installation`)));
+  child.on('error',error=>finish(!windows&&error.code==='ENOENT'?missingCLI():new Error(`${name} could not start; check CLI installation`)));
   // Root exit precedes pipe close; reap ordinary descendants so inherited pipes can drain.
   child.on('exit',()=>{if(!done&&!windows)void terminate()});
   child.on('close',code=>{
    if(done)return;
    if(windows&&code===125)return finish(new Error('Windows CLI containment failed; check PowerShell policy and Job Object support'));
+   if(windows&&code===9009)return finish(missingCLI());
    if(code!==0)return finish(new Error(`${name} exited with code ${code}; check CLI login and model access`));
    let output=Buffer.concat(chunks).toString('utf8');
    if(name==='claude-cli'){try{const result=JSON.parse(output);if(typeof result.result==='string')output=result.result;}catch{}}

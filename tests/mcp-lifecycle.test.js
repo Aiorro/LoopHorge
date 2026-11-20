@@ -112,7 +112,9 @@ test('MCP shutdown deadline bounds a transport that does not cooperate with abor
 for(const phase of ['EOF','SIGTERM'])test(`MCP ${phase} remains bounded when a client stops reading replies`,{skip:process.platform==='win32'&&phase==='SIGTERM'},async t=>{
  const client=fixture(t);generate(client,'job','blocked');const pids=await client.pids('blocked');
  let exit;client.child.once('exit',(code,signal)=>{exit={code,signal}});client.child.stdout.pause();
- for(let id=0;id<256;id++)client.send({id,method:'tools/list'});
+ // A few hundred small replies can fit in the Windows pipe buffers.
+ // Keep stdout paused and offer several MiB so the writer really stalls.
+ for(let id=0;id<8192;id++)client.send({id,method:'tools/list'});
  await delay(150);if(phase==='EOF')client.child.stdin.end();else client.child.kill('SIGTERM');
  // EOF can be hidden while stdin is paused. The output stall timer may run
  // for 5 s before the separate 5 s shutdown deadline starts. Allow scheduler slack.

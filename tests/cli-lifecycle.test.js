@@ -18,6 +18,16 @@ test('CLI model is a single validated argument and output preserves UTF-8',async
  const output=await execPrompt('codex-cli','hello',{model:'test/model-1'});assert.match(output,/"--model","test\/model-1"/);assert.match(output,/Привет/);
  await assert.rejects(execPrompt('codex-cli','hello',{model:'bad; command'}),/model/);
 });
+test('explicit CLI generation works after a cached negative readiness check',async t=>{
+ const dir=fixture(t,"process.stdin.resume();process.stdin.on('end',()=>console.log('ready'))");
+ process.env.PATH=dir;
+ const command=path.join(dir,process.platform==='win32'?'codex.cmd':'codex');
+ fs.renameSync(command,command+'.pending');
+ const {available}=require('../src/agent-cli');
+ assert.equal(await available('codex-cli'),false);
+ fs.renameSync(command+'.pending',command);
+ assert.equal((await execPrompt('codex-cli','hello')).trim(),'ready');
+});
 for(const mode of ['abort','timeout','overflow'])test(`CLI ${mode} terminates resistant descendants`,async t=>{
  const dir=fixture(t,'');
  // The fake agent reports the descendant PID, then keeps the request open.

@@ -14,3 +14,38 @@
 .prompt-label p{font:12px/1.5 system-ui,sans-serif;color:var(--muted);margin:8px 0 0}
 /* Labels stay compact; editable values use a readable, zoomable body size. */
 select,input{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:.875rem;font-weight:400;letter-spacing:normal}
+
+/* Instrument shell and the current loop display */
+body{background:#0a0d0c}
+.shell{display:block;max-width:1180px;min-height:100vh;margin:auto;background:#181c1a;border-inline:1px solid #353c38}
+.instrument-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 22px;border-bottom:1px solid #353c38;background:#1c201e}
+.instrument-head h1{margin:0;font:750 1.55rem/1 system-ui,sans-serif;letter-spacing:-.07em}
+.instrument-head nav{display:flex;flex-wrap:wrap}
+.instrument-head .nav{border-radius:3px;border:0;padding:10px 14px}
+.workspace,.ideas-section,.editor-section,.provider-section{padding:16px 22px}
+.workspace{background:linear-gradient(#222723,#191d1a)}
+.workspace .fields{grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.command-row{display:grid;align-items:end;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;margin-top:12px}
+.command-row .prompt-label{margin:0}
+.command-row textarea{display:block;min-height:44px;width:100%;margin-top:6px;background:#101411;resize:vertical}
+.command-row button{min-height:44px}
+.engine-options{margin-top:8px;color:var(--muted);font-size:.8rem}
+.engine-options summary{width:fit-content;cursor:pointer;padding:7px 0}
+.engine-options .gen-options{padding-block:8px}
+.workspace .message{margin:4px 0 0}
+.ideas-section{padding-block:10px;background:#131715}
+.loop-field{--core-x:75%;position:relative;isolation:isolate;overflow:hidden;border-radius:6px;border:1px solid #454e43;min-height:132px;display:flex;align-items:center;background:radial-gradient(ellipse 57% 210% at var(--core-x) 58%,#151f1a 0 6%,#ebf7bf 6.2% 12%,#daed90 12.2% 20%,#accb79 20.2% 30%,#71a983 30.2% 41%,#46866f 41.2% 55%,#306451 55.2% 72%,#203d33 72.2% 91%,#14241d 91.2%)}
+.field-caption{padding:14px 24px;color:#f6f9ed;background:linear-gradient(90deg,#111b16 50%,transparent);width:50%}
+.field-caption span,.field-caption p{font:600 .74rem/1.5 ui-monospace,monospace;letter-spacing:.07em}
+.field-caption h2{font:600 clamp(1.7rem,4vw,3rem)/1.2 system-ui,sans-serif;letter-spacing:-.06em;margin:3px 0;text-transform:capitalize}
+.field-caption p{margin:0}
+.idea-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px;margin-top:8px}
+.idea-card,.idea-card.active{padding:8px;background:#202622;border:1px solid #49514b;border-radius:4px}
+.idea-card.active{background:#303a26;border-color:var(--acid)}
+.idea-number{flex-wrap:wrap;gap:3px}.idea-name{font-size:.78rem;margin:4px 0}.mini-keys{display:none}
+.editor-section{background:#101411}.editor-section .section-head{margin-bottom:8px}
+.editor-section .section-head h2,.provider-section h2{font-size:1.15rem}
+@media(max-width:760px){.instrument-head{flex-wrap:wrap}.workspace,.ideas-section,.editor-section,.provider-section{padding:12px}.workspace .fields{grid-template-columns:repeat(3,minmax(0,1fr))}.command-row{grid-template-columns:1fr auto}.command-row .prompt-label{grid-column:1/-1}.idea-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.field-caption{width:60%;padding:12px}.instrument-head .nav{padding:8px}.idea-card i{font-size:.6rem}}
+.roll-scroll{flex:1}.piano-surface{width:100%}
+.note-inspector{margin:12px 0}
+.roll{background-color:#161b18;background-image:linear-gradient(to right,#586458 1px,transparent 1px),linear-gradient(to right,#343e36 1px,transparent 1px),linear-gradient(to bottom,#2a332d 1px,transparent 1px)}

@@ -52,7 +52,7 @@ public:
    changingTempo = song.tempos.size() > 1;
   }
   const double end = double(song.endTick.value);
-  if (end > 0) for (int i=0; i<=bars && i<int(barStarts.size()); ++i) marks[size_t(i)] = double(barStarts[size_t(i)])/end;
+  if (end > 0) for (size_t i=0; i<std::min(barStarts.size(), marks.size()); ++i) marks[size_t(i)] = double(barStarts[size_t(i)])/end;
   for (int i = 0; i < tracks; ++i) {
    const auto& track = song.tracks[size_t(i)];
    if (i < lanes) names[size_t(i)] = juce::String::fromUTF8(track.name.c_str());
@@ -94,13 +94,20 @@ public:
   {
    const juce::Graphics::ScopedSaveState clipped(g);
    g.reduceClipRegion(mask);
-   g.setGradientFill(juce::ColourGradient(juce::Colour(0xff202c25), frame.getTopLeft(),
-                                         juce::Colour(0xff10171c), frame.getBottomRight(), false));
-   g.fillRect(frame);
-   g.setGradientFill(juce::ColourGradient(studio::accent.withAlpha(0.12f), {86.0f, 66.0f},
-                                         studio::accent.withAlpha(0.0f), {252.0f, 76.0f}, true));
-   g.fillRect(frame);
-   drawDial(g, {78.0f, frame.getCentreY()});
+   g.fillAll(juce::Colour(0xff101714));
+   const auto centre = juce::Point<float>(frame.getWidth()*0.81f, frame.getHeight()*0.55f);
+   const std::array<juce::uint32, 7> ink{0xff203831, 0xff2f6151, 0xff46846d, 0xff73ab80,
+                                        0xffb4ce78, 0xffd9ed91, 0xffeaf5bf};
+   for (int i=0; i<int(ink.size()); ++i) {
+    const float scale = 1.0f - float(i)*0.13f;
+    const auto band = juce::Rectangle<float>(frame.getWidth()*0.83f*scale, frame.getHeight()*2.6f*scale)
+                          .withCentre(centre.translated(-12.0f*i, 0));
+    g.setColour(juce::Colour(ink[size_t(i)]));
+    g.fillEllipse(band);
+   }
+   drawDial(g, centre.translated(-72.0f, 0));
+   g.setColour(juce::Colour(0xff101714));
+   g.fillRoundedRectangle(displayArea().expanded(7,4).toFloat(), 5.0f);
    drawTracks(g, displayArea());
   }
   g.setColour(studio::border.brighter(0.17f));
@@ -120,7 +127,7 @@ private:
  bool changingTempo = false, editable = false;
 
  juce::Rectangle<int> displayArea() const {
-  return getLocalBounds().withTrimmedLeft(151).withTrimmedRight(18).reduced(0,11);
+  return getLocalBounds().withWidth(getWidth()*55/100).reduced(15,11);
  }
 
  void clear() {

@@ -26,15 +26,20 @@ async function generate(){
 }
 function render(){renderCards();renderRoll(false,true);}
 function renderCards(){
+ const meta=current()?.metadata;
+ if(meta){
+  $('fieldIdea').textContent='IDEA '+String(selected+1).padStart(2,'0')+' / '+String(ideas.length).padStart(2,'0');
+  $('fieldKey').textContent=meta.key+' '+meta.mode;
+  $('fieldTiming').textContent=meta.bpm+' BPM   ·   '+meta.bars+' bars';
+  document.querySelector('.loop-field').style.setProperty('--core-x',(71+selected*2)+'%');
+ }
  const focused=[...el.ideas.children].indexOf(document.activeElement);el.ideas.textContent='';
  for(let i=0;i<ideas.length;i++){
   const idea=ideas[i];const card=document.createElement('button');card.type='button';card.className='idea-card'+(i===selected?' active':'');card.setAttribute('aria-pressed',String(i===selected));
-  const num=document.createElement('div');num.className='idea-number';num.textContent='DIRECTION / '+String(i+1).padStart(2,'0');
+  const num=document.createElement('div');num.className='idea-number';num.textContent='IDEA '+String(i+1).padStart(2,'0');
   const tag=document.createElement('i');tag.textContent=['ai','codex-cli','claude-cli'].includes(sources[i])?'AI ✦':'LOCAL';num.append(tag);
   const title=document.createElement('div');title.className='idea-name';title.textContent=String(idea.metadata.key)+' '+idea.metadata.mode.toUpperCase();
-  const lines=document.createElement('div');lines.className='mini-keys';
-  for(let j=0;j<36;j++){const bar=document.createElement('span');const n=idea.layers.melody[j%Math.max(1,idea.layers.melody.length)];bar.style.height=(9+(n?((n.pitch*7+j*11)%32):0))+'px';lines.append(bar)}
-  if(i===selected){const mark=document.createElement('span');mark.className='selection-mark';mark.textContent='✓';mark.setAttribute('aria-hidden','true');num.prepend(mark)}lines.setAttribute('aria-hidden','true');card.append(num,title,lines);card.addEventListener('click',()=>{cancelDrag();selected=i;selectedNote=0;stop();render();});el.ideas.append(card);if(focused===i)card.focus({preventScroll:true});
+  if(i===selected){const mark=document.createElement('span');mark.className='selection-mark';mark.textContent='✓';mark.setAttribute('aria-hidden','true');num.prepend(mark)}card.append(num,title);card.addEventListener('click',()=>{cancelDrag();selected=i;selectedNote=0;stop();render();});el.ideas.append(card);if(focused===i)card.focus({preventScroll:true});
  }
 }
 function cancelDrag(){if(drag){Object.assign(drag.note,drag.original);drag=null;}}
@@ -49,13 +54,13 @@ function updateInspector(){
 }
 function renderRoll(focusNote=false,center=false){
  const idea=current();if(!idea)return;const {top:PITCH_TOP,bottom:PITCH_BOTTOM}=pitchRange();const total=idea.metadata.bars*4;
- el.roll.style.width=(total*BEAT_WIDTH)+'px';el.roll.style.height=((PITCH_TOP-PITCH_BOTTOM+1)*ROW)+'px';el.roll.style.backgroundSize=`${4*BEAT_WIDTH}px 100%,${BEAT_WIDTH}px 100%,100% ${ROW}px`;
+ el.roll.style.minWidth=(total*BEAT_WIDTH)+'px';el.roll.style.height=((PITCH_TOP-PITCH_BOTTOM+1)*ROW)+'px';el.roll.style.backgroundSize=`${400/total}% 100%,${100/total}% 100%,100% ${ROW}px`;
  el.piano.replaceChildren();el.roll.replaceChildren();
  for(let pitch=PITCH_TOP;pitch>=PITCH_BOTTOM;pitch--){const row=document.createElement('div');row.className='piano-key'+([1,3,6,8,10].includes(pitch%12)?' black':'');row.textContent=(pitch%12===0||pitch%12===6)?noteName(pitch):'';el.piano.append(row)}
  for(const layer of ['bass','chords','melody'])$('n'+layer).textContent=idea.layers[layer].length+' NOTES';
  for(const [index,n] of idea.layers[activeLayer].entries()){
   if(n.pitch<PITCH_BOTTOM||n.pitch>PITCH_TOP)continue;const e=document.createElement('button');e.type='button';e.className='note '+activeLayer;e.dataset.index=String(index);e.setAttribute('aria-label',`${noteName(n.pitch)}, beat ${n.start}, length ${n.duration}`);e.setAttribute('aria-describedby','note-help');
-  const position=()=>{e.style.left=Math.min(total*BEAT_WIDTH-4,n.start*BEAT_WIDTH)+'px';e.style.top=((PITCH_TOP-n.pitch)*ROW+1)+'px';e.style.width=Math.max(4,Math.min(n.duration*BEAT_WIDTH-1,total*BEAT_WIDTH-parseFloat(e.style.left)))+'px';};position();
+  const position=()=>{e.style.left=`min(calc(100% - 4px), ${100*n.start/total}%)`;e.style.top=((PITCH_TOP-n.pitch)*ROW+1)+'px';e.style.width=`max(4px, calc(${100*n.duration/total}% - 1px))`;};position();
   e.addEventListener('focus',()=>{selectedNote=index;updateInspector()});
   e.addEventListener('click',()=>{selectedNote=index;updateInspector()});
   e.addEventListener('keydown',event=>{
@@ -72,18 +77,18 @@ function renderRoll(focusNote=false,center=false){
    drag={element:e,pointerId:event.pointerId,note:n,original:{...n},idea,layer:activeLayer,index,startX:event.clientX,startY:event.clientY};e.setPointerCapture(event.pointerId);
   });
   e.addEventListener('pointermove',event=>{if(!drag||drag.element!==e||drag.pointerId!==event.pointerId)return;
-   n.start=Math.max(0,Math.min(total-n.duration,drag.original.start+Math.round((event.clientX-drag.startX)/BEAT_WIDTH*4)/4));n.pitch=Math.max(0,Math.min(127,drag.original.pitch+Math.round((drag.startY-event.clientY)/ROW)));position();updateInspector();
+   n.start=Math.max(0,Math.min(total-n.duration,drag.original.start+Math.round((event.clientX-drag.startX)*total/el.roll.clientWidth*4)/4));n.pitch=Math.max(0,Math.min(127,drag.original.pitch+Math.round((drag.startY-event.clientY)/ROW)));position();updateInspector();
   });
   const finish=(event,cancel)=>{if(!drag||drag.element!==e||drag.pointerId!==event.pointerId)return;if(cancel)cancelDrag();else drag=null;renderCards();renderRoll(true);};
   e.addEventListener('pointerup',event=>finish(event,false));e.addEventListener('pointercancel',event=>finish(event,true));e.addEventListener('lostpointercapture',event=>finish(event,true));el.roll.append(e);
  }
  updateInspector();$('note-info').textContent=idea.metadata.key+' '+idea.metadata.mode.toUpperCase()+' · '+idea.metadata.bpm+' BPM · '+idea.metadata.bars+' BARS';
- const wrap=document.querySelector('.piano-wrap');if(center&&activeNotes().length){const note=activeNotes()[selectedNote]||activeNotes()[0];wrap.scrollTop=(PITCH_TOP-note.pitch)*ROW-wrap.clientHeight/2;wrap.scrollLeft=note.start*BEAT_WIDTH;}
+ const wrap=document.querySelector('.piano-wrap');if(center&&activeNotes().length){const note=activeNotes()[selectedNote]||activeNotes()[0];wrap.scrollTop=(PITCH_TOP-note.pitch)*ROW-wrap.clientHeight/2;wrap.scrollLeft=note.start*el.roll.clientWidth/total;}
  if(focusNote){const button=el.roll.querySelector(`[data-index="${selectedNote}"]`);if(button){button.focus({preventScroll:true});button.scrollIntoView({block:'nearest',inline:'nearest'});}else $('addNote').focus({preventScroll:true});}
 }
 function insertNote(start,pitch){const idea=current();if(!idea)return;const list=activeNotes();if(list.length>=800||Object.values(idea.layers).reduce((sum,notes)=>sum+notes.length,0)>=1600){message('Note limit reached. Delete a note before adding another.',true);return;}
  const end=idea.metadata.bars*4;start=Math.max(0,Math.min(end-.25,start));pitch=Math.max(0,Math.min(127,pitch));list.push({pitch,start,duration:Math.min(.75,end-start),velocity:96,layer:activeLayer});selectedNote=list.length-1;stop();renderCards();renderRoll(false,true);message('Note added. Edit its pitch and timing above the grid.');}
-function addNote(event){if(event.target!==el.roll)return;cancelDrag();const {top,bottom}=pitchRange();const rect=el.roll.getBoundingClientRect(),start=Math.round((event.clientX-rect.left)/BEAT_WIDTH*4)/4,pitch=top-Math.floor((event.clientY-rect.top)/ROW);if(start>=current().metadata.bars*4||pitch<bottom||pitch>top)return;insertNote(start,pitch);}
+function addNote(event){if(event.target!==el.roll)return;cancelDrag();const {top,bottom}=pitchRange();const rect=el.roll.getBoundingClientRect(),start=Math.round((event.clientX-rect.left)*current().metadata.bars*4/rect.width*4)/4,pitch=top-Math.floor((event.clientY-rect.top)/ROW);if(start>=current().metadata.bars*4||pitch<bottom||pitch>top)return;insertNote(start,pitch);}
 function deleteSelected(focusNote=false){cancelDrag();const idea=current(),list=activeNotes();if(!list.length)return;if(Object.values(idea.layers).reduce((sum,notes)=>sum+notes.length,0)<=1){message('Keep at least one note in the idea.',true);return;}list.splice(selectedNote,1);selectedNote=Math.min(selectedNote,list.length-1);stop();renderCards();renderRoll(focusNote);message('Note deleted.');}
 function transposeLayer(amount){cancelDrag();const idea=current();if(!idea)return;for(const n of activeNotes())n.pitch=Math.max(0,Math.min(127,n.pitch+amount));stop();renderCards();renderRoll(false,true)}
 function stop(){clearTimeout(playbackTimer);playbackTimer=null;playing=false;for(const n of activeNodes){try{n.stop()}catch{}}activeNodes=[];$('play').textContent='▶ PREVIEW';}

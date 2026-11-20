@@ -113,7 +113,8 @@ public:
   saveProject.setBounds(files);
 
   const bool composer = showComposer;
-  auto command = area.withY(71).withHeight(41);
+  const int commandWidth = juce::jmin(area.getWidth()-24, getWidth()/2+400);
+  auto command = area.withSizeKeepingCentre(commandWidth, 41).withY(71);
   play.setBounds(command.removeFromRight(106));
   command.removeFromRight(9);
   const auto composeSlot = command.removeFromRight(180);

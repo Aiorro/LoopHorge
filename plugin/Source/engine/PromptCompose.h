@@ -12,6 +12,13 @@ inline GenerationResult generateResolvedLoop(const ResolvedConfig& resolved){
     if(request.blend&&request.blend->primaryWeight>0&&request.blend->primaryWeight<100)return {{},"Blended-genre synthesis is not integrated in the loop backend"};
     for(size_t i=0;i<roleCount;++i)if(request.instruments[i]&&i!=size_t(Role::bass)&&i!=size_t(Role::chords)&&i!=size_t(Role::lead)&&i!=size_t(Role::drums))return {{},"Requested instrument role is not integrated in the loop backend"};
     if(request.instruments[size_t(Role::drums)]&&request.programs[size_t(Role::drums)])return {{},"The loop backend uses a fixed GM drum kit"};
+    // Unrecognized text may be asking for an instrument. Require an explicit
+    // track choice before generating an ambiguous request with the default set.
+    if(resolved.origins[size_t(Field::instruments)]==Origin::defaultValue){
+        for(const auto& diagnostic:resolved.diagnostics)
+            if(diagnostic.field==Field::count&&diagnostic.severity==Severity::warning)
+                return {{},diagnostic.message+". Specify a track or instrument, such as bass, piano, cello, lead or drums."};
+    }
     auto recipe=request.recipe;recipe.bars=int(bars);recipe.drums=request.instruments[size_t(Role::drums)];
     if(request.blend&&request.blend->primaryWeight==0)recipe.style=request.blend->secondary;
     auto result=generateMoodLoop(recipe,request.mood);if(!result.composition)return result;

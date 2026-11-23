@@ -2,13 +2,15 @@
 const fs=require('node:fs');
 const path=require('node:path');
 const crypto=require('node:crypto');
-const {generateEight,createMidi}=require('./core');
+const {STYLES,generateEight,createMidi}=require('./core');
 const {isLegacyMeter,normalizeOptions,validateIdea}=require('./schema');
 const {requestAI,configuration:apiConfiguration}=require('./ai');
 const {generateUsingAccountCLI,available}=require('./agent-cli');
 async function generate(params={}, {signal}={}){
  const allowed=new Set(['provider','key','mode','style','bpm','bars','model','count','seed','description','action','timeSignature']);
  if(params&&typeof params==='object'&&Object.keys(params).some(name=>!allowed.has(name)))throw new Error('Unsupported generation fields; specify loop bars explicitly');
+ if (params?.style !== undefined && (typeof params.style !== 'string' || !Object.hasOwn(STYLES, params.style)))
+   throw new Error('Unsupported style. Choose one of: '+Object.keys(STYLES).join(', '));
  const opts=normalizeOptions(params);
  if (params.timeSignature !== undefined && !isLegacyMeter(params.timeSignature))
    throw new Error('Legacy generation supports only a 4/4 time signature');

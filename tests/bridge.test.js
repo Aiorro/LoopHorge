@@ -20,6 +20,15 @@ test('v1 rejects invalid wire types and unsupported versions with stable safe er
  const oversize=await request('/api/v1/generate',{description:'x'.repeat(600000)});assert.equal(oversize.status,413);assert.equal(oversize.body.error.code,'REQUEST_TOO_LARGE');
  const recovery=await request('/api/v1/generate',{provider:'offline',count:1});assert.equal(recovery.status,200);
 });
+test('legacy generation rejects a style blend and recovers with a supported style', async t => {
+ const request = await server(t);
+ const unsupported = await request('/api/generate', {style:'trap+ambient',count:1,seed:42});
+ assert.equal(unsupported.status, 422);
+ assert.match(unsupported.body.error, /unsupported style/i);
+ const supported = await request('/api/generate', {style:'ambient',count:1,seed:42});
+ assert.equal(supported.status, 200);
+ assert.equal(supported.body.ideas[0].metadata.style, 'ambient');
+});
 test('v1 probe has a versioned result and actionable authorization diagnostics',async t=>{
  const request=await server(t);const result=await request('/api/v1/probe',{provider:'offline'});assert.equal(result.status,200);assert.equal(result.body.protocolVersion,1);assert.equal(result.body.ok,true);assert.equal(result.body.ideas,undefined);
  const key=process.env.OPENAI_API_KEY;delete process.env.OPENAI_API_KEY;t.after(()=>{if(key===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=key});

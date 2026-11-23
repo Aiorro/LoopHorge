@@ -97,7 +97,7 @@ inline std::optional<std::pair<int,Scale>> compactKey(Word word){
 inline bool negation(Word w){return w==U"no"||w==U"not"||w==U"without"||w==U"без"||w==U"не";}
 inline std::optional<std::pair<int,size_t>> instrument(const std::vector<Token>& t,size_t i){
     return lookup(t,i,{{U"bass",0},{U"бас",0},{U"басом",0},{U"баса",0},{U"chords",1},{U"аккорды",1},{U"аккордов",1},{U"piano",1},{U"пианино",1},{U"фортепиано",1},
-        {U"lead",2},{U"melody",2},{U"мелодия",2},{U"мелодии",2},{U"drums",3},{U"drum",3},{U"ударные",3},{U"ударных",3},{U"ударными",3},{U"барабаны",3},{U"барабанов",3},
+        {U"cello",2},{U"виолончель",2},{U"виолончели",2},{U"виолончелью",2},{U"lead",2},{U"melody",2},{U"мелодия",2},{U"мелодии",2},{U"drums",3},{U"drum",3},{U"ударные",3},{U"ударных",3},{U"ударными",3},{U"барабаны",3},{U"барабанов",3},
         {U"percussion",4},{U"перкуссия",4},{U"перкуссии",4},{U"countermelody",5},{U"контрмелодия",5},{U"arpeggio",6},{U"арпеджио",6},{U"pads",7},{U"pad",7},{U"пэды",7},{U"пэдами",7},{U"пады",7},{U"strings",7},{U"струнные",7},{U"harmony",8},{U"guitar",8},{U"гитара",8}});
 }
 
@@ -175,6 +175,7 @@ class Parser {
         if(roles[k]&&*roles[k]!=include)problem(Field::instruments,"An instrument is both requested and excluded",span(i,length));
         else roles[k]=include;
         if(include&&(tokens[i].text==U"piano"||tokens[i].text==U"пианино"||tokens[i].text==U"фортепиано"))programs[k]=0;
+        if(include&&(tokens[i].text==U"cello"||tokens[i].text==U"виолончель"||tokens[i].text==U"виолончели"||tokens[i].text==U"виолончелью"))programs[k]=42;
         result.recognized.push_back({Field::instruments,span(i,length),std::string(include?"include ":"exclude ")+roleName(Role(which))});
         cover(i,length);
     }
@@ -209,7 +210,7 @@ class Parser {
             cover(i);problem(Field::count,"Negation is supported for instrument names only",span(i));return;
         }
         if(auto found=instrument(tokens,i)){role(i,found->second,found->first,!instrumentExclusion);return;}
-        if(auto found=lookup(tokens,i,{{U"nu-metal",4},{U"nu metal",4},{U"numetal",4},{U"ню-метал",4},{U"ню метал",4},{U"ню-металл",4},{U"trap",0},{U"трэп",0},{U"треп",0},{U"boom-bap",1},{U"boom bap",1},{U"бум-бэп",1},{U"бум бэп",1},{U"r&b",2},{U"rnb",2},{U"r n b",2},{U"ambient",3},{U"эмбиент",3},{U"эмбиэнт",3}})){
+        if(auto found=lookup(tokens,i,{{U"nu-metal",4},{U"nu metal",4},{U"numetal",4},{U"ню-метал",4},{U"ню метал",4},{U"ню-металл",4},{U"trap",0},{U"трап",0},{U"трэп",0},{U"треп",0},{U"boom-bap",1},{U"boom bap",1},{U"бум-бэп",1},{U"бум бэп",1},{U"r&b",2},{U"rnb",2},{U"r n b",2},{U"ambient",3},{U"эмбиент",3},{U"эмбиэнт",3}})){
             size_t length=found->second;std::optional<int> weight;
             auto percent=[&](size_t at){if(used[at])return false;auto text=Word(tokens[at].text);if(text.empty()||text.back()!=U'%')return false;int64_t value=0;
                 if(!integer(text.substr(0,text.size()-1),value)||value<0||value>100)problem(Field::style,"Invalid genre percentage",span(at));else weight=int(value);cover(at);return true;};

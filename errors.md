@@ -1,6 +1,6 @@
 # LoopForge error register
 
-Updated: 2026-11-20. Historical reviews/regressions are imported from [task.md](task.md); the focused whole-project triage atb257237 is recorded in docs/audits/2026-11-15-remediation-triage.md. Historical Fixed scope is not broadened by that audit. task.md remains the sole execution checklist and priority source. This register has stable finding IDs, statuses and evidence, not competing task checkboxes.
+Updated: 2026-11-23. Historical reviews/regressions are imported from [task.md](task.md); the focused whole-project triage atb257237 is recorded in docs/audits/2026-11-15-remediation-triage.md. Historical Fixed scope is not broadened by that audit. task.md remains the sole execution checklist and priority source. This register has stable finding IDs, statuses and evidence, not competing task checkboxes.
 
 **Open:** unresolved finding/risk. **Investigating:** observed failure, cause unproven. **Blocked:** unavailable infrastructure/host/tools prevent verification. **Fixed:** regression passes only in the stated scope, not a release/DAW claim. Missing staged Composer features remain in task.md; missing-API TDD steps and fixture typos are not product defects.
 
@@ -8,9 +8,6 @@ Updated: 2026-11-20. Historical reviews/regressions are imported from [task.md](
 
 | ID | Severity | Kind | Status | Finding | Evidence / verification scope | Task |
 | --- | --- | --- | --- | --- | --- | --- |
-| ERR104 | Medium | Generation feedback | Open | An unknown instrument can leave all default instruments active. | Native prompt `4 bars cello` produced bass, chords and lead with an unrecognized-fragment warning. Recognized unsupported guitar instead returned a generation error. | T13/R02 |
-| ERR105 | Medium | Legacy API | Open | Unsupported style values silently select trap. | Legacy generation with style `trap+ambient`, seed 42, returned trap. The browser selector offers only single genres. | T13 |
-| ERR106 | Low | RU prompt | Open | The Russian spelling `трап` misses the trap genre. | Native prompt with this token produced default nu-metal and an unrecognized-fragment warning. The dictionary includes `трэп` and `треп`. | T13/R02 |
 | ERR-004 | Medium | CI failure | Investigating | Windows Node22 CLI availability returned unavailable after2222ms against a2000ms deadline. | Workflow43400295998; not reproduced on Windows here. Do not weaken tests without a proven cause. | T13/E06 |
 | ERR-006 | High | Acceptance gap | Blocked | Fresh Windows/real DAW/pluginval/OS drag and chooser acceptance is unverified. | Linux/component screenshots do not establish platform execution; see NATIVE-DAW-ACCEPTANCE.md. | T12–T15/E06 |
 | ERR-007 | High | Resource gap | Open | Whole256MiB workspace and transient memory peak are not measured. | Retained64MiB accounting excludes other jobs, JSON/UI/history/scratch. | E04/E06 |
@@ -29,6 +26,9 @@ Native evidence below is local Linux unless a row explicitly cites earlier platf
 | ID | Severity | Kind | Status | Finding / correction | Evidence / verification scope | Task |
 | --- | --- | --- | --- | --- | --- | --- |
 | ERR-005 | High | Infrastructure | Fixed | Runner jobs previously never started. | Native CI [44693860029](https://github.com/Aiorro/LoopHorge/actions/runs/44693860029) built both platforms and supplied a verified Windows x64 candidate at 22e72d9. | T07/T13/E06 |
+| ERR104 | Medium | Generation feedback | Fixed | Rule Composer recognizes cello and requires an explicit instrument selection for directions with unrecognized fragments that would use default tracks. | English/Russian requests produce one lead track with General MIDI Program Change 42. The Processor regression verifies that an unresolved request reports the fragment and preserves the previous project. | T13/R02 |
+| ERR105 | Medium | Legacy API | Fixed | Unsupported explicit genre values return a validation error. | Operations tests cover invalid types and the omitted-style default. The legacy HTTP fixture verifies 422 for `trap+ambient` and 200 with Ambient output for `ambient`. | T13 |
+| ERR106 | Low | RU prompt | Fixed | Rule Composer recognizes `трап` as Trap. | The Russian D minor prompt regression verifies the generated style and root. | T13/R02 |
 | ERR101 | Low | Browser UI | Fixed | Ideas returned by an account CLI showed the LOCAL badge reserved for offline generation. | Chromium regression checks a CLI result beside seven offline fallback ideas. | T13 |
 | ERR098 | Medium | Loop timing | Fixed | A delayed Ambient chord could extend past the requested length in browser and legacy Node generation. | Seed 6 produced a note ending at 16.05 beats. Boundary regression covers seeds 1 through 64 at both lengths. | T13 |
 | ERR099 | Medium | Request contract | Fixed | Legacy generation silently accepted a requested 3/4 meter and generated 4/4. | Shared meter validation covers legacy and v1 generation. Regression checks rejection and explicit 4/4 success. | T13 |

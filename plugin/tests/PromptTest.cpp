@@ -15,6 +15,17 @@ int main(){
     for(auto source:r.origins)check(source==Origin::defaultValue);
     auto generated=generateResolvedLoop(r);check(generated.composition&&generated.composition->endTick.value==30720);
 
+    auto unspecified=generateResolvedLoop(parse("4 bars nyckelharpa"));
+    check(!unspecified.composition&&unspecified.error.find("nyckelharpa")!=std::string::npos);
+    check(generateResolvedLoop(parse("4 bars")).composition);
+    check(generateResolvedLoop(parse("4 bars airy piano")).composition);
+    for(auto text:{"4 bars cello","4 такта виолончель"}){
+        auto result=generateResolvedLoop(parse(text));
+        check(result.composition&&result.composition->tracks.size()==1);
+        check(result.composition->tracks.front().role==Role::lead&&result.composition->tracks.front().program==42);
+    }
+    auto trap=generateResolvedLoop(parse("4 bars трап в ре минор пианино и ударные"));
+    check(trap.composition&&trap.composition->style=="trap"&&trap.composition->keys.front().root==2);
     const std::string en="Create a dark atmospheric nu-metal composition in D minor, 105 BPM, 3 minutes, with aggressive drums, heavy bass, melancholic piano, cinematic pads and an emotional chorus.";
     r=parse(en);check(r.valid());spans(r,en);
     check(r.config.recipe.root==2&&r.config.recipe.scale==Scale::naturalMinor&&r.config.recipe.style==Style::nuMetal&&r.config.recipe.bpm==105);

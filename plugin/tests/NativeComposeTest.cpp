@@ -51,6 +51,8 @@ auto owner=std::make_unique<Processor>();auto& p=*owner;
   auto actual=decodeProjectJson(saved(pinned));check(actual.project&&encodeCompositionJson(*actual.project->composition).json==encodeCompositionJson(*expected.composition).json);
   check(pinned.composerSummary().contains("energy=0 [manual]"));
   auto prior=saved(pinned);manual.values.mood.energy=101;check(pinned.requestComposer("4 bars",42,manual));idle(pinned);check(saved(pinned)==prior);
+  check(pinned.requestComposer("4 bars nyckelharpa",42));idle(pinned);
+  check(saved(pinned)==prior && pinned.getStatus().contains("nyckelharpa"));
   check(pinned.requestComposer("4 bars energy100",42));idle(pinned);check(pinned.composerSummary().contains("energy=100 [text]"));
  }
 

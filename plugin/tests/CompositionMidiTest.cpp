@@ -86,6 +86,14 @@ void auditUserDirections(){
     auto chordsFile=decode(encodeCompositionMidi(*chords.composition));
     check(notes(*pianoFile.getTrack(1))==notes(*chordsFile.getTrack(1)));
     check(!chords.composition->tracks.front().program);
+    auto cello=compose("4 bars виолончель");
+    check(cello.composition);
+    auto celloFile=decode(encodeCompositionMidi(*cello.composition));
+    check(celloFile.getNumTracks()==2);
+    bool hasCello=false;
+    for(auto* event:*celloFile.getTrack(1))
+        if(event->message.isProgramChange()&&event->message.getProgramChangeNumber()==42)hasCello=true;
+    check(hasCello&&!notes(*celloFile.getTrack(1)).empty());
     auto mixed=compose("4 bars trap70% ambient30%");
     check(!mixed.composition && mixed.error.find("Blended-genre")!=std::string::npos);
     auto endpoint=compose("4 bars trap0% ambient100%"),ambient=compose("4 bars ambient");

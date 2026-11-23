@@ -16,6 +16,8 @@ CMake fetches an exact JUCE commit. An existing JUCE checkout can be selected us
 
 ## Compose
 
+In **Rule Composer**, try `4 bars D minor trap with bass, cello and drums`. Cello selects the lead track and writes General MIDI Program Change 42 (zero-based) into the exported MIDI. The built-in synth previews the strings family. If part of a direction is unrecognized and no tracks are selected, choose the intended tracks or remove the unrecognized text and render again.
+
 Choose **offline** to generate eight native ideas without Node, credentials or network access. Select key, scale, style, bars and tempo, then click Generate. This uses the same rule-based composition approach as the browser engine; prompts are used by AI providers.
 
 For optional AI providers, run `npm start` from the repository root and keep the loopback Node service on port 4177. Choose a provider, optionally enter a concrete model ID (blank uses its default), enter a prompt and click Generate. **Test (1 idea)** performs a real generation to check connectivity, credentials and model access without replacing the current composition. This can consume cloud/CLI quota or incur charges; it is never run automatically. **Cancel request** closes the worker socket and propagates cancellation to the server and CLI process tree. HTTP authorization, model and quota errors appear in the status line without upstream response bodies. Select one of eight ideas, use the host transport, or Play in Standalone. Export MIDI writes separate bass/chords/melody tracks. Piano roll edits the active bass/chords/melody layer; other layers remain visible. See the editing walkthrough below. Audition synth is a simple sine preview, and can be disabled when routing MIDI to another instrument.

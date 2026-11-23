@@ -26,3 +26,9 @@ test('offline chord delays preserve the end of a 4- or 8-bar loop', () => {
   }
  }
 });
+
+test('explicit unsupported styles reject before generation and an absent style uses the default', async () => {
+ for (const style of ['trap+ambient', 'unknown', null, ['trap']])
+  await assert.rejects(generate({style, count:1}), /style/i);
+ assert.equal((await generate({count:1})).ideas[0].metadata.style, 'trap');
+});

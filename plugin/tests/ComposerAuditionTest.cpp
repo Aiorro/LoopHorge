@@ -4,10 +4,13 @@
 using namespace composer;
 std::string project(int channel=16,int count=1){Composition c;c.id="preview-test";c.endTick={1920};c.tempos={{{0},500000}};c.meters={{{0},4,4}};c.keys={{{0},0,Scale::naturalMinor}};Track t;t.id=1;t.name="Preview";t.channel=channel;t.role=channel==10?Role::drums:Role::bass;for(int i=0;i<count;++i)t.notes.push_back({Id(i+2),count==1?60:i,100,{0},{240}});t.controls={{1000,{120},64,127},{1001,{960},64,0}};c.tracks={t};ProjectState p;p.activeMode=ProjectMode::composer;p.composition=c;auto encoded=encodeProjectJson(p);check(encoded);return encoded.json;}
 int main(){juce::ScopedJuceInitialiser_GUI init;
- {PreviewSynth keys,bass;keys.prepare(48000);bass.prepare(48000);
-  keys.message(0xc0,0,0);bass.message(0xc0,32,0);
-  keys.message(0x90,48,100);bass.message(0x90,48,100);
-  float distance=0;for(int i=0;i<4096;++i)distance+=std::abs(keys.sample()-bass.sample());
+ for(int program:{32,42}){
+  PreviewSynth keys,instrument;
+  keys.prepare(48000);instrument.prepare(48000);
+  keys.message(0xc0,0,0);instrument.message(0xc0,uint8_t(program),0);
+  keys.message(0x90,48,100);instrument.message(0x90,48,100);
+  float distance=0;
+  for(int i=0;i<4096;++i)distance+=std::abs(keys.sample()-instrument.sample());
   check(distance>1);
  }
 

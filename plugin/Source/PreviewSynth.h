@@ -46,7 +46,7 @@ private:
  static uint8_t timbre(uint8_t program)noexcept{
   if(program>=32&&program<=39)return 1;
   if(program>=24&&program<=31)return 2;
-  if((program>=48&&program<=55)||(program>=88&&program<=103))return 3;
+  if(program==42||(program>=48&&program<=55)||(program>=88&&program<=103))return 3;
   return program>=80&&program<=87?4:0;
  }
  std::array<uint8_t,16> programs{};

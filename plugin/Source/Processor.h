@@ -152,14 +152,20 @@ public:
   const std::string_view text(static_cast<const char*>(data),size_t(size));
   try{
    auto decoded=composer::decodeProjectJson(text);
-   if(decoded.project)return restoreV2(std::move(*decoded.project),std::string(text),{},{},{},expectedRevision);
+   if(decoded.project){
+    const bool restored=restoreV2(std::move(*decoded.project),std::string(text),{},{},{},expectedRevision);
+    if(restored&&expectedRevision)notifyCommittedState();
+    return restored;
+   }
    auto value=wire::document(text);Schedule checked;
    if(!wire::integer(value["version"],1,1)||!wire::schedule(value["idea"],checked)){std::lock_guard lock(mutex);status="Restore rejected: invalid or unsupported project";return false;}
    std::string original(text);juce::var list=juce::Array<juce::var>{value["idea"]};juce::String restoredStatus="Restored composition";
    std::lock_guard lock(mutex);
    if(expectedRevision&&revision!=*expectedRevision){status="Project changed while opening file";return false;}
    if(!install(value["idea"],false,&original)){status="Restore rejected: playback storage unavailable";return false;}
-   saved=std::move(value);ideas=std::move(list);selectedIndex=0;draftRecipeJson.reset();++draftEpoch;cancelRestoredWork();status=std::move(restoredStatus);return true;
+   saved=std::move(value);ideas=std::move(list);selectedIndex=0;draftRecipeJson.reset();++draftEpoch;cancelRestoredWork();status=std::move(restoredStatus);
+   if(expectedRevision)notifyCommittedState();
+   return true;
   }catch(const std::bad_alloc&){std::lock_guard lock(mutex);status="Restore rejected: insufficient memory";return false;}
  }
  struct DraftPresentation{uint64_t epoch=0;std::optional<std::string> json;};

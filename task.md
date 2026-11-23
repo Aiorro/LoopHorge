@@ -144,3 +144,7 @@ Earlier plans, reports, rulings, audit assignments and verification history are 
 Linux Release build and CTest passed 43/43. Node tests passed 100/100. Chromium passed all five musical control and MIDI download scenarios, plus the editor and accessibility checks at four widths.
 
 **Remaining error audit, 2026-11-23.** Closed ERR-004 against the current Windows CLI CI evidence, ERR-009 for editor disk I/O, ERR-077 for Chromium MIDI downloads, and ERR094 for test timing. Linux Release CTest passed 43/43, Native Compose passed 15 repeated runs, and Node passed 100/100. Chromium musical controls and accessibility checks passed. The local memory fixture runs as `composer_overview_test --memory-baseline` or `--memory-smoke`. Peak RSS measured 16.7 MiB at startup and 21.8 MiB during the 16-bar editor, preview, edit-history and MIDI-export workflow. Keep R05 open pending Windows host measurement. ERR-006 requires real Windows DAWs, ERR-011 requires verified OS containment for session-escaping processes, and ERR096 remains blocked by the model weight endpoint's proxy response.
+
+**CI follow-up.** The Windows and Linux native jobs at ed1e544 passed. Web UI CI 45122889396 and all six Prototype CI jobs at 58b720d passed. The Windows ZIP from ed1e544 precedes the asynchronous file I/O changes.
+
+The follow-up moved the host change notification to the processor. The background open regression delivers it on the message thread with no editor present. Linux CTest passed 43/43 again.

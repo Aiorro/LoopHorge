@@ -8,7 +8,7 @@ Updated: 2026-11-23. Historical reviews/regressions are imported from [task.md](
 
 | ID | Severity | Kind | Status | Finding | Evidence / verification scope | Task |
 | --- | --- | --- | --- | --- | --- | --- |
-| ERR-006 | High | Acceptance gap | Blocked | Windows REAPER/FL Studio and real OS drag/chooser acceptance are unverified. | The workspace has no Windows DAW or pluginval. The last verified [Windows native job](https://github.com/Aiorro/LoopHorge/actions/runs/44737156690) supplies a build prior to the current patch. See NATIVE-DAW-ACCEPTANCE.md. | T12–T15/E06 |
+| ERR-006 | High | Acceptance gap | Blocked | Windows REAPER/FL Studio and real OS drag/chooser acceptance are unverified. | The workspace has no Windows DAW or pluginval. The [Windows native workflow at ed1e544](https://github.com/Aiorro/LoopHorge/actions/runs/45121708461) compiled and packaged both targets. See NATIVE-DAW-ACCEPTANCE.md. | T12–T15/E06 |
 | ERR-007 | High | Resource gap | Open | Aggregate 256 MiB target awaits Windows host measurement. | Linux editor/process smoke measured 16.7 MiB peak RSS at startup and 21.8 MiB across 16-bar generation, preview, 20 edits, Undo/Redo and MIDI export. Host and model memory were outside this run. | E04/E06 |
 | ERR-011 | Medium | Process boundary | Blocked | POSIX process-group cancellation leaves descendants that deliberately start a new session. | The existing fixture reproduced this with setsid. This Linux environment exposes a read-only cgroup mount and denies creation of a user/PID namespace. Portable containment needs OS-specific support. | T13 |
 

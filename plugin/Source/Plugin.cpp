@@ -365,7 +365,6 @@ private:
    moodControls.apply(recipe.manual);
    syncComposerDraft();
   }
-  if(result->projectOpened)processor.updateHostDisplay(juce::AudioProcessorListener::ChangeDetails{}.withNonParameterStateChanged(true));
   showDragStatus(result->status);
  }
  void chooseRecipe(bool saving){
@@ -384,7 +383,7 @@ private:
      if(loaded.error.isNotEmpty())return {loaded.error};
      auto decoded=composer::decodeRecipeJson(loaded.text);
      if(!decoded.recipe)return {juce::String(decoded.error)};
-     return {"Recipe opened - Compose to generate",false,std::move(decoded.recipe)};
+     return {"Recipe opened - Compose to generate",std::move(decoded.recipe)};
     },saving?"Saving recipe...":"Opening recipe...");
    });
   }catch(const std::bad_alloc&){fileChoosing=false;showDragStatus("Insufficient memory for recipe");}
@@ -407,7 +406,7 @@ private:
     auto loaded=projectFiles::read(file);
     if(loaded.error.isNotEmpty())return {loaded.error};
     const bool restored=owner.restoreStateInformation(loaded.text.data(),int(loaded.text.size()),revision);
-    return {restored?"Project opened":owner.getStatus(),restored};
+    return {restored?"Project opened":owner.getStatus()};
    },saving?"Saving project...":"Opening project...");
   });
   }catch(const std::bad_alloc&){fileChoosing=false;showDragStatus("Insufficient memory to choose a project file");}

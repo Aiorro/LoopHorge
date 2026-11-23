@@ -11,6 +11,14 @@
 #endif
 #define check(x) do{if(!(x)){std::cerr<<"line "<<__LINE__<<": " #x "\n";std::abort();}}while(false)
 using namespace composer;
+struct ProjectLoadListener : juce::AudioProcessorListener {
+ int changes=0;
+ void audioProcessorParameterChanged(juce::AudioProcessor*,int,float) override {}
+ void audioProcessorChanged(juce::AudioProcessor*,const ChangeDetails& details) override {
+  check(juce::MessageManager::getInstance()->isThisTheMessageThread());
+  if(details.nonParameterStateChanged)++changes;
+ }
+};
 Composition fixture(){
  Composition c;c.id="overview";c.seed=4294967295;c.style="ambient";c.source="native";c.endTick={3840};
  c.tempos={{{0},500000},{{1920},400000}};c.meters={{{0},4,4},{{1920},3,4}};c.keys={{{0},0,Scale::major},{{1920},2,Scale::naturalMinor}};
@@ -124,7 +132,7 @@ int main(int argc,char** argv){
   auto fileData=projectFiles::read(file);
   if(fileData.error.isNotEmpty())return projectFiles::JobResult{fileData.error};
   const auto restored=p.restoreStateInformation(fileData.text.data(),int(fileData.text.size()),beforeRead);
-  return projectFiles::JobResult{p.getStatus(),restored};
+  return projectFiles::JobResult{restored?"Opened":p.getStatus()};
  }));
  check(worker.busy()&&!worker.take());
  check(!worker.start([]{return projectFiles::JobResult{};}));
@@ -135,10 +143,26 @@ int main(int argc,char** argv){
  std::optional<projectFiles::JobResult> result;
  const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(5);
  while(!(result=worker.take())&&std::chrono::steady_clock::now()<deadline)juce::Thread::sleep(1);
- check(result && !result->projectOpened && result->status.contains("Project changed"));
+ check(result && result->status.contains("Project changed"));
  check(!worker.busy()&&saved(p)==newerJson);
  check(Processor::encodeStateForSave(std::move(capturedForSave))==json);
- check(p.restoreStateInformation(json.data(),int(json.size())));
+ ProjectLoadListener listener;
+ static_cast<juce::AudioProcessor&>(p).addListener(&listener);
+ const auto currentRevision=p.compositionRevision();
+ check(worker.start([&p,&json,currentRevision] {
+  check(p.restoreStateInformation(json.data(),int(json.size()),currentRevision));
+  return projectFiles::JobResult{"Opened"};
+ }));
+ result.reset();
+ const auto loadedDeadline=std::chrono::steady_clock::now()+std::chrono::seconds(5);
+ while(!(result=worker.take())&&std::chrono::steady_clock::now()<loadedDeadline)juce::Thread::sleep(1);
+ check(result&&result->status=="Opened");
+ juce::Timer::callAfterDelay(100,[&]{
+  check(listener.changes==1);
+  juce::MessageManager::getInstance()->stopDispatchLoop();
+ });
+ juce::MessageManager::getInstance()->runDispatchLoop();
+ static_cast<juce::AudioProcessor&>(p).removeListener(&listener);
  std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());auto* vp=viewport(*editor);check(vp&&dynamic_cast<ComposerOverview*>(vp->getViewedComponent()));check(vp->getViewedComponent()->getWidth()==vp->getMaximumVisibleWidth());
  check(vp->getViewedComponent()->keyPressed(juce::KeyPress(juce::KeyPress::endKey)));check(vp->getViewPositionY()>0);check(vp->getViewedComponent()->keyPressed(juce::KeyPress(juce::KeyPress::homeKey)));check(vp->getViewPositionY()==0&&saved(p)==json);
  auto text=details(*vp->getViewedComponent());check(text.contains("Трек 16")&&text.contains("channel 16")&&text.contains("drums")&&text.contains("3/4")&&text.contains("natural minor")&&text.contains("Финал"));

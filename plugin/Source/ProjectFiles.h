@@ -40,7 +40,6 @@ inline juce::String write(const juce::File& file,std::string_view text){
 
 struct JobResult {
  juce::String status;
- bool projectOpened=false;
  std::optional<composer::GenerationRecipe> recipe;
 };
 

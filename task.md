@@ -148,3 +148,5 @@ Linux Release build and CTest passed 43/43. Node tests passed 100/100. Chromium 
 **CI follow-up.** The Windows and Linux native jobs at ed1e544 passed. Web UI CI 45122889396 and all six Prototype CI jobs at 58b720d passed. The Windows ZIP from ed1e544 precedes the asynchronous file I/O changes.
 
 The follow-up moved the host change notification to the processor. The background open regression delivers it on the message thread with no editor present. Linux CTest passed 43/43 again.
+
+**Alpha.5 test candidate, 2026-11-23.** Prepared release notes for source d3df8ee. Native CI 45123203349 passed Windows 40/40 and Linux 43/43. Prototype CI 45123203384 passed all six jobs. Independently verified Windows PE x64 binaries, 29 payload hashes, source TAR commit IDs, and candidate ZIP SHA256 `3feaa279c5d25384d28378da614174b9a73a6f86f6c84e339b1bac6a8eab3e77`. The Windows handoff includes that original ZIP, its checksum, the new alpha.5 notes and a separately verified D minor 16-bar Type-1 MIDI example. Release notes and test build links are in [alpha.5 notes](docs/releases/0.2.0-alpha.5.md). The Windows clean-install and actual DAW checks remain open.

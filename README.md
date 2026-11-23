@@ -96,7 +96,7 @@ npm test
 npm run sample
 ```
 
-Output demo: `samples/loopforge-demo.mid`.
+The sample command writes MIDI and JSON to `samples/generated/`. The checked-in MIDI that matches the current generator is also available in [sample variants](samples/variants/loopforge-demo-qwen.mid).
 
 ## Browser prototype limitations (v0.1)
 

@@ -8,6 +8,7 @@ node_modules/
 .DS_Store
 Thumbs.db
 /build/
+/samples/generated/
 
 # Native candidate output; keep generated binaries out of source control.
 /dist/

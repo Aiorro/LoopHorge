@@ -28,7 +28,7 @@ async function generate(params = {}, {signal} = {}) {
   const model = params.model === '' ? undefined : params.model;
   if (model !== undefined && !isValidModelName(model)) throw new Error('Invalid model name');
   const provider = String(params.provider || 'offline');
-  const count = Math.max(1, Math.min(MAX_COUNT, Math.round(Number(params.count) || 8)));
+  const count = Math.max(1, Math.min(MAX_COUNT, Math.round(Number(params.count) || MAX_COUNT)));
 
   if (provider === 'codex-cli' || provider === 'claude-cli') {
     return await generateUsingAccountCLI(provider, opts, {count, description: params.description, signal, model});

@@ -7,3 +7,8 @@ Imported unchanged during main consolidation on2026-11-17, at the user's request
 - variants/loopforge-demo-qwen.mid:a9b5c7ba76c8d377d2d289818e8b134429734b73d4e2021c9691190e9ca6237c; Qwen worktree variant,992bytes.
 
 Both MIDI files have valid SMF container lengths. No existing sample was overwritten or regenerated. Build outputs/credentials are not sample assets.
+
+## Current generator output
+
+Run `npm run sample` to write the current MIDI and JSON under `samples/generated/`.
+The generated MIDI matches [the Qwen variant](variants/loopforge-demo-qwen.mid) byte for byte. The generated JSON matches [the preserved JSON](loopforge-demo.json).

@@ -23,9 +23,8 @@ const STATIC_FILES = new Set([
 const BRIDGE_ENDPOINTS = new Set(['/api/v1/generate', '/api/v1/probe']);
 const BRIDGE_VERSION_PREFIX = '/api/v1/';
 
-function localHosts() {
-  return ['127.0.0.1:' + PORT, 'localhost:' + PORT];
-}
+const LOCAL_HOSTS = [`${HOST}:${PORT}`, `localhost:${PORT}`];
+const LOCAL_ORIGINS = LOCAL_HOSTS.map(host => `http://${host}`);
 
 function json(res, status, body) {
   const text = JSON.stringify(body);
@@ -129,10 +128,10 @@ async function listener(req, res) {
     json(res, status, versioned ? {protocolVersion: 1, error: {code, message}} : {error: message});
   try {
     const host = String(req.headers.host || '');
-    if (!localHosts().includes(host)) return fail(403, 'FORBIDDEN', 'Local host required');
+    if (!LOCAL_HOSTS.includes(host)) return fail(403, 'FORBIDDEN', 'Local host required');
     if (req.method === 'POST') {
       const origin = req.headers.origin;
-      if (origin && !['http://127.0.0.1:' + PORT, 'http://localhost:' + PORT].includes(origin)) {
+      if (origin && !LOCAL_ORIGINS.includes(origin)) {
         return fail(403, 'FORBIDDEN', 'Cross-origin requests are forbidden');
       }
       if (!String(req.headers['content-type'] || '').startsWith('application/json')) {

@@ -1,7 +1,16 @@
 'use strict';
 const {ROOTS,SCALES,STYLES} = require('./core');
 const MAX_NOTES = 1600;
+const MAX_LAYER_NOTES = 800;
 const LAYERS=['bass','chords','melody'];
+
+// Provider model names are accepted from user input; the same predicate is
+// used by operations.js (reject invalid) and ai.js (fall back to default).
+const MODEL_NAME_PATTERN = /^[-\w.\/:]+$/;
+const MAX_MODEL_NAME_LENGTH = 100;
+function isValidModelName(model){
+  return typeof model==='string' && model.length<=MAX_MODEL_NAME_LENGTH && MODEL_NAME_PATTERN.test(model);
+}
 function num(value, fallback){const n=Number(value);return Number.isFinite(n)?n:fallback;}
 function clamp(x,lo,hi){return Math.min(hi,Math.max(lo,x));}
 function isLegacyMeter(value) {
@@ -27,7 +36,7 @@ function validateIdea(raw, opts){
   for(const layer of LAYERS){
     const notes=raw.layers[layer];
     if(!Array.isArray(notes)) throw new Error(`Missing ${layer} notes`);
-    if(notes.length>800)throw new Error(`Too many ${layer} notes`);
+    if(notes.length>MAX_LAYER_NOTES)throw new Error(`Too many ${layer} notes`);
     for(const n of notes){
       if(!n||typeof n!=='object')throw new Error('Invalid note');
       const pitch=Number(n.pitch),start=Number(n.start),duration=Number(n.duration),velocity=Number(n.velocity);
@@ -60,4 +69,4 @@ function normalizeResponse(value,opts,count=8){
  if(!ideas.length)throw new Error('Model output has no ideas');
  return ideas.slice(0,count).map(x=>validateIdea(x,opts));
 }
-module.exports={isLegacyMeter,normalizeOptions,validateIdea,normalizeResponse,LAYERS};
+module.exports={normalizeOptions,validateIdea,normalizeResponse,LAYERS,isValidModelName,isLegacyMeter};

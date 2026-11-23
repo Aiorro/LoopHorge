@@ -4,6 +4,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const os=require('node:os');
 const {prompt,completeIdeas}=require('./ai');
+const {isValidModelName}=require('./schema');
 const SPECS={
  'codex-cli': {bin:'codex',args:['exec','--ephemeral','--sandbox','read-only','--skip-git-repo-check','-']},
  'claude-cli': {bin:'claude',args:['-p','--output-format','json','--max-turns','1','--permission-mode','plan']}
@@ -43,7 +44,7 @@ function available(name){
 async function execPrompt(name,input,{signal,model,timeoutMs=120000,maxOutputBytes=5_000_000}={}){
  if(signal?.aborted)throw new Error('Generation cancelled');
  const spec=SPECS[name];if(!spec)throw new Error('Unknown account CLI');
- if(model!==undefined&&(typeof model!=='string'||model.length>100||!/^[-\w.\/:]+$/.test(model)))throw new Error('Invalid model name');
+ if(model!==undefined&&!isValidModelName(model))throw new Error('Invalid model name');
  // A readiness probe is advisory. Launch the requested CLI directly so a slow
  // locator or stale status cache cannot reject an installed provider.
  const missingCLI=()=>new Error(`${spec.bin} CLI not found. Install it and sign in on this computer.`);

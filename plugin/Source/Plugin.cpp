@@ -256,7 +256,7 @@ private:
  static constexpr auto defaultDirection = "8 bars D minor 105 bpm, dark atmospheric nu-metal with bass, chords and lead";
  bool busyLayout = false, showComposer = false, showDetails = false, showIdeaSettings = false;
  juce::TextButton loopDetails, ideaSettings;
- Processor& processor;ComposerMoodControls moodControls;juce::TextButton moodSettings;juce::TextButton openRecipe,saveRecipe;bool showMood=false,showEdit=false,applyingDraft=false;juce::TextButton noteView;juce::StringArray trackKeys;uint64_t draftEpoch=UINT64_MAX;std::string renderedDraftJson;ComposerMidiExport composerMidiExport;bool fileChoosing=false;PianoRoll roll;ComposerOverview overview;uint64_t viewRevision=UINT64_MAX;MidiDragSource dragMidi;juce::String dragStatus;juce::uint32 dragStatusUntil=0;juce::Viewport viewport;juce::ComboBox layer;juce::TextButton quantize,undo,redo,addNote,deleteNote;juce::Label seedLabel,title,status,help,promptLabel,providerLabel,keyLabel,scaleLabel,styleLabel,barsLabel,tempoLabel,modelLabel;juce::TextEditor prompt,model,seed,composerNotice;juce::ComboBox provider,key,scale,style,bars,variation;juce::Slider bpm;juce::TextButton mode,compose,generate,play,exportButton,testConnection,cancel,openProject,saveProject;juce::ToggleButton sound;std::unique_ptr<juce::FileChooser> chooser;
+ Processor& processor;ComposerMoodControls moodControls;juce::TextButton moodSettings;juce::TextButton openRecipe,saveRecipe;bool showMood=false,showEdit=false,applyingDraft=false;juce::TextButton noteView;juce::StringArray trackKeys;uint64_t draftEpoch=UINT64_MAX;std::string renderedDraftJson;ComposerMidiExport composerMidiExport;projectFiles::Worker fileWorker;bool fileChoosing=false;PianoRoll roll;ComposerOverview overview;uint64_t viewRevision=UINT64_MAX;MidiDragSource dragMidi;juce::String dragStatus;juce::uint32 dragStatusUntil=0;juce::Viewport viewport;juce::ComboBox layer;juce::TextButton quantize,undo,redo,addNote,deleteNote;juce::Label seedLabel,title,status,help,promptLabel,providerLabel,keyLabel,scaleLabel,styleLabel,barsLabel,tempoLabel,modelLabel;juce::TextEditor prompt,model,seed,composerNotice;juce::ComboBox provider,key,scale,style,bars,variation;juce::Slider bpm;juce::TextButton mode,compose,generate,play,exportButton,testConnection,cancel,openProject,saveProject;juce::ToggleButton sound;std::unique_ptr<juce::FileChooser> chooser;
  void refreshComposerDraft(){
   if(auto state=processor.composerDraft(draftEpoch)){
    draftEpoch=state->epoch;juce::ScopedValueSetter<bool> guard(applyingDraft,true);
@@ -350,8 +350,26 @@ private:
      safe->showDragStatus("Region unavailable. Select bars again.");
    });
  }
+ template<class Work>
+ void runFileJob(Work work,const juce::String& pending){
+  const bool started=fileWorker.start(std::move(work));
+  showDragStatus(started?pending:juce::String("Cannot start file operation"));
+ }
+ void pollFileJob(){
+  auto result=fileWorker.take();
+  if(!result)return;
+  if(result->recipe){
+   const auto& recipe=*result->recipe;
+   prompt.setText(juce::String::fromUTF8(recipe.direction.data(),int(recipe.direction.size())),false);
+   seed.setText(juce::String(recipe.seed),false);
+   moodControls.apply(recipe.manual);
+   syncComposerDraft();
+  }
+  if(result->projectOpened)processor.updateHostDisplay(juce::AudioProcessorListener::ChangeDetails{}.withNonParameterStateChanged(true));
+  showDragStatus(result->status);
+ }
  void chooseRecipe(bool saving){
-  if(fileChoosing)return;
+  if(fileChoosing||fileWorker.busy())return;
   try{
    auto bytes=std::make_shared<std::string>();
    if(saving){const auto text=seed.getText().toStdString();uint32_t value=0;auto parsed=std::from_chars(text.data(),text.data()+text.size(),value);if(text.empty()||parsed.ec!=std::errc{}||parsed.ptr!=text.data()+text.size()){showDragStatus("Recipe seed must be an unsigned32bit integer");return;}
@@ -360,28 +378,43 @@ private:
    chooser=std::make_unique<juce::FileChooser>(saving?"Save Composer recipe":"Open Composer recipe",juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("loopforge-recipe.json"),"*.json");
    fileChoosing=true;chooser->launchAsync((saving?juce::FileBrowserComponent::saveMode|juce::FileBrowserComponent::warnAboutOverwriting:juce::FileBrowserComponent::openMode)|juce::FileBrowserComponent::canSelectFiles,[safe=juce::Component::SafePointer<Editor>(this),saving,bytes](const juce::FileChooser& fc){
     if(!safe)return;safe->fileChoosing=false;if(fc.getResult()==juce::File{})return;
-    try{if(saving){auto error=projectFiles::replaceChecked(fc.getResult(),*bytes);safe->showDragStatus(error.isEmpty()?"Recipe saved":error);return;}
-     auto file=projectFiles::read(fc.getResult(),32768);if(file.error.isNotEmpty()){safe->showDragStatus(file.error);return;}auto decoded=composer::decodeRecipeJson(file.text);if(!decoded.recipe){safe->showDragStatus(juce::String(decoded.error));return;}
-     safe->prompt.setText(juce::String::fromUTF8(decoded.recipe->direction.data(),int(decoded.recipe->direction.size())),false);safe->seed.setText(juce::String(decoded.recipe->seed),false);safe->moodControls.apply(decoded.recipe->manual);safe->syncComposerDraft();safe->showDragStatus("Recipe opened - Compose to generate; current notes unchanged");
-    }catch(const std::bad_alloc&){safe->showDragStatus("Insufficient memory for recipe");}
+    safe->runFileJob([saving,bytes,file=fc.getResult()]() -> projectFiles::JobResult {
+     if(saving){auto error=projectFiles::replaceChecked(file,*bytes);return {error.isEmpty()?"Recipe saved":error};}
+     auto loaded=projectFiles::read(file,32768);
+     if(loaded.error.isNotEmpty())return {loaded.error};
+     auto decoded=composer::decodeRecipeJson(loaded.text);
+     if(!decoded.recipe)return {juce::String(decoded.error)};
+     return {"Recipe opened - Compose to generate",false,std::move(decoded.recipe)};
+    },saving?"Saving recipe...":"Opening recipe...");
    });
   }catch(const std::bad_alloc&){fileChoosing=false;showDragStatus("Insufficient memory for recipe");}
  }
  void chooseProject(bool saving){
-  if(fileChoosing)return;
+  if(fileChoosing||fileWorker.busy())return;
   try{
-  auto captured=std::make_shared<juce::MemoryBlock>();if(saving)processor.getStateInformation(*captured);
+  auto captured=std::make_shared<Processor::StateForSave>();if(saving)*captured=processor.captureStateForSave();
   chooser=std::make_unique<juce::FileChooser>(saving?"Save LoopForge project":"Open LoopForge project",juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("loopforge-project.json"),"*.json");
   const int flags=saving?(juce::FileBrowserComponent::saveMode|juce::FileBrowserComponent::canSelectFiles|juce::FileBrowserComponent::warnAboutOverwriting):(juce::FileBrowserComponent::openMode|juce::FileBrowserComponent::canSelectFiles);
   fileChoosing=true;chooser->launchAsync(flags,[safe=juce::Component::SafePointer<Editor>(this),saving,captured](const juce::FileChooser& fc){
    if(!safe)return;safe->fileChoosing=false;if(fc.getResult()==juce::File{})return;
-   if(saving){auto error=projectFiles::write(fc.getResult(),{static_cast<const char*>(captured->getData()),captured->getSize()});safe->showDragStatus(error.isEmpty()?"Project saved":error);}
-   else{auto file=projectFiles::read(fc.getResult());if(file.error.isNotEmpty()){safe->showDragStatus(file.error);return;}const bool restored=safe->processor.restoreStateInformation(file.text.data(),int(file.text.size()));if(restored)safe->processor.updateHostDisplay(juce::AudioProcessorListener::ChangeDetails{}.withNonParameterStateChanged(true));safe->showDragStatus(restored?"Project opened":safe->processor.getStatus());safe->timerCallback();}
+   auto& owner=safe->processor;
+   safe->runFileJob([saving,captured,file=fc.getResult(),&owner,revision=owner.compositionRevision()]() -> projectFiles::JobResult {
+    if(saving){
+     const auto bytes=Processor::encodeStateForSave(std::move(*captured));
+     const auto error=projectFiles::write(file,bytes);
+     return {error.isEmpty()?"Project saved":error};
+    }
+    auto loaded=projectFiles::read(file);
+    if(loaded.error.isNotEmpty())return {loaded.error};
+    const bool restored=owner.restoreStateInformation(loaded.text.data(),int(loaded.text.size()),revision);
+    return {restored?"Project opened":owner.getStatus(),restored};
+   },saving?"Saving project...":"Opening project...");
   });
   }catch(const std::bad_alloc&){fileChoosing=false;showDragStatus("Insufficient memory to choose a project file");}
  }
  void timerCallback() override {
   if(juce::Time::getMillisecondCounter()-modelCheckedAt>=2000)refreshModelChoice();
+  pollFileJob();
   refreshComposerDraft();
   pollComposerMidi();
   refreshPresentation();
@@ -463,7 +496,7 @@ private:
   dragMidi.setEnabled(count > 0);
   variation.setEnabled(count > 0);
   quantize.setEnabled(editing && (!legacy || count > 0));
-  exportButton.setEnabled((!legacy || count > 0) && !composerMidiExport.busy() && !fileChoosing);
+  exportButton.setEnabled((!legacy || count > 0) && !composerMidiExport.busy() && !fileChoosing && !fileWorker.busy());
   addNote.setEnabled(editing && (!legacy || count > 0));
   if (count != variation.getNumItems()) {
    variation.clear();
@@ -481,20 +514,22 @@ private:
   }
  }
  void pollComposerMidi(){
-  if(fileChoosing)return;auto result=composerMidiExport.takeResult();if(!result)return;
+  if(fileChoosing||fileWorker.busy())return;auto result=composerMidiExport.takeResult();if(!result)return;
   if(!*result){showDragStatus(juce::String(result->error));return;}
   try{
    auto bytes=std::make_shared<const std::vector<uint8_t>>(std::move(result->bytes));
    chooser=std::make_unique<juce::FileChooser>("Export Composer MIDI",juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("loopforge.mid"),"*.mid");
    fileChoosing=true;chooser->launchAsync(juce::FileBrowserComponent::saveMode|juce::FileBrowserComponent::canSelectFiles|juce::FileBrowserComponent::warnAboutOverwriting,[safe=juce::Component::SafePointer<Editor>(this),bytes](const juce::FileChooser& fc){
     if(!safe)return;safe->fileChoosing=false;if(fc.getResult()==juce::File{})return;
-    try{const auto error=projectFiles::replaceChecked(fc.getResult(),{reinterpret_cast<const char*>(bytes->data()),bytes->size()});safe->showDragStatus(error.isEmpty()?"MIDI exported":error);}
-    catch(const std::bad_alloc&){safe->showDragStatus("Insufficient memory to save MIDI");}
+    safe->runFileJob([file=fc.getResult(),bytes]() -> projectFiles::JobResult {
+     const auto error=projectFiles::replaceChecked(file,{reinterpret_cast<const char*>(bytes->data()),bytes->size()});
+     return {error.isEmpty()?"MIDI exported":error};
+    },"Saving MIDI...");
    });
   }catch(const std::bad_alloc&){fileChoosing=false;showDragStatus("Insufficient memory for MIDI export");}
  }
  void exportMidi(){
-  if(fileChoosing||composerMidiExport.busy())return;
+  if(fileChoosing||fileWorker.busy()||composerMidiExport.busy())return;
   try{auto captured=processor.presentation(UINT64_MAX);if(captured&&captured->composer){
     if(composerMidiExport.request(std::move(captured->json))){exportButton.setEnabled(false);showDragStatus("Preparing Composer MIDI...");}
     else showDragStatus("Cannot start MIDI export");return;
@@ -503,8 +538,12 @@ private:
   try{auto idea=processor.getIdea();if(!idea.isObject()){status.setText("Generate an idea before export",juce::dontSendNotification);return;}
   chooser=std::make_unique<juce::FileChooser>("Export MIDI",juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("loopforge.mid"),"*.mid");
   fileChoosing=true;chooser->launchAsync(juce::FileBrowserComponent::saveMode|juce::FileBrowserComponent::canSelectFiles|juce::FileBrowserComponent::warnAboutOverwriting,[safe=juce::Component::SafePointer<Editor>(this),idea](const juce::FileChooser& fc){if(!safe)return;safe->fileChoosing=false;if(fc.getResult()==juce::File{})return;
-   try{auto bytes=encodeMidi(idea);bool ok=bytes.getSize()>0&&projectFiles::replaceChecked(fc.getResult(),{static_cast<const char*>(bytes.getData()),bytes.getSize()}).isEmpty();safe->status.setText(ok?"MIDI exported":"MIDI export failed",juce::dontSendNotification);}
-   catch(const std::bad_alloc&){safe->showDragStatus("Insufficient memory to save MIDI");}
+   safe->runFileJob([file=fc.getResult(),idea]() -> projectFiles::JobResult {
+    auto bytes=encodeMidi(idea);
+    if(bytes.getSize()==0)return {"MIDI export failed"};
+    const auto error=projectFiles::replaceChecked(file,{static_cast<const char*>(bytes.getData()),bytes.getSize()});
+    return {error.isEmpty()?"MIDI exported":error};
+   },"Saving MIDI...");
   });
   }catch(const std::bad_alloc&){fileChoosing=false;showDragStatus("Insufficient memory for MIDI export");}
  }

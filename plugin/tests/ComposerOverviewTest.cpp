@@ -1,5 +1,6 @@
 #include "../Source/Processor.h"
 #include "../Source/ComposerOverview.h"
+#include "../Source/ComposerMidiExport.h"
 #include "../Source/ProjectFiles.h"
 #include "../Source/MidiExport.h"
 #include <iostream>
@@ -44,12 +45,65 @@ void sameModeReflow(){
   juce::Timer::callAfterDelay(260,[&]{check(view->getHeight()==view->requiredHeight()&&vp->getViewPositionY()==std::max(0,view->requiredHeight()-vp->getMaximumVisibleHeight())&&view->getWidth()==vp->getMaximumVisibleWidth());juce::MessageManager::getInstance()->stopDispatchLoop();});
  });juce::MessageManager::getInstance()->runDispatchLoop();
 }
+void workspaceMemorySmoke(bool exercise){
+ auto processor=std::make_unique<Processor>();
+ std::unique_ptr<juce::AudioProcessorEditor> editor(processor->createEditor());
+ if(!exercise)return;
+ check(processor->requestComposer("16 bars ambient bass chords lead drums",42));
+ const auto ready=std::chrono::steady_clock::now()+std::chrono::seconds(5);
+ while(processor->busy&&std::chrono::steady_clock::now()<ready)juce::Thread::sleep(1);
+ check(!processor->busy&&processor->isComposerMode());
+ auto projectState=decodeProjectJson(saved(*processor));
+ check(projectState.project&&projectState.project->composition);
+ const auto& song=*projectState.project->composition;
+ check(song.endTick.value==30720&&song.tracks.size()==4);
+ const auto track=song.tracks.front().id;
+ auto note=song.tracks.front().notes.front();
+ for(int edit=0;edit<20;++edit){
+  note.velocity=note.velocity==80?81:80;
+  check(processor->editComposerNote(processor->compositionRevision(),track,note.id,note));
+ }
+ check(processor->undoEdit()&&processor->redoEdit());
+ processor->prepareToPlay(48000,64);
+ processor->play=true;
+ juce::AudioBuffer<float> output(2,64);
+ juce::MidiBuffer midi;
+ midi.ensureSize(32768);
+ float peak=0;
+ for(int block=0;block<128;++block){
+  processor->processBlock(output,midi);
+  peak=std::max(peak,output.getMagnitude(0,output.getNumSamples()));
+ }
+ check(peak>0);
+ processor->play=false;
+ processor->processBlock(output,midi);
+ ComposerMidiExport exportWorker;
+ check(exportWorker.request(saved(*processor)));
+ juce::Timer::callAfterDelay(250,[&]{
+  auto* overview=dynamic_cast<ComposerOverview*>(viewport(*editor)->getViewedComponent());
+  check(overview&&overview->getDescription().contains("4 tracks"));
+  check(editor->createComponentSnapshot(editor->getLocalBounds()).isValid());
+  juce::MessageManager::getInstance()->stopDispatchLoop();
+ });
+ juce::MessageManager::getInstance()->runDispatchLoop();
+ std::optional<MidiResult> result;
+ const auto exported=std::chrono::steady_clock::now()+std::chrono::seconds(5);
+ while(!(result=exportWorker.takeResult())&&std::chrono::steady_clock::now()<exported)juce::Thread::sleep(1);
+ check(result&&*result);
+ auto midiFile=juce::File::createTempFile(".mid");
+ check(projectFiles::replaceChecked(midiFile,{reinterpret_cast<const char*>(result->bytes.data()),result->bytes.size()}).isEmpty());
+ check(midiFile.deleteFile());
+}
 int main(int argc,char** argv){
 #if JUCE_LINUX
  if(argc>1&&std::string_view(argv[1])=="--write-failure")return writeFailureCase();
 #endif
 
- juce::ScopedJuceInitialiser_GUI init;if(argc>1&&std::string_view(argv[1])=="--reflow"){sameModeReflow();return 0;}auto owner=std::make_unique<Processor>();auto& p=*owner;
+ juce::ScopedJuceInitialiser_GUI init;
+ if(argc>1&&(std::string_view(argv[1])=="--memory-baseline"||std::string_view(argv[1])=="--memory-smoke")){
+  workspaceMemorySmoke(std::string_view(argv[1])=="--memory-smoke");return 0;
+ }
+ if(argc>1&&std::string_view(argv[1])=="--reflow"){sameModeReflow();return 0;}auto owner=std::make_unique<Processor>();auto& p=*owner;
  auto first=p.presentation(UINT64_MAX);check(first&&!first->composer&&!first->hasState&&first->json.empty());check(!p.presentation(first->revision));
  auto c=fixture();const auto json=project(c);check(p.restoreStateInformation(json.data(),int(json.size())));auto next=p.presentation(first->revision);check(next&&next->composer&&next->hasState&&next->json==json);check(!p.presentation(next->revision));
  check(!p.restoreStateInformation("{}",2)&&saved(p)==json);check(!p.presentation(next->revision));
@@ -58,6 +112,32 @@ int main(int argc,char** argv){
  check(projectFiles::write(file,"{}").isNotEmpty()&&file.loadFileAsString().toStdString()==json);check(projectFiles::read(root.getChildFile("absent.json")).error.isNotEmpty());
  auto oversized=root.getChildFile("large.json");{juce::FileOutputStream out(oversized);check(out.openedOk()&&out.setPosition(32*1024*1024));check(out.writeByte(' '));}check(projectFiles::read(oversized).error.isNotEmpty());
  check(projectFiles::write(root,json).isNotEmpty());auto broken=root.getChildFile("broken.json");check(broken.replaceWithText("{\"version\":2"));loaded=projectFiles::read(broken);check(loaded.error.isEmpty()&&!p.restoreStateInformation(loaded.text.data(),int(loaded.text.size()))&&saved(p)==json);
+ check(p.restoreStateInformation(json.data(),int(json.size())));
+ // Simulate a slow disk read held across a newer project commit.
+ projectFiles::Worker worker;
+ std::promise<void> release;
+ auto gate=release.get_future().share();
+ const auto beforeRead=p.compositionRevision();
+ auto capturedForSave=p.captureStateForSave();
+ check(worker.start([&p,file,beforeRead,gate] {
+  gate.wait();
+  auto fileData=projectFiles::read(file);
+  if(fileData.error.isNotEmpty())return projectFiles::JobResult{fileData.error};
+  const auto restored=p.restoreStateInformation(fileData.text.data(),int(fileData.text.size()),beforeRead);
+  return projectFiles::JobResult{p.getStatus(),restored};
+ }));
+ check(worker.busy()&&!worker.take());
+ check(!worker.start([]{return projectFiles::JobResult{};}));
+ auto newer=c;newer.seed=100;
+ const auto newerJson=project(newer);
+ check(p.restoreStateInformation(newerJson.data(),int(newerJson.size())));
+ release.set_value();
+ std::optional<projectFiles::JobResult> result;
+ const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(5);
+ while(!(result=worker.take())&&std::chrono::steady_clock::now()<deadline)juce::Thread::sleep(1);
+ check(result && !result->projectOpened && result->status.contains("Project changed"));
+ check(!worker.busy()&&saved(p)==newerJson);
+ check(Processor::encodeStateForSave(std::move(capturedForSave))==json);
  check(p.restoreStateInformation(json.data(),int(json.size())));
  std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());auto* vp=viewport(*editor);check(vp&&dynamic_cast<ComposerOverview*>(vp->getViewedComponent()));check(vp->getViewedComponent()->getWidth()==vp->getMaximumVisibleWidth());
  check(vp->getViewedComponent()->keyPressed(juce::KeyPress(juce::KeyPress::endKey)));check(vp->getViewPositionY()>0);check(vp->getViewedComponent()->keyPressed(juce::KeyPress(juce::KeyPress::homeKey)));check(vp->getViewPositionY()==0&&saved(p)==json);

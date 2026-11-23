@@ -1,9 +1,9 @@
 name: Web UI
 on:
   push:
-    paths: ['web/**', 'src/**', 'scripts/verify-web-ui.cjs', '.github/workflows/web-ui.yml']
+    paths: ['web/**', 'src/**', 'scripts/verify-web-ui.cjs', 'scripts/verify-musical-controls.cjs', '.github/workflows/web-ui.yml']
   pull_request:
-    paths: ['web/**', 'src/**', 'scripts/verify-web-ui.cjs', '.github/workflows/web-ui.yml']
+    paths: ['web/**', 'src/**', 'scripts/verify-web-ui.cjs', 'scripts/verify-musical-controls.cjs', '.github/workflows/web-ui.yml']
   workflow_dispatch:
 concurrency:
   group: web-ui-${{ github.event_name }}-${{ github.ref }}
@@ -25,6 +25,7 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/ui-tools/node_modules
           LOOPFORGE_PORT: 4180
+          LOOPFORGE_UI_URL: http://127.0.0.1:4180
           LOOPFORGE_AXE: '1'
           LOOPFORGE_UI_SCREENSHOTS: ${{ runner.temp }}/web-ui-artifacts
         run: |
@@ -36,6 +37,7 @@ jobs:
             sleep 1
           done
           node scripts/verify-web-ui.cjs
+          node scripts/verify-musical-controls.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

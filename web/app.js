@@ -106,11 +106,14 @@ function preview(){if(playing){stop();return}const idea=current();if(!idea)retur
  }
  playbackTimer=setTimeout(()=>{if(playing)stop()},Math.ceil((idea.metadata.bars*4*secondsPerBeat+0.3)*1000));
 }
-async function download(){const idea=current();if(!idea)return;try{
+async function download(){const idea=current();if(!idea)return;
+ const filename=`LoopForge_${idea.metadata.key}_${idea.metadata.mode}_${idea.metadata.bpm}bpm_${selected+1}.mid`;
+ try{
  const res=await fetch('/api/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idea})});
  if(!res.ok)throw Error((await res.json()).error||'Export failed');
- const blob=await res.blob();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`LoopForge_${idea.metadata.key}_${idea.metadata.mode}_${idea.metadata.bpm}bpm_${selected+1}.mid`;
- a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);message('Exported standard multi-track MIDI. Drag into your DAW.');
+ const blob=await res.blob();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;
+ a.hidden=true;document.body.append(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),1000);message('Exported standard multi-track MIDI. Drag into your DAW.');
  }catch(e){message('Export failed: '+e.message,true)}
 }
 async function statuses(){try{

@@ -90,7 +90,17 @@ auto owner=std::make_unique<Processor>();auto& p=*owner;
  check(cancelled>0);
  for(int i=0;i<20;++i){check(p.requestComposer("16 bars ambient bass chords lead drums",uint32_t(i)));check(p.restoreStateInformation(legacy.data(),int(legacy.size())));idle(p);check(saved(p)==legacy);}
  check(p.requestComposer(direction,42));idle(p);check(p.selectMode(ProjectMode::legacy));
- for(int i=0;i<20;++i){check(p.requestComposer("16 bars ambient bass chords lead drums",uint32_t(i)));auto snapshot=p.snapshot();check(p.edit(snapshot.revision,"bass",0,39+i%2,0,4));auto edited=saved(p);idle(p);check(saved(p)==edited);}
+ for(int i=0;i<20;++i){
+  const auto snapshot=p.snapshot();
+  check(p.requestComposer("16 bars ambient bass chords lead drums",uint32_t(i)));
+  if(p.edit(snapshot.revision,"bass",0,39+i%2,0,4)){
+   const auto edited=saved(p);idle(p);check(saved(p)==edited);
+  }else{
+   // A publication that wins before the edit must invalidate the captured revision.
+   idle(p);check(p.isComposerMode()&&p.compositionRevision()!=snapshot.revision);
+   check(p.selectMode(ProjectMode::legacy));
+  }
+ }
  check(p.requestComposer(direction,42));idle(p);for(int i=0;i<20;++i){check(p.requestComposer("16 bars ambient bass chords lead drums",uint32_t(i)));check(p.selectMode(ProjectMode::legacy));auto selected=saved(p);idle(p);check(saved(p)==selected);check(p.selectMode(ProjectMode::composer));}
  std::cout<<"Native direction/seed, preservation, mode, MIDI, cancellation and stale-result checks passed\n";
 }
